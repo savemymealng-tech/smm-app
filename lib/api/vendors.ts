@@ -1,266 +1,116 @@
-import type { Vendor } from '../../types'
+/**
+ * Vendors API Service
+ * Handles public vendor endpoints
+ */
 
-export const mockVendors: Vendor[] = [
-  {
-    id: 'vendor-pizza-palace',
-    name: 'Pizza Palace',
-    description:
-      'Authentic Italian-style pizzas with fresh ingredients. Family-owned since 1995.',
-    logo: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=2669&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.8,
-    reviewCount: 1245,
-    deliveryTime: 30,
-    deliveryFee: 3.99,
-    minOrder: 10,
-    cuisine: ['Italian', 'Pizza'],
-    address: '123 Main St, Downtown',
-    latitude: 40.7128,
-    longitude: -74.006,
-    isOpen: true,
-    isVerified: true,
-    featured: true,
-  },
-  {
-    id: 'vendor-burger-king',
-    name: 'Burger King',
-    description: 'Flame-grilled burgers, crispy fries, and all your favorite fast-food classics.',
-    logo: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=2672&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=2799&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.5,
-    reviewCount: 892,
-    deliveryTime: 25,
-    deliveryFee: 2.99,
-    minOrder: 8,
-    cuisine: ['Fast Food', 'Burgers', 'American'],
-    address: '456 Oak Ave, Midtown',
-    latitude: 40.758,
-    longitude: -73.9855,
-    isOpen: true,
-    isVerified: true,
-    featured: true,
-  },
-  {
-    id: 'vendor-sushi-co',
-    name: 'Sushi & Co',
-    description: 'Premium Japanese cuisine. Fresh sushi, sashimi, and traditional dishes.',
-    logo: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?q=80&w=2748&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.9,
-    reviewCount: 756,
-    deliveryTime: 35,
-    deliveryFee: 4.99,
-    minOrder: 15,
-    cuisine: ['Japanese', 'Sushi', 'Asian'],
-    address: '789 Broadway, Chinatown',
-    latitude: 40.7155,
-    longitude: -73.9995,
-    isOpen: true,
-    isVerified: true,
-    featured: true,
-  },
-  {
-    id: 'vendor-taco-bell',
-    name: 'Taco Bell',
-    description: 'Mexican-inspired fast food. Tacos, burritos, and nachos.',
-    logo: 'https://images.unsplash.com/photo-1552332386-f8dd00dc2f85?q=80&w=2662&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1599974579688-8dbdd335c77f?q=80&w=2862&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.3,
-    reviewCount: 1103,
-    deliveryTime: 20,
-    deliveryFee: 2.49,
-    minOrder: 6,
-    cuisine: ['Mexican', 'Fast Food'],
-    address: '321 Park Ave, Uptown',
-    latitude: 40.785,
-    longitude: -73.9675,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-thai-delight',
-    name: 'Thai Delight',
-    description: 'Authentic Thai cuisine with bold flavors. Pad Thai, curries, and more.',
-    logo: 'https://images.unsplash.com/photo-1552611052-33e04de081de?q=80&w=2864&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1628428798224-25332e707848?q=80&w=2630&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.7,
-    reviewCount: 623,
-    deliveryTime: 40,
-    deliveryFee: 3.49,
-    minOrder: 12,
-    cuisine: ['Thai', 'Asian'],
-    address: '654 Queen St, Little Asia',
-    latitude: 40.7285,
-    longitude: -73.9945,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-green-bowl',
-    name: 'Green Bowl',
-    description: 'Healthy bowls, salads, and smoothies. Fresh ingredients, every day.',
-    logo: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1490645935967-10de6ba17021?q=80&w=2653&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.6,
-    reviewCount: 445,
-    deliveryTime: 25,
-    deliveryFee: 2.99,
-    minOrder: 10,
-    cuisine: ['Healthy', 'Salad', 'Vegan'],
-    address: '987 Wellness Blvd, Health District',
-    latitude: 40.7505,
-    longitude: -73.9935,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-sweet-treats',
-    name: 'Sweet Treats',
-    description: 'Artisan desserts and pastries. Cakes, cookies, ice cream, and more.',
-    logo: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=2864&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.9,
-    reviewCount: 834,
-    deliveryTime: 30,
-    deliveryFee: 3.99,
-    minOrder: 8,
-    cuisine: ['Desserts', 'Bakery'],
-    address: '147 Sugar Lane, Sweet Quarter',
-    latitude: 40.7385,
-    longitude: -73.9995,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-bbq-shack',
-    name: 'BBQ Shack',
-    description: 'Slow-smoked BBQ meats. Ribs, brisket, pulled pork, and all the fixings.',
-    logo: 'https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?q=80&w=2535&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1604467795328-3f74ce41625c?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.8,
-    reviewCount: 567,
-    deliveryTime: 45,
-    deliveryFee: 4.99,
-    minOrder: 15,
-    cuisine: ['BBQ', 'American', 'Meat'],
-    address: '258 Smoke St, BBQ District',
-    latitude: 40.7655,
-    longitude: -73.9785,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-breakfast-club',
-    name: 'The Breakfast Club',
-    description: 'All-day breakfast. Pancakes, waffles, omelettes, and classic brunch favorites.',
-    logo: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1538964173425-93884d739596?q=80&w=2704&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.7,
-    reviewCount: 1012,
-    deliveryTime: 30,
-    deliveryFee: 2.99,
-    minOrder: 8,
-    cuisine: ['Breakfast', 'Brunch', 'American'],
-    address: '369 Morning Ave, Sunrise Square',
-    latitude: 40.712,
-    longitude: -74.011,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-wing-zone',
-    name: 'Wing Zone',
-    description: 'Bone-in and boneless wings in 20+ flavors. Hot, mild, sweet, tangy - you name it.',
-    logo: 'https://images.unsplash.com/photo-1582106245687-cbb464a7a1df?q=80&w=2669&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1624322394503-51824a73223a?q=80&w=2664&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.5,
-    reviewCount: 890,
-    deliveryTime: 35,
-    deliveryFee: 3.49,
-    minOrder: 12,
-    cuisine: ['Wings', 'American', 'Fast Food'],
-    address: '741 Hot Wing Blvd, Spice Town',
-    latitude: 40.7755,
-    longitude: -73.986,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-sub-way',
-    name: 'Sub Way',
-    description: 'Fresh subs, wraps, and salads. Make it your way with endless toppings.',
-    logo: 'https://images.unsplash.com/photo-1539694723143-37f2a884b2b3?q=80&w=2834&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1592491244341-a17393964149?q=80&w=2669&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.4,
-    reviewCount: 1123,
-    deliveryTime: 25,
-    deliveryFee: 2.99,
-    minOrder: 8,
-    cuisine: ['Sandwiches', 'Subs', 'Healthy'],
-    address: '852 Sandwich St, Food Court',
-    latitude: 40.745,
-    longitude: -73.985,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-pasta-house',
-    name: 'Pasta House',
-    description: 'Classic Italian pasta dishes. Fresh pasta, homemade sauces, authentic flavors.',
-    logo: 'https://images.unsplash.com/photo-1621996346565-e326e22e3920?q=80&w=2672&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1589227365533-ced6b6a44951?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.6,
-    reviewCount: 678,
-    deliveryTime: 40,
-    deliveryFee: 3.99,
-    minOrder: 12,
-    cuisine: ['Italian', 'Pasta'],
-    address: '963 Noodle Way, Little Italy',
-    latitude: 40.719,
-    longitude: -74.002,
-    isOpen: true,
-    isVerified: true,
-    featured: false,
-  },
-  {
-    id: 'vendor-seafood-lovers',
-    name: 'Seafood Lovers',
-    description: 'Fresh catches daily. Lobster, shrimp, salmon, and more.',
-    logo: 'https://images.unsplash.com/photo-1559738220-d3a36a9cad2c?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    coverImage:
-      'https://images.unsplash.com/photo-1615148529904-7489b33a465c?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    rating: 4.8,
-    reviewCount: 522,
-    deliveryTime: 35,
-    deliveryFee: 4.49,
-    minOrder: 18,
-    cuisine: ['Seafood', 'Fish'],
-    address: '159 Ocean Drive, Harbor District',
-    latitude: 40.7105,
-    longitude: -74.0135,
-    isOpen: false,
-    isVerified: true,
-    featured: false,
-  },
-]
+import apiClient, { extractData, ApiResponse } from './client';
+import { API_CONFIG } from './config';
+import type { Vendor, Product } from '../../types';
 
+export interface GetVendorsParams {
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+  category?: string;
+  min_rating?: number;
+  is_open?: boolean;
+  featured?: boolean;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export const vendorsApi = {
+  /**
+   * Get all vendors with optional filters
+   */
+  async getVendors(params?: GetVendorsParams): Promise<{
+    vendors: Vendor[];
+    pagination?: ApiResponse['pagination'];
+  }> {
+    try {
+      // Clean up params - remove undefined values
+      const cleanParams = params ? Object.fromEntries(
+        Object.entries(params).filter(([_, value]) => value !== undefined)
+      ) : undefined;
+
+      const url = API_CONFIG.ENDPOINTS.VENDORS.LIST;
+      const fullUrl = `${API_CONFIG.BASE_URL}${url}`;
+
+      console.log('Making request to:', fullUrl);
+      console.log('API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
+      console.log('Endpoint:', url);
+      console.log('Params:', cleanParams);
+
+      const response = await apiClient.get<ApiResponse<{
+        vendors: Vendor[];
+        pagination?: ApiResponse['pagination'];
+      }>>(url, cleanParams ? { params: cleanParams } : undefined);
+
+      console.log('Response received:', response.status, response.statusText);
+      console.log('Response data:', response.data);
+
+      const data = extractData(response);
+      return {
+        vendors: data.vendors || [],
+        pagination: data.pagination,
+      };
+    } catch (error: any) {
+      console.error('Error in getVendors:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error response:', error?.response);
+      console.error('Error config:', error?.config);
+      throw error;
+    }
+  },
+
+  /**
+   * Get vendor by ID
+   */
+  async getVendorById(id: string): Promise<Vendor> {
+    const response = await apiClient.get<ApiResponse<Vendor>>(
+      API_CONFIG.ENDPOINTS.VENDORS.BY_ID(id)
+    );
+    return extractData(response);
+  },
+
+  /**
+   * Get vendors by city
+   */
+  async getVendorsByCity(city: string): Promise<Vendor[]> {
+    const response = await apiClient.get<ApiResponse<Vendor[]>>(
+      API_CONFIG.ENDPOINTS.VENDORS.BY_CITY,
+      { params: { city } }
+    );
+    const data = extractData(response);
+    return Array.isArray(data) ? data : [];
+  },
+
+  /**
+   * Get products by vendor ID
+   */
+  async getVendorProducts(vendorId: string, params?: {
+    category?: string;
+    available_only?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    products: Product[];
+    pagination?: ApiResponse['pagination'];
+  }> {
+    const response = await apiClient.get<ApiResponse<{
+      products: Product[];
+      pagination?: ApiResponse['pagination'];
+    }>>(API_CONFIG.ENDPOINTS.VENDORS.PRODUCTS(vendorId), { params });
+
+    const data = extractData(response);
+    return {
+      products: data.products || [],
+      pagination: data.pagination,
+    };
+  },
+};

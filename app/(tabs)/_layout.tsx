@@ -1,28 +1,57 @@
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import React, { useMemo } from 'react';
+import { useAtomValue } from 'jotai';
 import { useAtom } from 'jotai';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { persistCartAtom } from '@/lib/atoms';
+import { authAtom } from '@/lib/atoms/auth';
+import { Platform, View, ActivityIndicator } from 'react-native';
+import { Text } from '@/components/ui/text';
 
 export default function TabLayout() {
   const [cart] = useAtom(persistCartAtom);
+  const authState = useAtomValue(authAtom);
 
   const cartItemCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
+  // Show loading while checking auth state
+  if (authState.isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color={Colors.light.tint} />
+        <Text className="text-gray-500 mt-4">Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.light.tint,
+        tabBarInactiveTintColor: "#5f6368",
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: '#e0e0e0',
+          // height: 70,
+          borderTopWidth: 0,
+          elevation: 10,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          paddingBottom: Platform.OS === 'android' ? 10 : 0,
+          backgroundColor: "#ffffff",
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "500",
+          marginBottom: Platform.OS === 'android' ? 10 : 0
+
         },
       }}>
       <Tabs.Screen
@@ -52,6 +81,15 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // Check if user is authenticated before allowing tab navigation
+            if (!authState.isAuthenticated) {
+              e.preventDefault();
+              router.push('/login');
+            }
+          },
         }}
       />
     </Tabs>

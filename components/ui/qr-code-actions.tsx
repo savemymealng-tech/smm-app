@@ -101,8 +101,8 @@ export function QRCodeActions({
           className="flex-1"
         >
           <View className="flex-row items-center">
-            <Icon name="share-outline" size={16} color="#2563eb" />
-            <Text className="text-blue-600 font-medium ml-2">Share</Text>
+            <Icon name="share-outline" size={16} color="#15785B" />
+            <Text className="text-primary font-medium ml-2">Share</Text>
           </View>
         </Button>
 
@@ -112,8 +112,8 @@ export function QRCodeActions({
           className="flex-1"
         >
           <View className="flex-row items-center">
-            <Icon name="download-outline" size={16} color="#2563eb" />
-            <Text className="text-blue-600 font-medium ml-2">Save</Text>
+            <Icon name="download-outline" size={16} color="#15785B" />
+            <Text className="text-primary font-medium ml-2">Save</Text>
           </View>
         </Button>
       </View>

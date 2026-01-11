@@ -73,58 +73,58 @@ const Input = forwardRef<TextInput, InputProps>(({
   // Radius classes
   const radiusClasses = {
     none: 'rounded-none',
-    sm: 'rounded-sm',
-    md: 'rounded-md',
-    lg: 'rounded-lg',
+    sm: 'rounded-lg',
+    md: 'rounded-xl',
+    lg: 'rounded-2xl',
     full: 'rounded-full',
   };
 
   // Color classes
   const colorClasses = {
     default: {
-      base: 'bg-gray-50',
+      base: 'bg-white',
       border: isInvalid ? 'border-red-500' : isFocused ? 'border-blue-500' : 'border-gray-200',
       text: 'text-gray-900',
-      placeholder: 'placeholder:text-gray-500',
+      placeholder: 'placeholder:text-gray-400',
     },
     primary: {
       base: 'bg-blue-50',
-      border: isInvalid ? 'border-red-500' : isFocused ? 'border-blue-500' : 'border-blue-200',
+      border: isInvalid ? 'border-red-500' : isFocused ? 'border-blue-600' : 'border-blue-100',
       text: 'text-blue-900',
-      placeholder: 'placeholder:text-blue-500',
+      placeholder: 'placeholder:text-blue-400',
     },
     secondary: {
       base: 'bg-gray-50',
-      border: isInvalid ? 'border-red-500' : isFocused ? 'border-gray-500' : 'border-gray-200',
+      border: isInvalid ? 'border-red-500' : isFocused ? 'border-gray-500' : 'border-gray-100',
       text: 'text-gray-900',
-      placeholder: 'placeholder:text-gray-500',
+      placeholder: 'placeholder:text-gray-400',
     },
     success: {
       base: 'bg-green-50',
-      border: isInvalid ? 'border-red-500' : isFocused ? 'border-green-500' : 'border-green-200',
+      border: isInvalid ? 'border-red-500' : isFocused ? 'border-green-500' : 'border-green-100',
       text: 'text-green-900',
-      placeholder: 'placeholder:text-green-500',
+      placeholder: 'placeholder:text-green-400',
     },
     warning: {
       base: 'bg-yellow-50',
-      border: isInvalid ? 'border-red-500' : isFocused ? 'border-yellow-500' : 'border-yellow-200',
+      border: isInvalid ? 'border-red-500' : isFocused ? 'border-yellow-500' : 'border-yellow-100',
       text: 'text-yellow-900',
-      placeholder: 'placeholder:text-yellow-500',
+      placeholder: 'placeholder:text-yellow-400',
     },
     danger: {
       base: 'bg-red-50',
       border: 'border-red-500',
       text: 'text-red-900',
-      placeholder: 'placeholder:text-red-500',
+      placeholder: 'placeholder:text-red-400',
     },
   };
 
   // Variant classes
   const variantClasses = {
-    flat: 'border-0 shadow-sm',
-    bordered: 'border-2',
-    faded: 'border-0 bg-default-100',
-    underlined: 'border-0 border-b-2 rounded-none',
+    flat: 'border-0 bg-gray-50 shadow-none',
+    bordered: 'border',
+    faded: 'border-0 bg-gray-100 shadow-none',
+    underlined: 'border-0 border-b-2 rounded-none bg-transparent',
   };
 
   const currentColor = colorClasses[color];

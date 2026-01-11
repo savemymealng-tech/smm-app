@@ -87,7 +87,7 @@ export default function OrderDetailScreen() {
         </View>
         
         <Pressable onPress={() => router.push(`/vendor/${order.vendor.name}`)}>
-          <Text className="text-blue-600 font-medium">Reorder</Text>
+          <Text className="text-primary font-medium">Reorder</Text>
         </Pressable>
       </View>
 

@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCategories } from "@/lib/hooks/use-categories";
 import { useSearch } from "@/lib/hooks/use-search";
 import type { Filter, SortOption } from "../../types";
+import { Colors } from "@/constants/theme";
 
 export default function ExploreScreen() {
   const params = useLocalSearchParams<{
@@ -85,7 +86,7 @@ export default function ExploreScreen() {
   }, [selectedCategory, minRating]);
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-white">
       <Header
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
@@ -97,13 +98,15 @@ export default function ExploreScreen() {
       />
 
       {showFilters && (
-        <FilterPanel
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-          minRating={minRating}
-          onRatingChange={setMinRating}
-          categories={categories}
-        />
+        <View className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+          <FilterPanel
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            minRating={minRating}
+            onRatingChange={setMinRating}
+            categories={categories}
+          />
+        </View>
       )}
 
       {isLoading && !searchResults ? (
@@ -116,11 +119,17 @@ export default function ExploreScreen() {
         <ScrollView
           className="flex-1"
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor={Colors.light.tint}
+            />
           }
           showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
         >
           <VendorsSection vendors={vendors} />
+            <View className="h-4 bg-gray-50 my-2" />
           <ProductsSection products={products} />
 
           {!isLoading && totalResults === 0 && (

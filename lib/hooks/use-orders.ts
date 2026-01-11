@@ -1,17 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/mockClient'
+import { api } from '../api'
 import { useAtom } from 'jotai'
 import { persistCartAtom } from '../atoms/cart'
-import type { Order } from '../../../types'
+import type { Order } from '../../types'
+import type { PlaceOrderRequest } from '../api'
 
-export function useOrders() {
-  const queryClient = useQueryClient()
-
+export function useOrders(params?: { status?: string; page?: number; limit?: number }) {
   return useQuery({
-    queryKey: ['orders'],
+    queryKey: ['orders', params],
     queryFn: async () => {
-      const response = await api.getOrders('user-1')
-      return response.data
+      const result = await api.orders.getOrderHistory(params)
+      return result.orders
     },
     staleTime: 2 * 60 * 1000,
   })
@@ -21,8 +20,7 @@ export function useOrder(id: string) {
   return useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
-      const response = await api.getOrderById(id)
-      return response.data
+      return await api.orders.trackOrder(id)
     },
     enabled: !!id,
     staleTime: 1 * 60 * 1000,
@@ -31,16 +29,29 @@ export function useOrder(id: string) {
 
 export function useCreateOrder() {
   const queryClient = useQueryClient()
-  const [, clearCart] = useAtom(persistCartAtom)
+  const [, setCart] = useAtom(persistCartAtom)
 
   return useMutation({
-    mutationFn: async (order: Partial<Order>) => {
-      const response = await api.createOrder(order)
-      return response.data
+    mutationFn: async (orderData: PlaceOrderRequest) => {
+      return await api.orders.placeOrder(orderData)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
-      clearCart([])
+      // Clear local cart after successful order
+      setCart([])
+    },
+  })
+}
+
+export function useCancelOrder() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      return await api.orders.cancelOrder(orderId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
   })
 }
