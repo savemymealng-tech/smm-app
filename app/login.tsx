@@ -111,7 +111,7 @@ export default function LoginScreen() {
             Welcome Back
           </Text>
           <Text className="text-gray-500 text-center">
-            Sign in to continue to Good Food
+            Sign in to continue to Savemymeal
           </Text>
         </View>
 

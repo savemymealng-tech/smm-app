@@ -153,7 +153,7 @@ export default function ProfileScreen() {
           </Button>
           <View className="items-center">
             <Text className="text-gray-400 text-[10px] uppercase tracking-[2px] font-bold">
-              Good Food v1.0.0
+              Savemymeal v1.0.0
             </Text>
           </View>
         </View>
