@@ -266,7 +266,7 @@ export default function OrdersScreen() {
                 key={key}
                 onPress={() => setSelectedStatus(key as any)}
                 className={`px-4 py-2 rounded-full ${
-                  selectedStatus === key ? "bg-blue-600" : "bg-gray-100"
+                  selectedStatus === key ? "bg-primary" : "bg-gray-100"
                 }`}
               >
                 <Text

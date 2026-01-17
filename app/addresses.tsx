@@ -125,7 +125,7 @@ export default function AddressesScreen() {
           <Text className="text-xl font-bold">Delivery Addresses</Text>
         </View>
         <Pressable onPress={handleAddAddress}>
-          <IconSymbol name="plus" size={24} color="#3b82f6" />
+          <IconSymbol name="plus" size={24} color="#15785B" />
         </Pressable>
       </View>
 
@@ -135,8 +135,8 @@ export default function AddressesScreen() {
             <View key={address.id} className="bg-white rounded-xl p-4 mb-3 shadow-sm">
               <View className="flex-row items-start justify-between mb-2">
                 <View className="flex-row items-center flex-1">
-                  <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center mr-3">
-                    <IconSymbol name={getAddressIcon(address.type)} size={20} color="#3b82f6" />
+                  <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
+                    <IconSymbol name={getAddressIcon(address.type)} size={20} color="#15785B" />
                   </View>
                   <View className="flex-1">
                     <View className="flex-row items-center">
@@ -214,11 +214,11 @@ export default function AddressesScreen() {
                 key={type}
                 onPress={() => setFormData({ ...formData, type })}
                 className={`flex-1 mr-2 p-3 rounded-lg border ${
-                  formData.type === type ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                  formData.type === type ? 'border-primary bg-primary/10' : 'border-gray-200'
                 }`}>
                 <View className="items-center">
-                  <IconSymbol name={getAddressIcon(type)} size={24} color={formData.type === type ? "#3b82f6" : "#666"} />
-                  <Text className={`mt-1 capitalize ${formData.type === type ? 'text-blue-600 font-semibold' : 'text-gray-600'}`}>
+                  <IconSymbol name={getAddressIcon(type)} size={24} color={formData.type === type ? "#15785B" : "#666"} />
+                  <Text className={`mt-1 capitalize ${formData.type === type ? 'text-primary font-semibold' : 'text-gray-600'}`}>
                     {type}
                   </Text>
                 </View>

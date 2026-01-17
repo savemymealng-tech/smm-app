@@ -18,7 +18,7 @@ export function CartEmptyState({ onBackToExplore }: CartEmptyStateProps) {
       >
         <NativeOnlyAnimatedView
           entering={FadeInDown.delay(300).springify()}
-          style={{margin:'auto'}}
+          style={{ margin: "auto" }}
           className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center mb-6 shadow-lg mx-auto"
         >
           <IconSymbol name="cart" size={48} color="#9ca3af" />
@@ -29,14 +29,6 @@ export function CartEmptyState({ onBackToExplore }: CartEmptyStateProps) {
         <Text className="text-gray-600 text-center mb-8 text-base">
           Add some delicious meals to get started!
         </Text>
-        <Button
-          onPress={onBackToExplore}
-          className="px-8 py-4 rounded-xl shadow-md"
-        >
-          <Text className="text-white font-semibold text-base">
-            Browse Meals
-          </Text>
-        </Button>
       </NativeOnlyAnimatedView>
     </View>
   );

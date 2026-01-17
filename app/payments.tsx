@@ -248,11 +248,11 @@ export default function PaymentsScreen() {
             <Pressable
               onPress={() => setSelectedPaymentType('card')}
               className={`flex-1 mr-2 p-4 rounded-lg border ${
-                selectedPaymentType === 'card' ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                selectedPaymentType === 'card' ? 'border-primary bg-primary/10' : 'border-gray-200'
               }`}>
               <View className="items-center">
-                <IconSymbol name="creditcard.fill" size={32} color={selectedPaymentType === 'card' ? "#3b82f6" : "#666"} />
-                <Text className={`mt-2 font-medium ${selectedPaymentType === 'card' ? 'text-blue-600' : 'text-gray-600'}`}>
+                <IconSymbol name="creditcard.fill" size={32} color={selectedPaymentType === 'card' ? "#15785B" : "#666"} />
+                <Text className={`mt-2 font-medium ${selectedPaymentType === 'card' ? 'text-primary' : 'text-gray-600'}`}>
                   Credit Card
                 </Text>
               </View>

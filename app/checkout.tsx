@@ -145,7 +145,7 @@ export default function CheckoutScreen() {
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-lg font-semibold">Delivery Address</Text>
             <Pressable onPress={() => router.push("/addresses")}>
-              <Text className="text-blue-600">Change</Text>
+              <Text className="text-primary">Change</Text>
             </Pressable>
           </View>
 
@@ -178,7 +178,7 @@ export default function CheckoutScreen() {
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-lg font-semibold">Payment Method</Text>
             <Pressable onPress={() => router.push("/payments")}>
-              <Text className="text-blue-600">Change</Text>
+              <Text className="text-primary">Change</Text>
             </Pressable>
           </View>
 
@@ -228,7 +228,7 @@ export default function CheckoutScreen() {
         {/* Estimated Delivery Time */}
         <View className="bg-white p-4 mb-6">
           <View className="flex-row items-center">
-            <IconSymbol name="clock.fill" size={20} color="#3b82f6" />
+            <IconSymbol name="clock.fill" size={20} color="#15785B" />
             <View className="ml-3">
               <Text className="font-semibold">Estimated Delivery</Text>
               <Text className="text-gray-600">25-35 minutes</Text>

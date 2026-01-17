@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Good Food",
+    "name": "Savemymeal",
     "slug": "good-meal",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "goodfood",
+    "icon": "./assets/adaptive-icon.png",
+    "scheme": "Savemymeal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -15,7 +15,7 @@
         "NSFaceIDUsageDescription": "Allow Face ID to quickly and securely log into your account.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.goodfood.app"
+      "bundleIdentifier": "com.Savemymeal.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +33,7 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "package": "com.goodfood.app"
+      "package": "com.Savemymeal.app"
     },
     "web": {
       "output": "static",
@@ -56,19 +56,15 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Good Food to use your location for nearby vendors and delivery."
+          "locationAlwaysAndWhenInUsePermission": "Allow Savemymeal to use your location for nearby vendors and delivery."
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": ""
         }
       ]
-      // [
-      //   "expo-notifications",
-      //   {
-      //     "icon": "./assets/images/icon.png",
-      //     "color": "#0a7ea4",
-      //     "sounds": [
-      //       "./assets/notification.wav"
-      //     ]
-      //   }
-      // ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -119,7 +119,7 @@ export function AddToCartButton({
         onPress={handleAddToCart}
         disabled={isAdding}
         className={`rounded-xl py-4 items-center justify-center ${
-          isAdding ? "bg-green-600" : "bg-blue-600"
+          isAdding ? "bg-green-600" : "bg-primary"
         }`}
       >
         {isAdding ? (

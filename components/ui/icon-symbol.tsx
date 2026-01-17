@@ -41,6 +41,7 @@ const MAPPING: IconMapping = {
   calendar: "calendar-today",
   "clock.fill": "access-time",
   "tag.fill": "local-offer",
+  "square.grid.2x2": "grid-view",
 };
 
 /**

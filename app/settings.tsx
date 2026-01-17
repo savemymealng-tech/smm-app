@@ -182,6 +182,17 @@ export default function SettingsScreen() {
           label: 'Share App',
           onPress: () => Alert.alert('Share App', 'Share with friends: Download FoodApp for the best food delivery!'),
           showArrow: true
+        },
+        {
+          icon: 'building.2.fill',
+          label: 'Become a Partner',
+          onPress: () => {
+            // Open web partner page
+            const webUrl = 'https://yourwebsite.com/vendor'; // Replace with actual web URL
+            // In a real app, you'd use Linking.openURL(webUrl)
+            Alert.alert('Become a Partner', `Visit our website to become a partner: ${webUrl}`);
+          },
+          showArrow: true
         }
       ]
     },
@@ -200,39 +211,46 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View className="px-4 py-3 bg-white border-b border-gray-200">
-        <View className="flex-row items-center">
-          <Pressable onPress={() => router.back()} className="mr-3">
-            <IconSymbol name="arrow.left" size={24} color="#000" />
-          </Pressable>
-          <Text className="text-xl font-bold">Settings</Text>
-        </View>
+      <View className="px-4 py-4 flex-row items-center border-b border-gray-100">
+        <Pressable 
+          onPress={() => router.back()} 
+          className="w-10 h-10 rounded-full items-center justify-center -ml-2"
+        >
+          <IconSymbol name="chevron.left" size={24} color={Colors.light.text} />
+        </Pressable>
+        <Text className="text-xl font-bold ml-2 text-gray-900">Settings</Text>
       </View>
 
-      <ScrollView className="flex-1">
-        <View className="px-4 py-4">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-4 py-6">
           {settingSections.map((section, sectionIndex) => (
-            <View key={section.title} className="mb-6">
-              <Text className="text-lg font-semibold mb-3 px-1">{section.title}</Text>
-              <View className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <View key={section.title} className="mb-8">
+              <Text className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">
+                {section.title}
+              </Text>
+              <View className="bg-white rounded-[24px] border border-gray-100 overflow-hidden shadow-sm">
                 {section.items.map((item, itemIndex) => (
                   <Pressable
                     key={item.label}
                     onPress={item.onPress}
-                    className={`flex-row items-center justify-between p-4 ${
-                      itemIndex < section.items.length - 1 ? 'border-b border-gray-100' : ''
-                    }`}>
+                    className={`flex-row items-center justify-between p-5 ${
+                      itemIndex < section.items.length - 1 ? 'border-b border-gray-50' : ''
+                    }`}
+                  >
                     <View className="flex-row items-center flex-1">
-                      <View className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center mr-3">
+                      <View 
+                        className="w-9 h-9 rounded-full items-center justify-center mr-4"
+                        style={{ backgroundColor: `${item.textColor?.includes('red') ? "#fee2e2" : "#f8f9fa"}` }}
+                      >
                         <IconSymbol 
                           name={item.icon} 
-                          size={18} 
-                          color={item.textColor?.includes('red') ? "#ef4444" : "#666"} 
+                          size={20} 
+                          color={item.textColor?.includes('red') ? "#ef4444" : "#5f6368"} 
                         />
                       </View>
-                      <Text className={`font-medium ${item.textColor || 'text-gray-900'}`}>
+                      <Text className={`text-base font-medium ${item.textColor || 'text-gray-800'}`}>
                         {item.label}
                       </Text>
                     </View>
@@ -241,13 +259,13 @@ export default function SettingsScreen() {
                       <Switch
                         value={item.switchValue}
                         onValueChange={item.onPress}
-                        trackColor={{ false: '#d1d5db', true: '#3b82f6' }}
-                        thumbColor={item.switchValue ? '#ffffff' : '#ffffff'}
+                        trackColor={{ false: '#e2e8f0', true: '#15785B' }}
+                        thumbColor={'#ffffff'}
                       />
                     )}
                     
                     {item.showArrow && (
-                      <IconSymbol name="chevron.right" size={16} color="#9ca3af" />
+                      <IconSymbol name="chevron.right" size={18} color="#dadce0" />
                     )}
                   </Pressable>
                 ))}
@@ -255,10 +273,10 @@ export default function SettingsScreen() {
             </View>
           ))}
 
-          {/* App Version */}
-          <View className="items-center py-4">
-            <Text className="text-gray-500 text-sm">Version 1.0.0</Text>
-            <Text className="text-gray-400 text-xs mt-1">? 2024 FoodApp. All rights reserved.</Text>
+          {/* App Info */}
+          <View className="items-center py-8">
+            <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest">Savemymeal</Text>
+            <Text className="text-gray-300 text-[10px] mt-1">v1.0.0 • Made with ?</Text>
           </View>
         </View>
       </ScrollView>

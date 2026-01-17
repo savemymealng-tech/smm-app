@@ -32,6 +32,8 @@ function AppProviders() {
         <ThemeProvider value={DefaultTheme}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="signup" options={{ headerShown: false }} />
             <Stack.Screen name="checkout" options={{ headerShown: false }} />
             <Stack.Screen name="addresses" options={{ headerShown: false }} />
             <Stack.Screen name="payments" options={{ headerShown: false }} />

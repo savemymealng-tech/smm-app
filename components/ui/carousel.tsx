@@ -56,7 +56,7 @@ export function CarouselComponent<T>({
   }
 
   return (
-    <View className="flex-1">
+    <View>
       <Carousel
         ref={carouselRef}
         loop={loop}
