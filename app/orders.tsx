@@ -293,13 +293,13 @@ export default function OrdersScreen() {
               <View className="flex-row items-center justify-between mb-3">
                 <View className="flex-row items-center">
                   <Image
-                    source={{ uri: order.vendor.logo }}
+                    source={order.vendor.logo ? { uri: order.vendor.logo } : require('@/assets/images/default-profile.jpg')}
                     className="w-12 h-12 rounded-full mr-3"
                     resizeMode="cover"
                   />
                   <View>
                     <Text className="font-semibold text-base">
-                      {order.vendor.name}
+                      {order.vendor.business_name}
                     </Text>
                     <Text className="text-gray-600 text-sm">
                       {formatDate(order.createdAt)}

@@ -19,7 +19,7 @@ export function VendorCard({ item }: VendorCardProps) {
       <View className="relative">
         <View className="w-20 h-20 rounded-full bg-white shadow-md border border-gray-100 items-center justify-center overflow-hidden mb-2">
           <Image
-            source={{ uri: item.logo }}
+            source={item.logo ? { uri: item.logo } : require('@/assets/images/default-profile.jpg')}
             className="w-full h-full"
             resizeMode="cover"
           />
@@ -34,7 +34,7 @@ export function VendorCard({ item }: VendorCardProps) {
         className="text-xs font-semibold text-gray-900 text-center max-w-[80px]"
         numberOfLines={2}
       >
-        {item.name}
+        {item.business_name}
       </Text>
       {item.rating > 0 && (
         <View className="flex-row items-center mt-1">

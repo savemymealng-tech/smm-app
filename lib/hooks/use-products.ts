@@ -1,47 +1,76 @@
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../api'
-import type { Product } from '../../types'
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api';
 
-export function useProducts(vendorId?: string, category?: string) {
+export function useProducts(vendorId?: string, categoryId?: string) {
   return useQuery({
-    queryKey: ['products', vendorId, category],
+    queryKey: ['products', vendorId, categoryId],
     queryFn: async () => {
       if (vendorId) {
         // Get products from specific vendor
-        const result = await api.vendors.getVendorProducts(vendorId, {
-          category,
-          available_only: true,
-        });
-        return result.products;
+        const result = await api.vendors.getVendorProducts(Number(vendorId));
+        console.log('Vendor products result:', result);
+        return result;
+      } else if (categoryId) {
+        // Get products by category using the dedicated endpoint
+        const result = await api.meals.getMealsByCategory(Number(categoryId));
+        console.log('Category products result:', result);
+        console.log('Category products data:', result.data);
+        // Handle both direct array and wrapped response
+        if (Array.isArray(result)) {
+          return result;
+        }
+        return result.data || [];
       } else {
         // Browse all meals/products
         const result = await api.meals.browseMeals({
-          category,
           available_only: true,
         });
-        return result.meals;
+        console.log('Browse meals result:', result);
+        return result.data || [];
       }
     },
     staleTime: 5 * 60 * 1000,
   })
 }
 
+// Dedicated hook for fetching products by category
+export function useCategoryProducts(categoryId: string) {
+  return useQuery({
+    queryKey: ['category-products', categoryId],
+    queryFn: async () => {
+      console.log('useCategoryProducts - Fetching for category ID:', categoryId);
+      const result = await api.meals.getMealsByCategory(Number(categoryId));
+      console.log('useCategoryProducts - API result:', result);
+      console.log('useCategoryProducts - result.data:', result.data);
+      
+      // Handle PaginatedResponse structure
+      if (result && typeof result === 'object') {
+        // Check if it's a paginated response with data array
+        if ('data' in result && Array.isArray(result.data)) {
+          console.log('useCategoryProducts - Returning data array:', result.data.length, 'items');
+          return result.data;
+        }
+        // Check if result itself is the array
+        if (Array.isArray(result)) {
+          console.log('useCategoryProducts - Result is array:', result.length, 'items');
+          return result;
+        }
+      }
+      
+      console.log('useCategoryProducts - No valid data, returning empty array');
+      return [];
+    },
+    enabled: !!categoryId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useProduct(id: string) {
   return useQuery({
     queryKey: ['product', id],
     queryFn: async () => {
-      // Search for product by browsing meals with the product ID
-      // Note: This assumes the server supports searching by product ID
-      // If not, you may need to get it from vendor products
-      const result = await api.meals.browseMeals({
-        // The server might need a different param for product ID
-        // For now, we'll need to find it from vendors
-        limit: 1000, // Get all to find the product
-      });
-      const product = result.meals.find(p => p.id === id);
-      if (!product) {
-        throw new Error(`Product with id ${id} not found`);
-      }
+      // Get meal by ID - includes vendor and categories in response
+      const product = await api.meals.getMealById(Number(id));
       return product;
     },
     enabled: !!id,

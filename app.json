@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Savemymeal",
-    "slug": "good-meal",
+    "slug": "savemymeal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
-    "scheme": "Savemymeal",
+    "scheme": "savemymeal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -74,9 +74,9 @@
       "stripePublishableKey": "pk_test_YOUR_STRIPE_KEY",
       "router": {},
       "eas": {
-        "projectId": "c8f6a124-4827-4b11-bc2e-8c8a4e89dba3"
+        "projectId": "e2a8b8a0-f3db-4258-b627-b81bcfec579d"
       }
     },
-    "owner": "copy-ninja"
+    "owner": "nosprodev"
   }
 }

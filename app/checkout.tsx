@@ -1,72 +1,40 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
-import { useCart } from "@/lib/hooks/use-cart";
+import { useInitializePayment, usePlaceOrder, useVerifyPayment } from "@/lib/hooks";
+import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
 import { useProfile } from "@/lib/hooks/use-profile";
 import { formatCurrency } from "@/lib/utils";
 import { Separator } from "@rn-primitives/context-menu";
-import type { Address, PaymentMethod } from "../types";
+import type { Address } from "../types";
 
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { cart, getCartTotals, clearCart } = useCart();
+  const { cart, subtotal, deliveryFee, serviceFee, tax } = useHybridCart();
   const { data: user } = useProfile();
-  const totals = getCartTotals();
+  const clearCartMutation = useHybridClearCart();
+  
+  const placeOrderMutation = usePlaceOrder();
+  const initializePaymentMutation = useInitializePayment();
+  const verifyPaymentMutation = useVerifyPayment();
 
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(
-    user?.addresses?.find((a) => a.isDefault) || null
-  );
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | null>(
-    user?.paymentMethods?.find((p) => p.isDefault) || null
-  );
-  const [deliveryNotes, setDeliveryNotes] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handlePlaceOrder = async () => {
-    if (!selectedAddress || !selectedPayment) {
-      Alert.alert(
-        "Missing Information",
-        "Please select a delivery address and payment method."
-      );
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Simulate order placement
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      clearCart();
-      Alert.alert(
-        "Order Placed Successfully!",
-        "Your order has been confirmed and is being prepared.",
-        [{ text: "OK", onPress: () => router.replace("/(tabs)/profile") }]
-      );
-    } catch (error) {
-      Alert.alert("Error", "Failed to place order. Please try again.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
+  // Mock addresses for demo - in real app this would come from user profile
   const mockAddresses: Address[] = user?.addresses || [
     {
       id: "1",
       type: "home",
       label: "Home",
       street: "123 Main Street",
-      city: "San Francisco",
-      state: "CA",
-      zipCode: "94102",
-      country: "USA",
+      city: "Lagos",
+      state: "Lagos State",
+      zipCode: "100001",
+      country: "Nigeria",
       isDefault: true,
     },
     {
@@ -74,28 +42,171 @@ export default function CheckoutScreen() {
       type: "work",
       label: "Office",
       street: "456 Business Ave",
-      city: "San Francisco",
-      state: "CA",
-      zipCode: "94105",
-      country: "USA",
+      city: "Lagos",
+      state: "Lagos State",
+      zipCode: "100271",
+      country: "Nigeria",
     },
   ];
 
-  const mockPaymentMethods: PaymentMethod[] = user?.paymentMethods || [
-    {
-      id: "1",
-      type: "card",
-      brand: "visa",
-      last4: "4242",
-      expiryMonth: 12,
-      expiryYear: 2025,
-      isDefault: true,
-    },
-    {
-      id: "2",
-      type: "apple_pay",
-    },
-  ];
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<'card' | 'cash'>('cash');
+  const [deliveryNotes, setDeliveryNotes] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showPaymentWebView, setShowPaymentWebView] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+
+  // Set default address on mount or when mockAddresses changes
+  useEffect(() => {
+    if (!selectedAddress && mockAddresses.length > 0) {
+      const defaultAddr = mockAddresses.find((a) => a.isDefault) || mockAddresses[0];
+      setSelectedAddress(defaultAddr);
+    }
+  }, [mockAddresses, selectedAddress]);
+
+  // Use fees from server (if available) or 0
+  const total = subtotal + deliveryFee + serviceFee + tax;
+  
+  const totals = {
+    subtotal,
+    deliveryFee,
+    serviceFee,
+    tax,
+    total,
+  };
+
+  const handlePlaceOrder = async () => {
+    console.log('🛒 Place Order clicked', {
+      hasAddress: !!selectedAddress,
+      hasPayment: !!selectedPayment,
+      cartLength: cart.length,
+      isProcessing,
+      cart: cart,
+      user: user
+    });
+
+    if (!selectedAddress) {
+      Alert.alert(
+        "Missing Information",
+        "Please select a delivery address."
+      );
+      return;
+    }
+
+    if (cart.length === 0) {
+      Alert.alert("Empty Cart", "Your cart is empty.");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Map cart items to order format
+      const orderItems = cart.map((item: any) => {
+        const productId = item.product_id || item.productId || item.id || item.product?.id;
+        console.log('Mapping cart item:', { item, productId });
+        
+        if (!productId) {
+          throw new Error('Invalid cart item: missing product ID');
+        }
+        
+        return {
+          product_id: Number(productId),
+          quantity: Number(item.quantity) || 1,
+        };
+      });
+
+      console.log('Order items:', orderItems);
+
+      // Place the order first
+      const orderResponse = await placeOrderMutation.mutateAsync({
+        items: orderItems,
+        delivery_address: {
+          street: selectedAddress.street,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          postal_code: selectedAddress.zipCode,
+          phone: user?.phone || '',
+          additional_info: deliveryNotes || undefined,
+        },
+      });
+
+      console.log('Order placed successfully:', orderResponse);
+
+      // If card payment, initialize Paystack
+      if (selectedPayment === 'card' && user?.email) {
+        const paymentResponse = await initializePaymentMutation.mutateAsync({
+          orderId: orderResponse.id,
+          email: user.email,
+        });
+
+        setPaymentReference(paymentResponse.reference);
+        setPaymentUrl(paymentResponse.authorization_url);
+        setShowPaymentWebView(true);
+      } else {
+        // Cash on delivery - clear cart and navigate
+        clearCartMutation.mutate();
+        Alert.alert(
+          "Order Placed Successfully!",
+          "Your order has been confirmed. Pay on delivery.",
+          [{ 
+            text: "View Order", 
+            onPress: () => router.replace(`/order/${orderResponse.id}`) 
+          }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Order placement error:', error);
+      const errorMessage = error.response?.data?.error || error.message || "Failed to place order. Please try again.";
+      Alert.alert("Order Error", errorMessage);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePaymentWebViewNav = async (navState: any) => {
+    const { url } = navState;
+    
+    // Check if payment was successful (Paystack redirects to callback URL)
+    if (url.includes('/payment/callback') || url.includes('success')) {
+      setShowPaymentWebView(false);
+      
+      if (paymentReference) {
+        try {
+          await verifyPaymentMutation.mutateAsync(paymentReference);
+          // Clear cart after successful payment
+          clearCartMutation.mutate();
+          Alert.alert(
+            "Payment Successful!",
+            "Your order has been confirmed.",
+            [{ 
+              text: "View Orders", 
+              onPress: () => router.replace("/orders") 
+            }]
+          );
+        } catch (error) {
+          Alert.alert("Payment Verification Failed", "Please contact support.");
+        }
+      }
+    } else if (url.includes('/payment/cancel') || url.includes('cancel')) {
+      setShowPaymentWebView(false);
+      Alert.alert("Payment Cancelled", "You cancelled the payment.");
+    }
+  };
+
+  if (showPaymentWebView && paymentUrl) {
+    // Open payment in browser instead of WebView
+    Linking.openURL(paymentUrl);
+    setShowPaymentWebView(false);
+    
+    return (
+      <View className="flex-1 items-center justify-center" style={{ paddingTop: insets.top }}>
+        <ActivityIndicator size="large" />
+        <Text className="mt-4 text-gray-600">Redirecting to payment...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
@@ -115,7 +226,7 @@ export default function CheckoutScreen() {
             <View className="flex-row justify-between mb-2">
               <Text className="text-gray-600">Subtotal</Text>
               <Text className="text-gray-900 font-medium">
-                {formatCurrency(totals.subtotal)}
+                ₦{totals.subtotal.toFixed(0)}
               </Text>
             </View>
             <View className="flex-row justify-between mb-2">
@@ -125,9 +236,9 @@ export default function CheckoutScreen() {
               </Text>
             </View>
             <View className="flex-row justify-between mb-2">
-              <Text className="text-gray-600">Tax</Text>
+              <Text className="text-gray-600">Service Fee</Text>
               <Text className="text-gray-900 font-medium">
-                {formatCurrency(totals.tax)}
+                ₦{totals.serviceFee.toFixed(0)}
               </Text>
             </View>
             <Separator className="my-3" />
@@ -187,16 +298,12 @@ export default function CheckoutScreen() {
               <View className="flex-row items-center">
                 <IconSymbol name="creditcard.fill" size={16} color="#666" />
                 <Text className="ml-2 font-semibold">
-                  {selectedPayment.type === "apple_pay"
-                    ? "Apple Pay"
-                    : selectedPayment.type === "google_pay"
-                    ? "Google Pay"
-                    : `???? ???? ???? ${selectedPayment.last4}`}
+                  {selectedPayment === 'card' ? 'Card Payment' : 'Cash on Delivery'}
                 </Text>
               </View>
-              {selectedPayment.brand && (
-                <Text className="text-gray-600 capitalize ml-6">
-                  {selectedPayment.brand}
+              {selectedPayment === 'card' && (
+                <Text className="text-xs text-gray-500">
+                  Pay via Paystack
                 </Text>
               )}
             </View>
@@ -213,15 +320,26 @@ export default function CheckoutScreen() {
 
         {/* Delivery Notes */}
         <View className="bg-white p-4 mb-4">
-          <Text className="text-lg font-semibold mb-3">Delivery Notes</Text>
-          <Input
+          <Text className="text-lg font-semibold mb-3 text-gray-900">Delivery Notes</Text>
+          <TextInput
             placeholder="Add special instructions for the delivery..."
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
-            variant="bordered"
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            placeholderTextColor='#6b7280'
+            style={{
+              minHeight: 80,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              fontSize: 15,
+              color: '#111827',
+              backgroundColor: '#f9fafb',
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+            }}
           />
         </View>
 
@@ -239,15 +357,28 @@ export default function CheckoutScreen() {
 
       {/* Place Order Button */}
       <View className="bg-white p-4 border-t border-gray-200">
+        {!selectedAddress && (
+          <Text className="text-red-500 text-sm mb-2 text-center">
+            Please add a delivery address to continue
+          </Text>
+        )}
+        {cart.length === 0 && (
+          <Text className="text-red-500 text-sm mb-2 text-center">
+            Your cart is empty
+          </Text>
+        )}
         <Button
           onPress={handlePlaceOrder}
-          disabled={!selectedAddress || !selectedPayment || isProcessing}
+          disabled={!selectedAddress || !selectedPayment || isProcessing || cart.length === 0}
           className="w-full"
         >
           {isProcessing ? (
-            <Text>Processing...</Text>
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator color="white" size="small" />
+              <Text className="text-white">Processing...</Text>
+            </View>
           ) : (
-            <Text>Place Order ? {formatCurrency(totals.total)}</Text>
+            <Text className="text-white">Place Order · {formatCurrency(totals.total)}</Text>
           )}
         </Button>
       </View>

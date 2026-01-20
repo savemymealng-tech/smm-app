@@ -3,7 +3,7 @@
  * Axios instance with interceptors for authentication and error handling
  */
 
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { API_CONFIG } from './config';
 
@@ -11,21 +11,25 @@ import { API_CONFIG } from './config';
 const ACCESS_TOKEN_KEY = 'auth_access_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 
-// Server response format
+// Server response format (matching API guide)
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
   error?: string;
-  details?: any;
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
+  validationErrors?: Array<{
+    field: string;
+    message: string;
+    value?: any;
+  }>;
+}
+
+// Paginated response format
+export interface PaginatedResponse<T = any> extends ApiResponse<T[]> {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 // Token management functions
@@ -85,9 +89,21 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log all requests in development
+    console.log('🌐 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      params: config.params,
+      data: config.data,
+    });
+    
     return config;
   },
   (error) => {
+    console.error('❌ API Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -95,10 +111,22 @@ apiClient.interceptors.request.use(
 // Response interceptor - handle errors and token refresh
 apiClient.interceptors.response.use(
   (response) => {
-    // Server returns { success, data, message } format
+    // Log successful responses in development
+    console.log('✅ API Response:', {
+      url: response.config.url,
+      status: response.status,
+      data: response.data,
+    });
     return response;
   },
   async (error: AxiosError<ApiResponse>) => {
+    console.error('❌ API Response Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data,
+    });
+    
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Handle 401 Unauthorized - try to refresh token
@@ -135,10 +163,43 @@ apiClient.interceptors.response.use(
     }
 
     // Transform error response to match ApiResponse format
+    // Extract the most user-friendly error message available (per API guide)
+    let errorMessage = 'An error occurred';
+    
+    if (error.response?.data) {
+      const data: any = error.response.data;
+      
+      // Handle validation errors first
+      if (data.validationErrors && Array.isArray(data.validationErrors) && data.validationErrors.length > 0) {
+        errorMessage = data.validationErrors.map((err: any) => err.message).join(', ');
+      }
+      // Then check for general error message
+      else if (data.error) {
+        errorMessage = data.error;
+      }
+      // Fallback to message
+      else if (data.message) {
+        errorMessage = data.message;
+      }
+    } else if (error.code === 'ECONNABORTED') {
+      errorMessage = 'Request timeout. Please check your internet connection.';
+    } else if (error.code === 'ERR_NETWORK') {
+      errorMessage = 'Network error. Please check your internet connection.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // Handle specific HTTP status codes
+    if (error.response?.status === 404) {
+      errorMessage = 'Resource not found.';
+    } else if (error.response?.status === 500) {
+      errorMessage = 'Server error. Please try again later.';
+    }
+    
     const apiError: ApiResponse = {
       success: false,
-      error: error.response?.data?.error || error.message || 'An error occurred',
-      details: error.response?.data?.details || error.response?.data,
+      error: errorMessage,
+      validationErrors: error.response?.data?.validationErrors,
     };
 
     return Promise.reject(apiError);

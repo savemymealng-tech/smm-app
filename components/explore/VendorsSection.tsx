@@ -15,10 +15,10 @@ export function VendorsSection({ vendors }: VendorsSectionProps) {
     <View className="mb-6 mt-4">
       <View className="flex-row items-center justify-between px-4 mb-4">
         <View>
-          <Text className="text-lg font-bold text-gray-900">
+          <Text className="text-lg font-bold text-gray-900 dark:text-white">
             Matching Stores
           </Text>
-          <Text className="text-xs text-gray-500 mt-0.5">
+          <Text className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {vendors.length} store{vendors.length !== 1 ? "s" : ""} found
           </Text>
         </View>

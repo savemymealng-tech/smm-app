@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
+import { View, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert, Image, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAtom } from 'jotai';
@@ -7,7 +7,6 @@ import { useAtom } from 'jotai';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { setAuthStateAtom } from '@/lib/atoms/auth';
@@ -21,19 +20,21 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      setError('Please enter your email address');
       return;
     }
 
     if (!password.trim() || password.length < 6) {
-      Alert.alert('Error', 'Please enter a valid password (minimum 6 characters)');
+      setError('Please enter a valid password (minimum 6 characters)');
       return;
     }
 
     setLoading(true);
+    setError('');
     try {
       const result = await api.auth.login({
         email: email.trim(),
@@ -50,7 +51,7 @@ export default function LoginScreen() {
         user = {
           id: result.user?.id?.toString() || '',
           email: result.user?.email || email,
-          name: result.user?.name || '',
+          name: '',
           phone: '',
           addresses: [],
           paymentMethods: [],
@@ -66,8 +67,30 @@ export default function LoginScreen() {
       });
 
       router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Error', error?.error || 'Invalid email or password');
+    } catch (err: any) {
+      // Extract the most user-friendly error message
+      let errorMessage = 'Invalid email or password';
+      
+      if (err?.error) {
+        errorMessage = err.error;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      // Handle specific error cases
+      if (errorMessage.toLowerCase().includes('not found') ||
+          errorMessage.toLowerCase().includes('does not exist')) {
+        errorMessage = 'No account found with this email. Please sign up first.';
+      } else if (errorMessage.toLowerCase().includes('incorrect') ||
+                 errorMessage.toLowerCase().includes('invalid password') ||
+                 errorMessage.toLowerCase().includes('wrong password')) {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (errorMessage.toLowerCase().includes('blocked') ||
+                 errorMessage.toLowerCase().includes('suspended')) {
+        errorMessage = 'Your account has been suspended. Please contact support.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -87,16 +110,17 @@ export default function LoginScreen() {
           minHeight: '100%',
         }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Pressable 
-          onPress={() => {
-            // Navigate back to home tabs
-            // This ensures the back button always works
-            router.replace('/(tabs)');
-          }} 
+          onPress={() => router.replace('/(tabs)')} 
           className="mb-8"
         >
-          <IconSymbol name="chevron.left" size={24} color={Colors.light.icon} />
+          <IconSymbol 
+            name="chevron.left" 
+            size={24} 
+            color="#111827" 
+          />
         </Pressable>
 
         <View className="items-center mb-8">
@@ -116,70 +140,125 @@ export default function LoginScreen() {
         </View>
 
         <View className="mb-6">
-          <Input
-            label="Email Address"
-            placeholder="your@email.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            className="mb-4"
-          />
+          {/* Error Message */}
+          {error ? (
+            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200">
+              <Text className="text-red-800 text-sm">
+                {error}
+              </Text>
+            </View>
+          ) : null}
 
+          {/* Email Field */}
           <View className="mb-4">
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </Text>
+            <TextInput
+              placeholder="your@email.com"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (error) setError('');
+              }}
+              keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="password"
-              endContent={
-                <Pressable
-                  onPress={() => setShowPassword(!showPassword)}
-                  className="pr-3"
-                >
-                  <IconSymbol
-                    name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
-                    size={20}
-                    color={Colors.light.icon}
-                  />
-                </Pressable>
-              }
+              autoCorrect={false}
+              autoComplete="email"
+              placeholderTextColor="#6b7280"
+              style={{
+                height: 56,
+                paddingHorizontal: 16,
+                fontSize: 16,
+                color: '#111827',
+                backgroundColor: '#f9fafb',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+              }}
             />
           </View>
 
+          {/* Password Field */}
+          <View className="mb-2">
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Password
+            </Text>
+            <View className="relative">
+              <TextInput
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (error) setError('');
+                }}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password"
+                placeholderTextColor="#6b7280"
+                style={{
+                  height: 56,
+                  paddingHorizontal: 16,
+                  paddingRight: 50,
+                  fontSize: 16,
+                  color: '#111827',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#e5e7eb',
+                }}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-4"
+              >
+                <IconSymbol
+                  name={showPassword ? 'eye.slash' : 'eye'}
+                  size={20}
+                  color="#6b7280"
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Forgot Password */}
+          <Pressable
+            onPress={() => Alert.alert('Forgot Password', 'Password reset feature coming soon!')}
+            className="self-end mb-6"
+          >
+            <Text className="text-blue-600 text-sm font-medium">
+              Forgot Password?
+            </Text>
+          </Pressable>
+
+          {/* Submit Button */}
           <Button
             onPress={handleLogin}
             disabled={loading}
             className="w-full h-14 rounded-2xl"
           >
-            <Text className="text-white font-bold text-base">
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-bold text-base">
+                Sign In
+              </Text>
+            )}
           </Button>
         </View>
 
-        <Pressable
-          onPress={() => {
-            Alert.alert('Forgot Password', 'Password reset feature coming soon!');
-          }}
-          className="items-center py-4"
-        >
-          <Text className="text-blue-600 font-semibold">
-            Forgot Password?
-          </Text>
-        </Pressable>
-
         <View className="mt-auto pt-8">
-          <Text className="text-center text-gray-400 text-sm">
-            Don't have an account?{' '}
+          <View className="flex-row justify-center items-center">
+            <Text className="text-center text-gray-400 text-sm">
+              Don't have an account?{' '}
+            </Text>
             <Pressable onPress={() => router.push('/signup')}>
-              <Text className="text-blue-600 font-semibold">Sign up</Text>
+              <Text className="text-blue-600 font-semibold">
+                Sign up
+              </Text>
             </Pressable>
-          </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

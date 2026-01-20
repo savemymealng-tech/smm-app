@@ -1,13 +1,19 @@
 export type User = {
   id: string
-  email: string
-  name: string
+  email?: string
+  name?: string
+  first_name?: string
+  last_name?: string
+  username?: string
   phone?: string
+  city?: string
+  state_id?: number
+  country_id?: number
   avatar?: string
-  addresses: Address[]
-  paymentMethods: PaymentMethod[]
-  createdAt: string
-  updatedAt: string
+  addresses?: Address[]
+  paymentMethods?: PaymentMethod[]
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type Address = {
@@ -45,7 +51,7 @@ export type Category = {
 
 export type Vendor = {
   id: string
-  name: string
+  business_name: string
   description: string
   logo: string
   coverImage?: string

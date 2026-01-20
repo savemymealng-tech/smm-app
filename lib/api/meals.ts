@@ -1,70 +1,60 @@
 /**
  * Meals API Service
- * Handles meal browsing and discovery endpoints
+ * Handles meal/product browsing and details per SaveMyMeal API Guide v2.0.0
  */
 
-import apiClient, { extractData, ApiResponse } from './client';
+import type { BrowseMealsParams, Meal } from '@/types/api';
+import apiClient, { ApiResponse, PaginatedResponse } from './client';
 import { API_CONFIG } from './config';
-import type { Product } from '../../types';
-
-export interface BrowseMealsParams {
-  search?: string;
-  filter?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  latitude?: number;
-  longitude?: number;
-  radius?: number;
-  min_price?: number;
-  max_price?: number;
-  category?: string;
-  categories?: string;
-  dietary_preferences?: string;
-  tags?: string;
-  available_only?: boolean;
-  vendor_id?: string;
-  vendor_rating_min?: number;
-  sort_by?: string;
-  sort_order?: 'asc' | 'desc';
-  page?: number;
-  limit?: number;
-}
-
-export interface SearchAnalytics {
-  popularSearches?: string[];
-  trendingCategories?: string[];
-  suggestions?: string[];
-}
 
 export const mealsApi = {
   /**
-   * Browse available meals with filters
+   * Browse Meals with Advanced Filtering
+   * GET /meals
    */
-  async browseMeals(params?: BrowseMealsParams): Promise<{
-    meals: Product[];
-    pagination?: ApiResponse['pagination'];
-  }> {
-    const response = await apiClient.get<ApiResponse<{
-      meals: Product[];
-      pagination?: ApiResponse['pagination'];
-    }>>(API_CONFIG.ENDPOINTS.MEALS.BROWSE, { params });
-    
-    const data = extractData(response);
-    return {
-      meals: data.meals || [],
-      pagination: data.pagination,
-    };
+  async browseMeals(params: BrowseMealsParams = {}): Promise<PaginatedResponse<Meal>> {
+    const response = await apiClient.get<PaginatedResponse<Meal>>(
+      API_CONFIG.ENDPOINTS.MEALS.BROWSE,
+      { params }
+    );
+    return response.data;
   },
 
   /**
-   * Get search analytics
+   * Get Meal Details by ID
+   * GET /meals/:id
    */
-  async getSearchAnalytics(): Promise<SearchAnalytics> {
-    const response = await apiClient.get<ApiResponse<SearchAnalytics>>(
-      API_CONFIG.ENDPOINTS.MEALS.ANALYTICS
+  async getMealById(id: number): Promise<Meal> {
+    const response = await apiClient.get<ApiResponse<Meal>>(
+      API_CONFIG.ENDPOINTS.MEALS.BY_ID(id)
     );
-    return extractData(response);
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to fetch meal details');
+  },
+
+  /**
+   * Get Products by Category
+   * GET /meals/category/:categoryId
+   */
+  async getMealsByCategory(
+    categoryId: number,
+    params: { page?: number; limit?: number } = {}
+  ): Promise<PaginatedResponse<Meal>> {
+    const endpoint = API_CONFIG.ENDPOINTS.MEALS.BY_CATEGORY(categoryId);
+    console.log('Fetching category products from:', endpoint);
+    console.log('Category ID:', categoryId);
+    console.log('Params:', params);
+    
+    const response = await apiClient.get<PaginatedResponse<Meal>>(
+      endpoint,
+      { params }
+    );
+    
+    console.log('Category API raw response:', response.data);
+    return response.data;
   },
 };
-

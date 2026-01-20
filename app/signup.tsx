@@ -1,14 +1,12 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAtom } from 'jotai';
+import { useState } from 'react';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Input } from '@/components/ui/input';
-import { Colors } from '@/constants/theme';
+import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
 import { setAuthStateAtom } from '@/lib/atoms/auth';
 import type { User } from '@/types';
@@ -26,30 +24,37 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSignup = async () => {
     // Validation
     if (!formData.email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+      setError('Please enter your email address');
       return;
     }
 
     if (!formData.password.trim() || formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      setError('Password must be at least 6 characters long');
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (!formData.phone.trim()) {
+      setError('Please enter your phone number');
       return;
     }
 
     setLoading(true);
+    setError('');
     try {
       const result = await api.auth.signup({
         email: formData.email.trim(),
         password: formData.password.trim(),
-        phone: formData.phone.trim() || undefined,
+        phone: formData.phone.trim(),
       });
       
       // Fetch full user profile after signup
@@ -62,7 +67,7 @@ export default function SignupScreen() {
         user = {
           id: result.user?.id?.toString() || '',
           email: result.user?.email || formData.email,
-          name: result.user?.name || '',
+          name: '',
           phone: formData.phone || '',
           addresses: [],
           paymentMethods: [],
@@ -78,8 +83,28 @@ export default function SignupScreen() {
       });
 
       router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Error', error?.error || 'Failed to create account. Please try again.');
+    } catch (err: any) {
+      // Extract the most user-friendly error message
+      let errorMessage = 'Failed to create account. Please try again.';
+      
+      if (err?.error) {
+        errorMessage = err.error;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      // Handle specific error cases
+      if (errorMessage.toLowerCase().includes('duplicate') || 
+          errorMessage.toLowerCase().includes('already exists') ||
+          errorMessage.toLowerCase().includes('user already')) {
+        errorMessage = 'An account with this email already exists. Please try logging in instead.';
+      } else if (errorMessage.toLowerCase().includes('invalid email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (errorMessage.toLowerCase().includes('password')) {
+        errorMessage = 'Password does not meet requirements. Please use at least 6 characters.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,9 +124,14 @@ export default function SignupScreen() {
           minHeight: '100%',
         }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Pressable onPress={() => router.back()} className="mb-8">
-          <IconSymbol name="chevron.left" size={24} color={Colors.light.icon} />
+          <IconSymbol 
+            name="chevron.left" 
+            size={24} 
+            color="#111827" 
+          />
         </Pressable>
 
         <View className="items-center mb-8">
@@ -121,92 +151,193 @@ export default function SignupScreen() {
         </View>
 
         <View className="mb-6">
-          <Input
-            label="Email Address"
-            placeholder="your@email.com"
-            value={formData.email}
-            onChangeText={(text) => setFormData({ ...formData, email: text })}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            className="mb-4"
-          />
+          {/* Error Message */}
+          {error ? (
+            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200">
+              <Text className="text-red-800 text-sm">
+                {error}
+              </Text>
+            </View>
+          ) : null}
 
-          <Input
-            label="Phone Number (Optional)"
-            placeholder="+1234567890"
-            value={formData.phone}
-            onChangeText={(text) => setFormData({ ...formData, phone: text })}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            className="mb-4"
-          />
-
+          {/* Email Field */}
           <View className="mb-4">
-            <Input
-              label="Password"
-              placeholder="Minimum 6 characters"
-              value={formData.password}
-              onChangeText={(text) => setFormData({ ...formData, password: text })}
-              secureTextEntry={!showPassword}
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </Text>
+            <TextInput
+              placeholder="your@email.com"
+              value={formData.email}
+              onChangeText={(text) => {
+                setFormData({ ...formData, email: text });
+                if (error) setError('');
+              }}
+              keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="password-new"
-              endContent={
-                <Pressable
-                  onPress={() => setShowPassword(!showPassword)}
-                  className="pr-3"
-                >
-                  <IconSymbol
-                    name={showPassword ? 'eye.slash.fill' : 'eye.fill'}
-                    size={20}
-                    color={Colors.light.icon}
-                  />
-                </Pressable>
-              }
+              autoCorrect={false}
+              autoComplete="email"
+              placeholderTextColor="#6b7280"
+              style={{
+                height: 56,
+                paddingHorizontal: 16,
+                fontSize: 16,
+                color: '#111827',
+                backgroundColor: '#f9fafb',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+              }}
             />
           </View>
 
+          {/* Phone Field */}
+          <View className="mb-4">
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Phone Number
+            </Text>
+            <TextInput
+              placeholder="+234 801 234 5678"
+              value={formData.phone}
+              onChangeText={(text) => {
+                setFormData({ ...formData, phone: text });
+                if (error) setError('');
+              }}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoComplete="tel"
+              placeholderTextColor="#6b7280"
+              style={{
+                height: 56,
+                paddingHorizontal: 16,
+                fontSize: 16,
+                color: '#111827',
+                backgroundColor: '#f9fafb',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+              }}
+            />
+          </View>
+
+          {/* Password Field */}
+          <View className="mb-4">
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Password
+            </Text>
+            <View className="relative">
+              <TextInput
+                placeholder="Minimum 6 characters"
+                value={formData.password}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, password: text });
+                  if (error) setError('');
+                }}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password-new"
+                placeholderTextColor="#6b7280"
+                style={{
+                  height: 56,
+                  paddingHorizontal: 16,
+                  paddingRight: 50,
+                  fontSize: 16,
+                  color: '#111827',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#e5e7eb',
+                }}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-4"
+              >
+                <IconSymbol
+                  name={showPassword ? 'eye.slash' : 'eye'}
+                  size={20}
+                  color="#6b7280"
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Confirm Password Field */}
           <View className="mb-6">
-            <Input
-              label="Confirm Password"
-              placeholder="Re-enter your password"
-              value={formData.confirmPassword}
-              onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
-              secureTextEntry={!showConfirmPassword}
-              autoCapitalize="none"
-              autoComplete="password-new"
-              endContent={
-                <Pressable
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="pr-3"
-                >
-                  <IconSymbol
-                    name={showConfirmPassword ? 'eye.slash.fill' : 'eye.fill'}
-                    size={20}
-                    color={Colors.light.icon}
-                  />
-                </Pressable>
-              }
-            />
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Confirm Password
+            </Text>
+            <View className="relative">
+              <TextInput
+                placeholder="Re-enter your password"
+                value={formData.confirmPassword}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, confirmPassword: text });
+                  if (error) setError('');
+                }}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password-new"
+                placeholderTextColor="#6b7280"
+                style={{
+                  height: 56,
+                  paddingHorizontal: 16,
+                  paddingRight: 50,
+                  fontSize: 16,
+                  color: '#111827',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#e5e7eb',
+                }}
+              />
+              <Pressable
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-4 top-4"
+              >
+                <IconSymbol
+                  name={showConfirmPassword ? 'eye.slash' : 'eye'}
+                  size={20}
+                  color="#6b7280"
+                />
+              </Pressable>
+            </View>
           </View>
 
+          {/* Submit Button */}
           <Button
             onPress={handleSignup}
             disabled={loading}
             className="w-full h-14 rounded-2xl"
           >
-            <Text className="text-white font-bold text-base">
-              {loading ? 'Creating account...' : 'Sign Up'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-bold text-base">
+                Create Account
+              </Text>
+            )}
           </Button>
         </View>
 
         <View className="mt-auto pt-8">
-          <Text className="text-center text-gray-400 text-sm">
-            Already have an account?{' '}
+          <View className="flex-row justify-center items-center mb-6">
+            <Text className="text-center text-gray-400 text-sm">
+              Already have an account?{' '}
+            </Text>
             <Pressable onPress={() => router.push('/login')}>
-              <Text className="text-primary font-semibold">Sign in</Text>
+              <Text className="text-blue-600 font-semibold">
+                Sign in
+              </Text>
             </Pressable>
+          </View>
+
+          <Text className="text-xs text-center text-gray-500 px-4">
+            By signing up, you agree to our{' '}
+            <Text className="text-blue-600">Terms of Service</Text>
+            {' '}and{' '}
+            <Text className="text-blue-600">Privacy Policy</Text>
           </Text>
         </View>
       </ScrollView>

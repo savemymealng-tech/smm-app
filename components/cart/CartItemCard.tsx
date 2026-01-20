@@ -1,49 +1,47 @@
 import * as Haptics from "expo-haptics";
 import { Image, Platform, Pressable, View } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
 import { Text } from "@/components/ui/text";
-import { formatCurrency } from "@/lib/utils";
+import type { CartItem as LocalCartItem } from "@/types";
+import type { CartItem } from "@/types/api";
 import { FadeIn } from "react-native-reanimated";
-import type { CartItem } from "../../types";
 
 interface CartItemCardProps {
-  item: CartItem;
+  item: CartItem | LocalCartItem;
+  isAuthenticated?: boolean;
   onRemove: () => void;
-  onUpdateQuantity: (itemId: string, quantity: number) => void;
+  onUpdateQuantity: (quantity: number) => void;
 }
 
 export function CartItemCard({
   item,
+  isAuthenticated = true,
   onRemove,
   onUpdateQuantity,
 }: CartItemCardProps) {
-  const hasCustomizations = Object.keys(item.customizations || {}).length > 0;
   const scale = useSharedValue(1);
   const quantityScale = useSharedValue(1);
 
-  const customizationDetails = Object.entries(item.customizations || {})
-    .map(([key, valueIds]) => {
-      const customization = item.product.customizations?.find(
-        (c) => c.id === key
-      );
-      if (!customization) return null;
-
-      const selectedOptions = valueIds
-        .map((id) => customization.options.find((o) => o.id === id))
-        .filter(Boolean)
-        .map((o) => o!.name);
-
-      return `${customization.name}: ${selectedOptions.join(", ")}`;
-    })
-    .filter(Boolean);
+  // Handle both API cart (item.product.price) and local cart (item.unitPrice)
+  const price = isAuthenticated 
+    ? parseFloat((item as CartItem).product.price)
+    : (item as LocalCartItem).unitPrice;
+  const quantity = item.quantity;
+  const totalPrice = isAuthenticated 
+    ? price * quantity
+    : (item as LocalCartItem).totalPrice;
+  const product = item.product;
+  const quantityAvailable = isAuthenticated
+    ? (item as CartItem).product.quantity_available
+    : (product as any).quantityAvailable || (product as any).quantity_available || 999;
 
   const handleQuantityChange = (newQuantity: number) => {
     if (Platform.OS !== "web") {
@@ -52,7 +50,7 @@ export function CartItemCard({
     quantityScale.value = withSpring(1.2, {}, () => {
       quantityScale.value = withSpring(1);
     });
-    onUpdateQuantity(item.id, newQuantity);
+    onUpdateQuantity(newQuantity);
   };
 
   const handleRemove = () => {
@@ -82,9 +80,11 @@ export function CartItemCard({
         {/* Product Image */}
         <NativeOnlyAnimatedView entering={FadeIn.delay(100).duration(300)}>
           <Image
-            source={{
-              uri: item.product.images[0] || "https://via.placeholder.com/100",
-            }}
+            source={
+              (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0]
+                ? { uri: (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0] } 
+                : require('@/assets/images/default-product.jpg')
+            }
             className="w-28 h-28 rounded-l-2xl"
             resizeMode="cover"
           />
@@ -98,11 +98,11 @@ export function CartItemCard({
                 className="font-bold text-base mb-1 text-gray-900"
                 numberOfLines={1}
               >
-                {item.product.name}
+                {product.name}
               </Text>
-              {item.product.description && (
-                <Text className="text-gray-500 text-sm" numberOfLines={1}>
-                  {item.product.description}
+              {(product as any).vendor && (
+                <Text className="text-gray-500 text-xs" numberOfLines={1}>
+                  {(product as any).vendor.business_name || (product as any).vendor.name}
                 </Text>
               )}
             </View>
@@ -114,45 +114,55 @@ export function CartItemCard({
             </Pressable>
           </View>
 
-          {/* Customizations */}
-          {hasCustomizations && customizationDetails.length > 0 && (
-            <View className="mt-2 mb-2">
-              {customizationDetails.map((detail, idx) => (
-                <Text key={idx} className="text-gray-500 text-xs mb-0.5">
-                  {detail}
-                </Text>
-              ))}
+          {/* Stock Warning */}
+          {quantityAvailable < quantity && (
+            <View className="bg-amber-50 px-2 py-1 rounded-md mb-2">
+              <Text className="text-amber-700 text-xs">
+                Only {quantityAvailable} available
+              </Text>
             </View>
           )}
 
           {/* Quantity and Price */}
-          <View className="flex-row justify-between items-center mt-3">
+          <View className="flex-row justify-between items-center mt-2">
             <View className="flex-row items-center bg-gray-50 rounded-full px-2 py-1">
               <Pressable
-                onPress={() => handleQuantityChange(item.quantity - 1)}
-                className="w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm active:bg-gray-50"
+                onPress={() => handleQuantityChange(quantity - 1)}
+                disabled={quantity <= 1}
+                className={`w-8 h-8 rounded-full items-center justify-center shadow-sm ${
+                  quantity <= 1 ? 'bg-gray-200' : 'bg-white active:bg-gray-50'
+                }`}
               >
-                <IconSymbol name="minus" size={14} color="#666" />
+                <IconSymbol name="minus" size={14} color={quantity <= 1 ? "#d1d5db" : "#666"} />
               </Pressable>
               <Animated.View style={animatedQuantityStyle}>
                 <Text className="text-gray-900 font-bold text-base mx-4 min-w-[24px] text-center">
-                  {item.quantity}
+                  {quantity}
                 </Text>
               </Animated.View>
               <Pressable
-                onPress={() => handleQuantityChange(item.quantity + 1)}
-                className="w-8 h-8 rounded-full bg-primary items-center justify-center shadow-sm active:opacity-80"
+                onPress={() => handleQuantityChange(quantity + 1)}
+                disabled={quantity >= quantityAvailable}
+                className={`w-8 h-8 rounded-full items-center justify-center shadow-sm ${
+                  quantity >= quantityAvailable 
+                    ? 'bg-gray-200' 
+                    : 'bg-[#1E8449] active:opacity-80'
+                }`}
               >
-                <IconSymbol name="plus" size={14} color="white" />
+                <IconSymbol 
+                  name="plus" 
+                  size={14} 
+                  color={quantity >= quantityAvailable ? "#d1d5db" : "white"} 
+                />
               </Pressable>
             </View>
             <View className="items-end">
               <Text className="text-gray-900 font-bold text-lg">
-                {formatCurrency(item.totalPrice)}
+                ₦{totalPrice.toFixed(0)}
               </Text>
-              {item.quantity > 1 && (
+              {quantity > 1 && (
                 <Text className="text-gray-400 text-xs">
-                  {formatCurrency(item.unitPrice)} each
+                  ₦{price.toFixed(0)} each
                 </Text>
               )}
             </View>

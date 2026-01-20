@@ -1,23 +1,19 @@
 import { Tabs, router } from 'expo-router';
-import React, { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { useAtom } from 'jotai';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { persistCartAtom } from '@/lib/atoms';
-import { authAtom } from '@/lib/atoms/auth';
-import { Platform, View, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/text';
+import { Colors } from '@/constants/theme';
+import { authAtom } from '@/lib/atoms/auth';
+import { useHybridCart } from '@/lib/hooks/use-hybrid-cart';
+import { ActivityIndicator, Platform, View } from 'react-native';
 
 export default function TabLayout() {
-  const [cart] = useAtom(persistCartAtom);
   const authState = useAtomValue(authAtom);
+  const { totalItems } = useHybridCart();
 
-  const cartItemCount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
-  }, [cart]);
+  const cartItemCount = totalItems;
 
   // Show loading while checking auth state
   if (authState.isLoading) {

@@ -1,6 +1,6 @@
 /**
  * Authentication API Service
- * Handles customer authentication endpoints
+ * Handles customer authentication endpoints (per SaveMyMeal API Guide v2.0.0)
  */
 
 import apiClient, { extractData, ApiResponse } from './client';
@@ -8,10 +8,11 @@ import { API_CONFIG } from './config';
 import { tokenManager } from './client';
 import type { User } from '../../types';
 
+// Request types (matching API guide)
 export interface SignupRequest {
   email: string;
   password: string;
-  phone?: string;
+  phone: string;
   city?: string;
   state_id?: number;
   country_id?: number;
@@ -22,28 +23,48 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface RequestLoginRequest {
+export interface RequestCodeRequest {
   email: string;
 }
 
-export interface VerifyRequest {
+export interface VerifyCodeRequest {
   email: string;
   code: string;
 }
 
-export interface AuthResponse {
-  user?: User;
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
   token: string;
-  refreshToken?: string;
-  user_id?: string;
-  email?: string;
-  user_type?: string;
+  newPassword: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+// Response types (matching API guide)
+export interface AuthResponse {
+  token: string;
+  refreshToken: string;
+  user: {
+    id: number;
+    email: string;
+    user_type: 'customer' | 'vendor' | 'admin';
+  };
+}
+
+export interface RequestCodeResponse {
+  user_id: number;
 }
 
 export const authApi = {
   /**
-   * Register a new customer with password
-   * Returns tokens for immediate login
+   * Register a new customer account
+   * POST /auth/customer/signup
+   * Sends welcome email and verification code
    */
   async signup(data: SignupRequest): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<AuthResponse>>(
@@ -53,7 +74,7 @@ export const authApi = {
     const result = extractData(response);
 
     // Store tokens
-    if (result.token) {
+    if (result.token && result.refreshToken) {
       await tokenManager.setTokens(result.token, result.refreshToken);
     }
 
@@ -61,7 +82,8 @@ export const authApi = {
   },
 
   /**
-   * Login with email and password
+   * Authenticate existing customer
+   * POST /auth/customer/login
    */
   async login(data: LoginRequest): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<AuthResponse>>(
@@ -71,7 +93,7 @@ export const authApi = {
     const result = extractData(response);
 
     // Store tokens
-    if (result.token) {
+    if (result.token && result.refreshToken) {
       await tokenManager.setTokens(result.token, result.refreshToken);
     }
 
@@ -79,11 +101,13 @@ export const authApi = {
   },
 
   /**
-   * Request verification code for login
+   * Request verification code
+   * POST /auth/request-code
+   * Sends 6-digit code valid for 10 minutes
    */
-  async requestLogin(email: string): Promise<{ message: string }> {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>(
-      API_CONFIG.ENDPOINTS.AUTH.REQUEST_LOGIN,
+  async requestCode(email: string): Promise<RequestCodeResponse> {
+    const response = await apiClient.post<ApiResponse<RequestCodeResponse>>(
+      API_CONFIG.ENDPOINTS.AUTH.REQUEST_CODE,
       { email }
     );
     return extractData(response);
@@ -91,67 +115,80 @@ export const authApi = {
 
   /**
    * Verify code and get authentication tokens
+   * POST /auth/verify-code
    */
-  async verify(email: string, code: string): Promise<AuthResponse> {
+  async verifyCode(data: VerifyCodeRequest): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<AuthResponse>>(
-      API_CONFIG.ENDPOINTS.AUTH.VERIFY,
-      { email, code }
+      API_CONFIG.ENDPOINTS.AUTH.VERIFY_CODE,
+      data
     );
     const result = extractData(response);
     
-    // Store tokens (server returns 'token' not 'accessToken')
-    // Server response: { token, refreshToken, user: { id, email, user_type } }
-    if (result.token) {
+    // Store tokens
+    if (result.token && result.refreshToken) {
       await tokenManager.setTokens(result.token, result.refreshToken);
-    }
-    
-    // Map server user format to app User type if needed
-    if (result.user_id && !result.user) {
-      result.user = {
-        id: result.user_id.toString(),
-        email: result.email || email,
-        name: '', // Will be fetched from profile
-        phone: '',
-        addresses: [],
-        paymentMethods: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      } as User;
     }
     
     return result;
   },
 
   /**
-   * Refresh access token
+   * Request password reset
+   * POST /auth/forgot-password
+   * Sends reset link with 40-character token valid for 1 hour
    */
-  async refresh(): Promise<AuthResponse> {
-    const refreshToken = await tokenManager.getRefreshToken();
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
+  async forgotPassword(email: string): Promise<void> {
+    const response = await apiClient.post<ApiResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD,
+      { email }
+    );
+    // Always returns success message (prevents email enumeration)
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to send reset email');
     }
+  },
 
-    const response = await apiClient.post<ApiResponse<AuthResponse>>(
+  /**
+   * Complete password reset
+   * POST /auth/reset-password
+   * Updates password and invalidates token
+   */
+  async resetPassword(data: ResetPasswordRequest): Promise<void> {
+    const response = await apiClient.post<ApiResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD,
+      data
+    );
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Password reset failed');
+    }
+  },
+
+  /**
+   * Refresh access token
+   * POST /auth/refresh-token
+   * Returns new access token (refresh token remains valid)
+   */
+  async refreshToken(refreshToken: string): Promise<string> {
+    const response = await apiClient.post<ApiResponse<{ token: string }>>(
       API_CONFIG.ENDPOINTS.AUTH.REFRESH,
       { refreshToken }
     );
     const result = extractData(response);
     
-    // Update tokens (server returns 'token' not 'accessToken', and may not return new refreshToken)
+    // Store new token (keep existing refresh token)
     if (result.token) {
-      // Keep existing refresh token if new one not provided
-      const existingRefreshToken = await tokenManager.getRefreshToken();
-      await tokenManager.setTokens(result.token, result.refreshToken || existingRefreshToken || undefined);
+      await tokenManager.setTokens(result.token, refreshToken);
     }
     
-    return result;
+    return result.token;
   },
 
   /**
-   * Logout - clear tokens
+   * Logout - clear local tokens
    */
   async logout(): Promise<void> {
     await tokenManager.clearTokens();
   },
+
 };
 

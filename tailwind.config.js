@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Disable dark mode completely - app uses its own light theme
+  darkMode: false,
   content: [
     "./app/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}",
@@ -14,7 +16,7 @@ module.exports = {
         background: "hsl(0 0% 100%)",
         foreground: "hsl(0 0% 10%)",
         primary: {
-          DEFAULT: "#15785B",
+          DEFAULT: "#1E8449",
           foreground: "#ffffff",
         },
         secondary: {

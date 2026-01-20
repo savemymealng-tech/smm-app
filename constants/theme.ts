@@ -5,7 +5,11 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = "#15785B";
+// Brand Colors
+const ORANGE = "#F39C12";
+const GREEN = "#1E8449";
+
+const tintColorLight = GREEN;
 const tintColorDark = "#e8eaed";
 
 export const Colors = {
@@ -14,19 +18,24 @@ export const Colors = {
     background: "#ffffff",
     surface: "#f8f9fa",
     tint: tintColorLight,
+    primary: GREEN,
+    secondary: ORANGE,
     icon: "#5f6368",
     tabIconDefault: "#5f6368",
     tabIconSelected: tintColorLight,
     border: "#dadce0",
-    success: "#34a853",
+    success: GREEN,
     error: "#ea4335",
-    warning: "#fbbc04",
+    warning: ORANGE,
+    info: "#3498db",
   },
   dark: {
     text: "#e8eaed",
     background: "#202124",
     surface: "#303134",
     tint: tintColorDark,
+    primary: GREEN,
+    secondary: ORANGE,
     icon: "#9aa0a6",
     tabIconDefault: "#9aa0a6",
     tabIconSelected: tintColorDark,
@@ -34,6 +43,13 @@ export const Colors = {
     success: "#81c995",
     error: "#f28b82",
     warning: "#fdd663",
+    info: "#5dade2",
+  },
+  
+  // Brand colors for direct use
+  brand: {
+    orange: ORANGE,
+    green: GREEN,
   },
 };
 

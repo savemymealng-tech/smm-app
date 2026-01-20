@@ -84,7 +84,7 @@ export default function ProfileScreen() {
           <View className="relative">
             <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center shadow-lg border-4 border-white">
               <Text className="text-white text-4xl font-bold">
-                {user?.name?.charAt(0).toUpperCase() || "U"}
+                {(user?.first_name?.charAt(0) || user?.username?.charAt(0) || "U").toUpperCase()}
               </Text>
             </View>
             <Pressable className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full items-center justify-center shadow-md border border-gray-100">
@@ -92,10 +92,12 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
           <Text className="text-2xl font-bold mt-4 text-gray-900">
-            {user?.name || "User Name"}
+            {user?.first_name && user?.last_name 
+              ? `${user.first_name} ${user.last_name}` 
+              : user?.username || "User Name"}
           </Text>
           <Text className="text-gray-500 mt-1">
-            {user?.email || "user@example.com"}
+            {user?.email || user?.phone || ""}
           </Text>
           <Pressable
             onPress={() => router.push("/settings")}

@@ -2,19 +2,20 @@ import { View } from "react-native";
 
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
-import type { Product } from "@/types";
+import type { Meal } from "@/types/api";
 
 interface ProductAdditionalInfoProps {
-  product: Product;
+  product: Meal;
 }
 
 export function ProductAdditionalInfo({
   product,
 }: ProductAdditionalInfoProps) {
+  // Meal type has expiry_date, quantity_available, weight
   const hasAdditionalInfo =
-    product.calories ||
-    (product.allergens && product.allergens.length > 0) ||
-    (product.ingredients && product.ingredients.length > 0);
+    product.expiry_date ||
+    product.quantity_available > 0 ||
+    product.weight;
 
   if (!hasAdditionalInfo) {
     return null;
@@ -26,48 +27,26 @@ export function ProductAdditionalInfo({
         Additional Information
       </Text>
 
-      {product.calories && (
+      {product.expiry_date && (
         <View className="mb-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
           <Text className="font-semibold text-gray-900 mb-1.5">
-            Nutritional Info
+            Expiry Date
           </Text>
-          <Text className="text-gray-700">{product.calories} calories</Text>
+          <Text className="text-gray-700">{new Date(product.expiry_date).toLocaleDateString()}</Text>
         </View>
       )}
 
-      {product.ingredients && product.ingredients.length > 0 && (
+      {product.quantity_available > 0 && (
         <View className="mb-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
-          <Text className="font-semibold text-gray-900 mb-2">Ingredients</Text>
-          <View className="flex-row flex-wrap">
-            {product.ingredients.map((ingredient, idx) => (
-              <Badge
-                key={idx}
-                variant="outline"
-                className="mr-2 mb-2 bg-gray-50 border-gray-200"
-              >
-                <Text className="text-gray-700 text-xs">{ingredient}</Text>
-              </Badge>
-            ))}
-          </View>
+          <Text className="font-semibold text-gray-900 mb-2">Available</Text>
+          <Text className="text-gray-700">{product.quantity_available} units in stock</Text>
         </View>
       )}
 
-      {product.allergens && product.allergens.length > 0 && (
+      {product.weight && (
         <View>
-          <Text className="font-semibold text-gray-900 mb-2">Allergens</Text>
-          <View className="flex-row flex-wrap">
-            {product.allergens.map((allergen, idx) => (
-              <Badge
-                key={idx}
-                variant="outline"
-                className="mr-2 mb-2 bg-red-50 border-red-200"
-              >
-                <Text className="text-red-700 text-xs font-medium">
-                  {allergen}
-                </Text>
-              </Badge>
-            ))}
-          </View>
+          <Text className="font-semibold text-gray-900 mb-2">Weight/Size</Text>
+          <Text className="text-gray-700">{product.weight}</Text>
         </View>
       )}
     </View>

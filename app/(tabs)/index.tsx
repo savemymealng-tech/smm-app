@@ -6,8 +6,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  View,
-  Platform,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,9 +15,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { useCategories } from "@/lib/hooks/use-categories";
-import { useVendors } from "@/lib/hooks/use-vendors";
-import type { Category, Vendor } from "../../types";
+import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors } from "@/lib/hooks";
+import type { FeaturedCategory, FeaturedProduct, FeaturedVendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -36,7 +34,7 @@ const adBanners = [
   {
     id: "3",
     image:
-      "https://plus.unsplash.com/premium_photo-1664189213349-b02ba035e4e7?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://images.unsplash.com/premium_photo-1664189213349-b02ba035e4e7?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ];
 
@@ -44,7 +42,7 @@ const SearchBar = () => (
   <View className="px-4 mb-4">
     <Pressable
       onPress={() => router.push("/explore")}
-      className="flex-row items-center bg-white rounded-full px-4 py-3 shadow-sm border border-gray-100"
+      className="flex-row items-center bg-white dark:bg-gray-800 rounded-full px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -54,10 +52,10 @@ const SearchBar = () => (
       }}
     >
       <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
-      <Text className="ml-3 text-gray-400 text-base flex-1">
+      <Text className="ml-3 text-gray-400 dark:text-gray-500 text-base flex-1">
         Search for food, groceries...
       </Text>
-      <View className="w-px h-6 bg-gray-200 mx-2" />
+      <View className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-2" />
       <IconSymbol name="location.fill" size={18} color={Colors.light.tint} />
     </Pressable>
   </View>
@@ -66,11 +64,11 @@ const SearchBar = () => (
 const WelcomeHeader = () => (
   <View className="px-4 py-6 flex-row items-center justify-between">
     <View>
-      <Text className="text-sm text-gray-500 font-medium uppercase tracking-wider">
+      <Text className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
         Deliver to
       </Text>
       <View className="flex-row items-center mt-0.5">
-        <Text className="text-lg font-bold mr-1">Current Location</Text>
+        <Text className="text-lg font-bold mr-1 dark:text-white">Current Location</Text>
         <IconSymbol name="chevron.right" size={14} color="#000" />
       </View>
     </View>
@@ -93,6 +91,8 @@ const AdBanner = () => (
       )}
       itemWidth={screenWidth}
       autoplay
+      loop
+      autoplayInterval={4000}
     />
   </View>
 );
@@ -108,13 +108,13 @@ const Section = ({
 }) => (
   <View className="mb-8">
     <View className="flex-row items-center justify-between px-4 mb-4">
-      <Text className="text-xl font-bold text-gray-900">{title}</Text>
+      <Text className="text-xl font-bold text-gray-900 dark:text-white">{title}</Text>
       {onSeeAll && (
         <Pressable
           onPress={onSeeAll}
-          className="bg-primary/10 px-3 py-1 rounded-full"
+          className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full"
         >
-          <Text className="text-primary font-semibold text-sm">View all</Text>
+          <Text className="text-primary dark:text-primary-foreground font-semibold text-sm">View all</Text>
         </Pressable>
       )}
     </View>
@@ -129,70 +129,145 @@ const SectionEmptyState = ({
   message: string;
   icon?: any;
 }) => (
-  <View className="px-4 py-8 items-center justify-center bg-gray-50/50 rounded-[24px] mx-4 border border-dashed border-gray-200">
+  <View className="px-4 py-8 items-center justify-center bg-gray-50/50 dark:bg-gray-800/50 rounded-[24px] mx-4 border border-dashed border-gray-200 dark:border-gray-700">
     <IconSymbol
       name={icon || "square.grid.2x2"}
       size={32}
       color="#9ca3af"
     />
-    <Text className="text-gray-500 text-sm mt-2 font-medium">{message}</Text>
+    <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2 font-medium">{message}</Text>
   </View>
 );
 
-const VendorCard = ({ item }: { item: Vendor }) => (
-  <Pressable
-    onPress={() => router.push(`/vendor/${item.id}`)}
-    className="bg-white rounded-[24px] overflow-hidden shadow-sm w-[280px] mr-4 border border-gray-50"
-    style={{
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.03,
-      shadowRadius: 12,
-      elevation: 3,
-    }}
-  >
+const VendorCard = ({ item }: { item: FeaturedVendor }) => (
+  <View style={{ width: 165, marginRight: 12 }}>
+    <Pressable
+      onPress={() => router.push(`/vendor/${item.id}`)}
+      className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3,
+      }}
+    >
     <View className="relative">
       <Image
-        source={{ uri: item.coverImage || item.logo }}
-        className="w-full h-40"
+        source={item.logo ? { uri: item.logo } : require('@/assets/images/default-profile.jpg')}
+        className="w-full h-[140px]"
         resizeMode="cover"
       />
-      <View className="absolute top-3 right-3 bg-white/90 rounded-full px-2 py-1 flex-row items-center">
-        <IconSymbol name="star.fill" size={12} color="#fbbc04" />
-        <Text className="text-[12px] font-bold ml-1">{item.rating}</Text>
-      </View>
-    </View>
-    <View className="p-4">
-      <Text className="font-bold text-lg mb-1 text-gray-900" numberOfLines={1}>
-        {item.name}
-      </Text>
-      <View className="flex-row items-center">
-        <Text className="text-sm text-gray-500">
-          {item.deliveryTime} mins • ${item.deliveryFee.toFixed(2)} delivery
+      <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
+        <IconSymbol name="star.fill" size={11} color="#fbbf24" />
+        <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
+          {parseFloat(item.rating || '0').toFixed(1)}
         </Text>
       </View>
     </View>
-  </Pressable>
+    <View className="p-3">
+      <Text className="font-bold text-base mb-0.5 text-gray-900 dark:text-white" numberOfLines={1}>
+        {item.business_name}
+      </Text>
+      <View className="flex-row items-center mb-1">
+        <IconSymbol name="location.fill" size={11} color="#9ca3af" />
+        <Text className="text-xs text-gray-500 dark:text-gray-400 ml-1 flex-1" numberOfLines={1}>
+          {item.city || 'Lagos'}
+        </Text>
+      </View>
+      {item.distance && (
+        <Text className="text-[11px] text-gray-400 dark:text-gray-500">
+          {item.distance}
+        </Text>
+      )}
+    </View>
+    </Pressable>
+  </View>
 );
 
-const CategoryCard = ({ item }: { item: Category }) => (
+const ProductCard = ({ item }: { item: FeaturedProduct }) => {
+  const price = parseFloat(item.price);
+  const originalPrice = item.original_price ? parseFloat(item.original_price) : null;
+  const hasDiscount = originalPrice && originalPrice > price;
+  const discountPercent = hasDiscount ? Math.round(((originalPrice! - price) / originalPrice!) * 100) : 0;
+  
+  return (
+    <View style={{ width: 165, marginRight: 12 }}>
+      <Pressable
+        onPress={() => router.push(`/product/${item.id}`)}
+        className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 6,
+          elevation: 3,
+        }}
+      >
+      <View className="relative">
+        <Image
+          source={item.photo_url ? { uri: item.photo_url } : require('@/assets/images/default-product.jpg')}
+          className="w-full h-[140px]"
+          resizeMode="cover"
+        />
+        {hasDiscount && (
+          <View className="absolute top-2.5 left-2.5 bg-red-500 rounded-full px-2 py-0.5">
+            <Text className="text-[10px] font-bold text-white">{discountPercent}% OFF</Text>
+          </View>
+        )}
+        <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
+          <IconSymbol name="star.fill" size={11} color="#fbbf24" />
+          <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
+            {parseFloat(item.vendor?.rating || '4.5').toFixed(1)}
+          </Text>
+        </View>
+        {!item.is_available && (
+          <View className="absolute inset-0 bg-black/50 items-center justify-center">
+            <Text className="text-white font-semibold text-xs">Sold Out</Text>
+          </View>
+        )}
+      </View>
+      <View className="p-3">
+        <Text className="font-bold text-base mb-1 text-gray-900 dark:text-white" numberOfLines={1}>
+          {item.name}
+        </Text>
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-sm font-bold text-[#1E8449] dark:text-green-400">
+              ₦{price.toFixed(0)}
+            </Text>
+            {hasDiscount && (
+              <Text className="text-[11px] text-gray-400 line-through">
+                ₦{originalPrice?.toFixed(0)}
+              </Text>
+            )}
+          </View>
+          {item.quantity_available > 0 && item.quantity_available < 10 && (
+            <Text className="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
+              {item.quantity_available} left
+            </Text>
+          )}
+        </View>
+      </View>
+      </Pressable>
+    </View>
+  );
+};
+
+const CategoryCard = ({ item }: { item: FeaturedCategory }) => (
   <Pressable
     onPress={() => router.push(`/category/${item.id}`)}
     className="items-center mr-6"
   >
-    <View className="w-16 h-16 rounded-full bg-gray-50 items-center justify-center mb-2 overflow-hidden border border-gray-100">
-      {item.icon ? (
-        <Text className="text-3xl">{item.icon}</Text>
-      ) : (
-        <IconSymbol
-          name="square.grid.2x2"
-          size={24}
-          color={Colors.light.tint}
-        />
-      )}
+    <View className="w-16 h-16 rounded-full bg-gray-50 dark:bg-gray-800 items-center justify-center mb-2 overflow-hidden border border-gray-100 dark:border-gray-700">
+      <IconSymbol
+        name="square.grid.2x2"
+        size={24}
+        color={Colors.light.tint}
+      />
     </View>
     <Text
-      className="font-medium text-[13px] text-gray-700 text-center"
+      className="font-medium text-[13px] text-gray-700 dark:text-gray-300 text-center"
       numberOfLines={1}
     >
       {item.name}
@@ -206,32 +281,39 @@ export default function HomeScreen() {
     data: featuredVendors,
     isLoading: loadingFeatured,
     refetch: refetchVendors,
-  } = useVendors({ featured: true, limit: 5 });
+  } = useFeaturedVendors();
 
-  const { data: topRatedVendors, isLoading: loadingTopRated } = useVendors({
-    sort: "rating",
-    limit: 5,
-  });
+  const {
+    data: featuredProducts,
+    isLoading: loadingProducts,
+  } = useFeaturedProducts();
 
-  const { data: categories, isLoading: loadingCategories } = useCategories();
+  const { 
+    data: categories, 
+    isLoading: loadingCategories 
+  } = useFeaturedCategories();
 
   const onRefresh = () => {
     refetchVendors();
   };
 
-  const renderVendorItem = ({ item }: { item: Vendor }) => (
+  const renderVendorItem = ({ item }: { item: FeaturedVendor }) => (
     <VendorCard item={item} />
   );
 
-  const renderCategoryItem = ({ item }: { item: Category }) => (
+  const renderProductItem = ({ item }: { item: FeaturedProduct }) => (
+    <ProductCard item={item} />
+  );
+
+  const renderCategoryItem = ({ item }: { item: FeaturedCategory }) => (
     <CategoryCard item={item} />
   );
 
   const isLoading =
-    loadingFeatured || loadingTopRated || loadingCategories;
+    loadingFeatured || loadingProducts || loadingCategories;
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white dark:bg-gray-900">
       <ScrollView
         className="flex-1"
         style={{ paddingTop: insets.top }}
@@ -261,10 +343,10 @@ export default function HomeScreen() {
           ) : !categories?.length ? (
             <SectionEmptyState message="No categories available" />
             ) : (
-              <FlashList
+              <FlashList<FeaturedCategory>
                   data={categories || []}
                   renderItem={renderCategoryItem}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={(item) => String(item.id)}
                   horizontal
                   // @ts-ignore
                   estimatedItemSize={80}
@@ -277,7 +359,7 @@ export default function HomeScreen() {
         </Section>
 
         <Section
-          title="Featured Now"
+          title="Featured Stores"
           onSeeAll={
             featuredVendors?.length
               ? () => router.push("/explore?featured=true")
@@ -286,8 +368,9 @@ export default function HomeScreen() {
         >
           {loadingFeatured ? (
             <View className="flex-row px-4">
-              <Skeleton className="w-[280px] h-56 rounded-[24px] mr-4" />
-              <Skeleton className="w-[280px] h-56 rounded-[24px]" />
+              <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
+              <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
+              <Skeleton className="w-[165px] h-[200px] rounded-3xl" />
             </View>
           ) : !featuredVendors?.length ? (
             <SectionEmptyState
@@ -295,50 +378,53 @@ export default function HomeScreen() {
               icon="bag.fill"
             />
             ) : (
-                <FlashList<Vendor>
+                <FlashList<FeaturedVendor>
                   data={featuredVendors || []}
                   renderItem={renderVendorItem}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={(item) => String(item.id)}
                   horizontal
                   // @ts-ignore
-                  estimatedItemSize={280}
+                  estimatedItemSize={165}
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{
                     paddingHorizontal: 16,
+                    paddingRight: 32,
               }}
             />
           )}
         </Section>
 
         <Section
-          title="Top Rated"
+          title="Featured Products"
           onSeeAll={
-            topRatedVendors?.length
+            featuredProducts?.length
               ? () => router.push("/explore?sort=rating")
               : undefined
           }
         >
-          {loadingTopRated ? (
+          {loadingProducts ? (
             <View className="flex-row px-4">
-              <Skeleton className="w-[280px] h-56 rounded-[24px] mr-4" />
-              <Skeleton className="w-[280px] h-56 rounded-[24px]" />
+              <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
+              <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
+              <Skeleton className="w-[165px] h-[220px] rounded-3xl" />
             </View>
-          ) : !topRatedVendors?.length ? (
+          ) : !featuredProducts?.length ? (
             <SectionEmptyState
-              message="No top rated stores found"
+              message="No featured products found"
               icon="star.fill"
             />
             ) : (
-                <FlashList<Vendor>
-                  data={topRatedVendors || []}
-                  renderItem={renderVendorItem}
-                  keyExtractor={(item) => item.id}
+                <FlashList<FeaturedProduct>
+                  data={featuredProducts || []}
+                  renderItem={renderProductItem}
+                  keyExtractor={(item) => String(item.id)}
                   horizontal
                   // @ts-ignore
-                  estimatedItemSize={280}
+                  estimatedItemSize={165}
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{
                     paddingHorizontal: 16,
+                    paddingRight: 32,
                 paddingBottom: 24,
               }}
             />

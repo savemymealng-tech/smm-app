@@ -14,8 +14,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: cn(
-          'bg-[#15785B] active:bg-[#0F644B]',
-          Platform.select({ web: 'hover:bg-[#1A8A6B]' })
+          'bg-[#1E8449] active:bg-[#186A3C]',
+          Platform.select({ web: 'hover:bg-[#22975A]' })
         ),
         destructive: cn(
           'bg-destructive active:bg-destructive/90 dark:bg-destructive/60',

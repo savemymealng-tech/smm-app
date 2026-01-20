@@ -1,6 +1,6 @@
 /**
  * Main API Client
- * Unified export of all API services
+ * Unified export of all API services per SaveMyMeal API Guide v2.0.0
  */
 
 import { authApi } from './auth';
@@ -8,21 +8,15 @@ import { mealsApi } from './meals';
 import { vendorsApi } from './vendors';
 import { cartApi } from './cart';
 import { ordersApi } from './orders';
+import { paymentsApi } from './payments';
+import { featuredApi } from './featured';
 import { profileApi } from './profile';
-import { locationsApi } from './locations';
 import { contactApi } from './contact';
 import { tokenManager } from './client';
 
 // Re-export types
-export type { ApiResponse } from './client';
-export type { SignupRequest, LoginRequest, RequestLoginRequest, VerifyRequest, AuthResponse } from './auth';
-export type { BrowseMealsParams, SearchAnalytics } from './meals';
-export type { GetVendorsParams } from './vendors';
-export type { AddToCartRequest, UpdateCartItemRequest, RemoveCartItemRequest } from './cart';
-export type { PlaceOrderRequest, OrderHistoryParams } from './orders';
-export type { UpdateProfileRequest } from './profile';
-export type { SearchLocationsParams, Location } from './locations';
-export type { ContactMessageRequest, ContactMessageResponse } from './contact';
+export type { ApiResponse, PaginatedResponse } from './client';
+export * from '@/types/api';
 
 /**
  * Unified API client
@@ -34,8 +28,9 @@ export const api = {
   vendors: vendorsApi,
   cart: cartApi,
   orders: ordersApi,
+  payments: paymentsApi,
+  featured: featuredApi,
   profile: profileApi,
-  locations: locationsApi,
   contact: contactApi,
   // Token management utilities
   tokenManager,

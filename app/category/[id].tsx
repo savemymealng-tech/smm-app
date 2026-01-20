@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Dimensions, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProductCard } from "@/components/explore/ProductCard";
@@ -7,7 +7,10 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useCategory } from "@/lib/hooks/use-categories";
-import { useProducts } from "@/lib/hooks/use-products";
+import { useCategoryProducts } from "@/lib/hooks/use-products";
+
+const { width: screenWidth } = Dimensions.get("window");
+const CARD_WIDTH = (screenWidth - 48) / 2; // 2 columns, 16px padding on each side + 16px gap
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,9 +22,20 @@ export default function CategoryScreen() {
     isLoading: loadingProducts,
     refetch,
     isRefetching,
-  } = useProducts(undefined, id);
-console.log({products:products?.length});
-  const isLoading = loadingCategory || loadingProducts;
+    error,
+  } = useCategoryProducts(id || '');
+  
+  // Debug logging
+  console.log('==== CATEGORY PAGE DEBUG ====');
+  console.log('Category ID:', id);
+  console.log('Products type:', typeof products);
+  console.log('Products is array?:', Array.isArray(products));
+  console.log('Products data:', products);
+  console.log('Products length:', products?.length);
+  console.log('Loading Products:', loadingProducts);
+  console.log('Loading Category:', loadingCategory);
+  console.log('Error:', error);
+  console.log('============================');
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -55,7 +69,7 @@ console.log({products:products?.length});
       </View>
 
       {/* Content */}
-      {isLoading && !products ? (
+      {loadingProducts && !products ? (
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="p-4">
             <Skeleton className="h-6 w-48 mb-4" />
@@ -82,18 +96,39 @@ console.log({products:products?.length});
           }
         >
           {products && products.length > 0 ? (
-            <View className="px-4 py-4">
-              <View className="mb-4">
+            <View className="py-4">
+              <View className="mb-4 px-4">
                 <Text className="text-lg font-bold text-gray-900">
                   {products.length} product{products.length !== 1 ? "s" : ""}{" "}
                   available
                 </Text>
               </View>
-              <View className="flex-row flex-wrap justify-between">
-                {products.map((product) => (
-                  <ProductCard key={product.id} item={product} />
-                ))}
+              <View className="px-4 flex-row flex-wrap justify-between">
+                {products.map((product: any, index: number) => {
+                  console.log(`Rendering product ${index}:`, product.id, product.name);
+                  return (
+                    <View 
+                      key={product.id} 
+                      style={{ 
+                        width: CARD_WIDTH,
+                        marginBottom: 16 
+                      }}
+                    >
+                      <ProductCard item={product} />
+                    </View>
+                  );
+                })}
               </View>
+            </View>
+          ) : error ? (
+            <View className="flex-1 items-center justify-center py-20 px-4">
+              <IconSymbol name="exclamationmark.triangle.fill" size={48} color="#ef4444" />
+              <Text className="text-xl font-semibold text-gray-700 mt-4 mb-2">
+                Error loading products
+              </Text>
+              <Text className="text-sm text-gray-500 text-center">
+                {error instanceof Error ? error.message : 'Something went wrong'}
+              </Text>
             </View>
           ) : (
             <View className="flex-1 items-center justify-center py-20 px-4">

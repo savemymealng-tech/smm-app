@@ -14,7 +14,7 @@ export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
     return (
       <View className="relative w-full h-56">
         <Image
-          source={{ uri: coverImage }}
+          source={coverImage ? { uri: coverImage } : require('@/assets/images/default-profile.jpg')}
           className="w-full h-full"
           resizeMode="cover"
         />

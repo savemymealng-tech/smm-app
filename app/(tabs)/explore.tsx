@@ -1,115 +1,159 @@
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { useDebounce } from "use-debounce";
 
 import {
   EmptyState,
   FilterPanel,
-  Header,
   ProductsSection,
-  VendorsSection,
 } from "@/components/explore";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCategories } from "@/lib/hooks/use-categories";
-import { useSearch } from "@/lib/hooks/use-search";
-import type { Filter, SortOption } from "../../types";
+import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
+import { useBrowseMeals, useFeaturedCategories } from "@/lib/hooks";
+import type { BrowseMealsParams } from "@/types/api";
 
 export default function ExploreScreen() {
   const params = useLocalSearchParams<{
     q?: string;
     category?: string;
-    sort?: SortOption;
   }>();
 
   const [searchQuery, setSearchQuery] = useState(params.q || "");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 500);
-  const [sort, setSort] = useState<SortOption>(params.sort || "relevance");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     params.category || null
   );
   const [minRating, setMinRating] = useState<number | null>(null);
+  const [minPrice, setMinPrice] = useState<number | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
 
-  const { data: categories } = useCategories();
+  const { data: categories } = useFeaturedCategories();
 
-  const filters: Filter = useMemo(() => {
-    const f: Filter = {};
+  const browseParams: BrowseMealsParams = useMemo(() => {
+    const params: any = {};
+    
+    if (debouncedSearchQuery) {
+      params.search = debouncedSearchQuery;
+    }
     if (selectedCategory) {
-      f.categories = [selectedCategory];
+      params.category = selectedCategory;
     }
     if (minRating) {
-      f.minRating = minRating;
+      params.minRating = minRating;
     }
-    return f;
-  }, [selectedCategory, minRating]);
+    if (minPrice !== null) {
+      params.minPrice = minPrice;
+    }
+    if (maxPrice !== null) {
+      params.maxPrice = maxPrice;
+    }
+    if (dietaryPreferences.length > 0) {
+      params.dietaryPreferences = dietaryPreferences;
+    }
+    
+    return params;
+  }, [debouncedSearchQuery, selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences]);
 
   const {
-    data: searchResults,
+    data: mealsData,
     isLoading,
     refetch,
     isRefetching,
-  } = useSearch(debouncedSearchQuery, filters);
+  } = useBrowseMeals(browseParams);
 
-  const vendors = useMemo(() => {
-    const vendorList = searchResults?.vendors || [];
-    if (sort === "rating") {
-      return [...vendorList].sort((a, b) => b.rating - a.rating);
-    }
-    if (sort === "deliveryTime") {
-      return [...vendorList].sort((a, b) => a.deliveryTime - b.deliveryTime);
-    }
-    if (sort === "distance") {
-      return [...vendorList].sort(
-        (a, b) => (a.distance || 0) - (b.distance || 0)
-      );
-    }
-    return vendorList;
-  }, [searchResults?.vendors, sort]);
+  const meals = mealsData?.data || [];
+  const totalResults = mealsData?.total || 0;
 
-  const products = useMemo(() => {
-    const productList = searchResults?.products || [];
-    if (sort === "rating") {
-      return [...productList].sort((a, b) => b.rating - a.rating);
-    }
-    return productList;
-  }, [searchResults?.products, sort]);
-
-  const totalResults = vendors.length + products.length;
+  // Convert FeaturedCategory to Category type for FilterPanel
+  const convertedCategories = useMemo(() => 
+    categories?.map(cat => ({
+      id: String(cat.id),
+      name: cat.name,
+      slug: cat.name.toLowerCase().replace(/\s+/g, '-'),
+    })) || [],
+    [categories]
+  );
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (selectedCategory) count++;
     if (minRating) count++;
+    if (minPrice !== null || maxPrice !== null) count++;
+    if (dietaryPreferences.length > 0) count++;
     return count;
-  }, [selectedCategory, minRating]);
+  }, [selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences]);
 
   return (
     <View className="flex-1 bg-white">
-      <Header
-        searchQuery={searchQuery}
-        onSearch={setSearchQuery}
-        onSortChange={setSort}
-        sort={sort}
-        resultCount={totalResults}
-        onFilterPress={() => setShowFilters(!showFilters)}
-        activeFilters={activeFiltersCount}
-      />
+      <View className="px-4 pt-4 pb-2">
+        <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-3">
+          <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
+          <TextInput
+            placeholder="Search for meals..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="flex-1 ml-3 text-base"
+            placeholderTextColor="#6b7280"
+            style={{ color: '#111827' }}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <IconSymbol name="xmark.circle.fill" size={20} color="#9ca3af" />
+            </Pressable>
+          )}
+        </View>
+        
+        <View className="flex-row items-center mt-3">
+          <Pressable
+            onPress={() => setShowFilters(!showFilters)}
+            className={`flex-row items-center px-4 py-2 rounded-full mr-2 ${
+              activeFiltersCount > 0 ? 'bg-[#1E8449]' : 'bg-gray-100'
+            }`}
+          >
+            <IconSymbol 
+              name="slider.horizontal.3" 
+              size={16} 
+              color={activeFiltersCount > 0 ? '#fff' : '#111'} 
+            />
+            <Text className={`ml-2 font-medium ${
+              activeFiltersCount > 0 ? 'text-white' : 'text-gray-700'
+            }`}>
+              Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
+            </Text>
+          </Pressable>
+          
+          <Text className="text-sm text-gray-500 ml-2">
+            {totalResults} {totalResults === 1 ? 'result' : 'results'}
+          </Text>
+        </View>
+      </View>
 
       {showFilters && (
-        <View className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <View className="px-4 py-3 bg-gray-50 border-b border-gray-200">
           <FilterPanel
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
             minRating={minRating}
             onRatingChange={setMinRating}
-            categories={categories}
+            categories={convertedCategories}
+            minPrice={minPrice}
+            maxPrice={maxPrice}
+            onPriceChange={(min, max) => {
+              setMinPrice(min);
+              setMaxPrice(max);
+            }}
+            dietaryPreferences={dietaryPreferences}
+            onDietaryChange={setDietaryPreferences}
           />
         </View>
       )}
 
-      {isLoading && !searchResults ? (
+      {isLoading && !mealsData ? (
         <View className="p-4">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="w-full h-24 rounded-2xl mb-4" />
@@ -126,11 +170,9 @@ export default function ExploreScreen() {
             />
           }
           showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: 24 }}
         >
-          <VendorsSection vendors={vendors} />
-            <View className="h-4 bg-gray-50 my-2" />
-          <ProductsSection products={products} />
+          <ProductsSection products={meals} />
 
           {!isLoading && totalResults === 0 && (
             <EmptyState hasSearchQuery={!!debouncedSearchQuery} />

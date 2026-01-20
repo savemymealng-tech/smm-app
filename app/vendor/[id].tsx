@@ -49,14 +49,15 @@ export default function VendorDetailScreen() {
 
   // Group products by category
   const productsByCategory = useMemo(() => {
-    if (!products) return {};
+    if (!products || !Array.isArray(products)) return {};
     const grouped: Record<string, typeof products> = {};
     products.forEach((product) => {
-      const category = product.category || "Other";
-      if (!grouped[category]) {
-        grouped[category] = [];
+      // Get category name from categories array (first category if multiple)
+      const categoryName = product.categories?.[0]?.name || "Other";
+      if (!grouped[categoryName]) {
+        grouped[categoryName] = [];
       }
-      grouped[category].push(product);
+      grouped[categoryName].push(product);
     });
     return grouped;
   }, [products]);
@@ -73,7 +74,7 @@ export default function VendorDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 20 }}
       >
-        <VendorCoverHeader coverImage={vendor.coverImage} />
+        <VendorCoverHeader coverImage={vendor.logo} />
         <VendorInfoCard vendor={vendor} />
 
         {/* Products Section */}

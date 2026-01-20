@@ -1,18 +1,17 @@
-import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
-import { useCart } from "@/lib/hooks/use-cart";
-import { formatCurrency } from "@/lib/utils";
-import type { Product } from "@/types";
+import type { Meal } from "@/types/api";
 
 interface AddToCartButtonProps {
-  product: Product;
+  product: Meal;
   quantity: number;
   selectedCustomizations: Record<string, string[]>;
   onQuantityChange: (newQuantity: number) => void;
+  onAddToCart: () => void;
+  isLoading?: boolean;
 }
 
 export function AddToCartButton({
@@ -20,69 +19,57 @@ export function AddToCartButton({
   quantity,
   selectedCustomizations,
   onQuantityChange,
+  onAddToCart,
+  isLoading = false,
 }: AddToCartButtonProps) {
   const insets = useSafeAreaInsets();
-  const { addItem } = useCart();
-  const [isAdding, setIsAdding] = useState(false);
+  const price = parseFloat(product.price);
+  const totalPrice = price * quantity;
+  const maxQuantity = product.quantity_available;
+  const isMaxedOut = quantity >= maxQuantity ? true : false;
+  
+  // Ensure quantity is at least 1 on mount
+  if (quantity < 1 && maxQuantity > 0) {
+    onQuantityChange(1);
+  }
 
-  // Calculate total price including customizations
-  const customizationPrice = Object.entries(selectedCustomizations).reduce(
-    (sum, [customizationId, optionIds]) => {
-      const customization = product.customizations?.find(
-        (c) => c.id === customizationId
-      );
-      if (!customization) return sum;
-      return (
-        sum +
-        optionIds.reduce((itemSum, optionId) => {
-          const option = customization.options.find((o) => o.id === optionId);
-          return itemSum + (option?.price || 0);
-        }, 0)
-      );
-    },
-    0
-  );
-
-  const totalPrice = (product.price + customizationPrice) * quantity;
-
-  const handleAddToCart = async () => {
-    if (!product.isAvailable) return;
-    setIsAdding(true);
-    addItem(product, quantity, selectedCustomizations);
-    setTimeout(() => setIsAdding(false), 300);
-  };
-
-  if (!product.isAvailable) {
+  if (!product.is_available || !maxQuantity || maxQuantity === 0) {
     return (
       <View
-        className="bg-white border-t border-gray-200 px-4 py-3"
+        className="bg-white border-t border-gray-200 px-6 py-4"
         style={{ paddingBottom: Math.max(insets.bottom, 16) }}
       >
-        <Pressable
-          disabled
-          className="bg-gray-300 rounded-xl py-4 items-center justify-center"
-        >
-          <Text className="text-gray-600 font-semibold text-base">
+        <View className="bg-gray-100 rounded-2xl py-4 px-4 items-center">
+          <Text className="text-gray-500 font-semibold text-base">
             Currently Unavailable
           </Text>
-        </Pressable>
+        </View>
       </View>
     );
   }
 
   return (
     <View
-      className="bg-white border-t border-gray-200 px-4 py-3 shadow-lg"
-      style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+      className="bg-white border-t border-gray-100 px-6 py-4"
+      style={{ 
+        paddingBottom: Math.max(insets.bottom, 16),
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 5,
+      }}
     >
-      <View className="flex-row items-center justify-between mb-3">
-        <View>
-          <Text className="text-xs text-gray-500 mb-1">Total</Text>
-          <Text className="text-2xl font-bold text-gray-900">
-            {formatCurrency(totalPrice)}
+      {/* Quantity Selector */}
+      <View className="flex-row items-center justify-between px-4 mb-4">
+        <View className="flex-1 mr-4">
+          <Text className="text-xs text-gray-500 mb-0.5">Quantity</Text>
+          <Text className="text-sm text-gray-400">
+            {maxQuantity} available
           </Text>
         </View>
-        <View className="flex-row items-center">
+        
+        <View className="flex-row items-center bg-gray-50 rounded-full px-2 py-1.5">
           <Pressable
             onPress={() => {
               if (quantity > 1) {
@@ -90,51 +77,80 @@ export function AddToCartButton({
               }
             }}
             disabled={quantity <= 1}
-            className={`w-10 h-10 rounded-full border items-center justify-center ${
+            className={`w-9 h-9 rounded-full items-center justify-center ${
               quantity <= 1
-                ? "border-gray-200 bg-gray-100"
-                : "border-gray-300 bg-white"
+                ? "bg-gray-200"
+                : "bg-white shadow-sm"
             }`}
           >
             <IconSymbol
               name="minus"
-              size={16}
-              color={quantity <= 1 ? "#ccc" : "#666"}
+              size={18}
+              color={quantity <= 1 ? "#d1d5db" : "#374151"}
             />
           </Pressable>
-          <Text className="mx-4 text-lg font-semibold text-gray-900">
+          
+          <Text className="mx-5 text-lg font-bold text-gray-900 min-w-[32px] text-center">
             {quantity}
           </Text>
+          
           <Pressable
             onPress={() => {
-              onQuantityChange(quantity + 1);
+              if (quantity < maxQuantity) {
+                onQuantityChange(quantity + 1);
+              }
             }}
-            className="w-10 h-10 rounded-full border border-gray-300 bg-white items-center justify-center"
+            disabled={isMaxedOut}
+            className={`w-9 h-9 rounded-full items-center justify-center ${
+              isMaxedOut
+                ? "bg-gray-200"
+                : "bg-white shadow-sm"
+            }`}
           >
-            <IconSymbol name="plus" size={16} color="#666" />
+            <IconSymbol 
+              name="plus" 
+              size={18} 
+              color={isMaxedOut ? "#d1d5db" : "#374151"} 
+            />
           </Pressable>
         </View>
       </View>
+
+      {/* Add to Cart Button */}
       <Pressable
-        onPress={handleAddToCart}
-        disabled={isAdding}
-        className={`rounded-xl py-4 items-center justify-center ${
-          isAdding ? "bg-green-600" : "bg-primary"
-        }`}
+        onPress={onAddToCart}
+        disabled={isLoading || (isMaxedOut && quantity === 0)}
+        style={{
+          backgroundColor: isLoading ? "#15803d" : "#1E8449",
+          borderRadius: 16,
+          paddingVertical: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 4,
+          elevation: 4,
+        }}
       >
-        {isAdding ? (
-          <View className="flex-row items-center">
-            <IconSymbol name="checkmark" size={20} color="white" />
-            <Text className="text-white font-semibold text-base ml-2">
-              Added to Cart
-            </Text>
-          </View>
+        {isLoading ? (
+          <ActivityIndicator color="white" />
         ) : (
-          <Text className="text-white font-semibold text-base">
-            Add to Cart
-          </Text>
+          <>
+            <IconSymbol name="cart.fill" size={20} color="white" />
+            <Text className="text-white font-bold text-base ml-2">
+              Add to Cart • ₦{totalPrice.toFixed(0)}
+            </Text>
+          </>
         )}
       </Pressable>
+      
+      {isMaxedOut && (
+        <Text className="text-amber-600 text-xs text-center mt-2">
+          Maximum available quantity selected
+        </Text>
+      )}
     </View>
   );
 }

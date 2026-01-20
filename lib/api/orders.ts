@@ -1,81 +1,76 @@
 /**
  * Orders API Service
- * Handles order management endpoints
+ * Handles order placement and tracking per SaveMyMeal API Guide v2.0.0
  */
 
-import apiClient, { extractData, ApiResponse } from './client';
+import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
-import type { Order } from '../../types';
-
-export interface PlaceOrderRequest {
-  vendorId: string;
-  items: Array<{
-    productId: string;
-    quantity: number;
-    customizations?: Record<string, string[]>;
-    notes?: string;
-  }>;
-  addressId: string;
-  paymentMethodId: string;
-  promoCode?: string;
-  notes?: string;
-}
-
-export interface OrderHistoryParams {
-  status?: string;
-  page?: number;
-  limit?: number;
-}
+import type { Order, PlaceOrderRequest } from '@/types/api';
 
 export const ordersApi = {
   /**
-   * Place a new order
+   * Place New Order
+   * POST /customers/orders
    */
   async placeOrder(data: PlaceOrderRequest): Promise<Order> {
     const response = await apiClient.post<ApiResponse<Order>>(
-      API_CONFIG.ENDPOINTS.CUSTOMERS.ORDERS,
+      API_CONFIG.ENDPOINTS.ORDERS.PLACE,
       data
     );
-    return extractData(response);
-  },
-
-  /**
-   * Get order history
-   */
-  async getOrderHistory(params?: OrderHistoryParams): Promise<{
-    orders: Order[];
-    pagination?: ApiResponse['pagination'];
-  }> {
-    const response = await apiClient.get<ApiResponse<{
-      orders: Order[];
-      pagination?: ApiResponse['pagination'];
-    }>>(API_CONFIG.ENDPOINTS.CUSTOMERS.ORDERS, { params });
     
-    const data = extractData(response);
-    return {
-      orders: data.orders || [],
-      pagination: data.pagination,
-    };
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to place order');
   },
 
   /**
-   * Track a specific order
+   * Get Order History
+   * GET /customers/orders
    */
-  async trackOrder(orderId: string): Promise<Order> {
+  async getOrderHistory(): Promise<Order[]> {
+    const response = await apiClient.get<ApiResponse<Order[]>>(
+      API_CONFIG.ENDPOINTS.ORDERS.LIST
+    );
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to fetch order history');
+  },
+
+  /**
+   * Track Order / Get Order Details
+   * GET /customers/orders/:id
+   */
+  async trackOrder(id: number): Promise<Order> {
     const response = await apiClient.get<ApiResponse<Order>>(
-      API_CONFIG.ENDPOINTS.CUSTOMERS.ORDER_BY_ID(orderId)
+      API_CONFIG.ENDPOINTS.ORDERS.BY_ID(id)
     );
-    return extractData(response);
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to fetch order details');
   },
 
   /**
-   * Cancel an order
+   * Cancel Order
+   * POST /customers/orders/:id/cancel
    */
-  async cancelOrder(orderId: string): Promise<Order> {
+  async cancelOrder(id: number): Promise<Order> {
     const response = await apiClient.post<ApiResponse<Order>>(
-      API_CONFIG.ENDPOINTS.CUSTOMERS.CANCEL_ORDER(orderId)
+      API_CONFIG.ENDPOINTS.ORDERS.CANCEL(id)
     );
-    return extractData(response);
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to cancel order');
   },
 };
-
+ 

@@ -3,10 +3,30 @@
  * Centralized configuration for API base URL and endpoints
  */
 
+import { Platform } from 'react-native';
+
+// Get localhost equivalent based on platform
+const getLocalhost = (): string => {
+  // Android emulator uses 10.0.2.2 to access host machine's localhost
+  // iOS simulator and web can use localhost directly
+  if (Platform.OS === 'android') {
+    return '192.168.1.157';
+  }
+  return 'localhost';
+};
+
 // Default API base URL - can be overridden via environment variables
 const getApiBaseUrl = (): string => {
-  // In production, you might want to use Constants.expoConfig?.extra?.apiUrl
-  return process.env.EXPO_PUBLIC_API_URL || "https://app.savemymeal.com/api/v1";
+  // Per API Guide: Production URL or localhost for development
+  if (__DEV__) {
+    const localhost = getLocalhost();
+    const url = process.env.EXPO_PUBLIC_API_URL || `http://${localhost}:6001/api/v1`;
+    console.log('🔧 API Base URL (Development):', url);
+    return url;
+  }
+  const url = process.env.EXPO_PUBLIC_API_URL || "https://api.savemymeal.com/api/v1";
+  console.log('🔧 API Base URL (Production):', url);
+  return url;
 };
 
 export const API_CONFIG = {
@@ -14,38 +34,78 @@ export const API_CONFIG = {
   TIMEOUT: 30000, // 30 seconds
   ENDPOINTS: {
     AUTH: {
-      SIGNUP_CUSTOMER: '/auth/signup/customer',
-      LOGIN_CUSTOMER: '/auth/login/customer',
-      REQUEST_LOGIN: '/auth/request-login',
-      VERIFY: '/auth/verify',
-      REFRESH: '/auth/refresh',
+      SIGNUP_CUSTOMER: '/auth/customer/signup',
+      LOGIN_CUSTOMER: '/auth/customer/login',
+      REQUEST_CODE: '/auth/request-code',
+      VERIFY_CODE: '/auth/verify-code',
+      FORGOT_PASSWORD: '/auth/forgot-password',
+      RESET_PASSWORD: '/auth/reset-password',
+      REFRESH: '/auth/refresh-token',
     },
+    
+    // Meals/Products
     MEALS: {
       BROWSE: '/meals',
-      ANALYTICS: '/meals/analytics',
+      BY_ID: (id: number) => `/meals/${id}`,
+      BY_CATEGORY: (categoryId: number) => `/meals/category/${categoryId}`,
     },
+    
+    // Vendors
     VENDORS: {
       LIST: '/vendors',
-      BY_ID: (id: string) => `/vendors/${id}`,
-      BY_CITY: '/vendors/by-city',
-      PRODUCTS: (id: string) => `/vendors/${id}/products`,
+      BY_ID: (id: number) => `/vendors/${id}`,
+      PRODUCTS: (id: number) => `/vendors/${id}/products`,
+      NEARBY: '/customers/vendors/nearby',
+      SEARCH: '/customers/vendors/search',
     },
-    CUSTOMERS: {
-      MEALS: '/customers/meals',
-      CART: '/customers/cart',
-      CART_ITEM: '/customers/cart/item',
-      ORDERS: '/customers/orders',
-      ORDER_BY_ID: (id: string) => `/customers/orders/${id}`,
-      CANCEL_ORDER: (id: string) => `/customers/orders/${id}/cancel`,
-      PROFILE: '/customers/profile',
-      PROFILE_PICTURE: '/customers/profile/picture',
+    
+    // Featured Content
+    FEATURED: {
+      CATEGORIES: '/featured/categories',
+      PRODUCTS: '/featured/products',
+      VENDORS: '/featured/vendors',
     },
+    
+    // Cart
+    CART: {
+      GET: '/customers/cart',
+      ADD: '/customers/cart',
+      UPDATE: '/customers/cart',
+      REMOVE: '/customers/cart',
+      CLEAR: '/customers/cart/clear',
+    },
+    
+    // Orders
+    ORDERS: {
+      PLACE: '/customers/orders',
+      LIST: '/customers/orders',
+      BY_ID: (id: number) => `/customers/orders/${id}`,
+      CANCEL: (id: number) => `/customers/orders/${id}/cancel`,
+    },
+    
+    // Payments
+    PAYMENTS: {
+      INITIALIZE: '/payments/initialize',
+      VERIFY: (reference: string) => `/payments/verify/${reference}`,
+      HISTORY: (orderId: number) => `/payments/history/${orderId}`,
+    },
+    
+    // User Profile
+    PROFILE: {
+      GET: '/customers/profile',
+      UPDATE: '/customers/profile',
+      PICTURE: '/customers/profile/picture',
+    },
+    
+    // Locations
     LOCATIONS: {
       SEARCH: '/locations/search',
     },
+    
+    // Contact
     CONTACT: {
       SUBMIT: '/contact',
     },
   },
-} as const;
+};
 

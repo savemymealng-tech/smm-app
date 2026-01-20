@@ -51,7 +51,7 @@ function AppProviders() {
             <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: "modal" }} />
           </Stack>
-          <StatusBar style="dark" />
+          <StatusBar style="dark" backgroundColor="#ffffff" />
         </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

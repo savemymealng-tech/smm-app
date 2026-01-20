@@ -12,7 +12,7 @@ export function ProductImageHeader({ images }: ProductImageHeaderProps) {
   const router = useRouter();
 
   const renderImage = (item: string) => (
-    <Image source={{ uri: item }} className="w-full h-64" resizeMode="cover" />
+    <Image source={item ? { uri: item } : require('@/assets/images/default-product.jpg')} className="w-full h-64" resizeMode="cover" />
   );
 
   return (

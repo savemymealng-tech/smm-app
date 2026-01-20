@@ -1,19 +1,21 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable, Alert, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useProfile } from '@/lib/hooks/use-profile';
-import { Text } from '@/components/ui/text';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Input } from '@/components/ui/input';
-import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Text } from '@/components/ui/text';
+import { Colors } from '@/constants/theme';
+import { useProfile, useUpdateProfile } from '@/lib/hooks/use-profile';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data: user } = useProfile();
+  const { data: user, isLoading } = useProfile();
+  const updateProfileMutation = useUpdateProfile();
   
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -24,23 +26,49 @@ export default function SettingsScreen() {
   });
   
   const [profileData, setProfileData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || ''
+    firstName: '',
+    lastName: '',
+    username: '',
+    phone: '',
+    city: '',
   });
 
-  const handleSaveProfile = () => {
-    if (!profileData.name || !profileData.email) {
-      Alert.alert('Error', 'Name and email are required.');
+  // Update form when user data loads
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        firstName: user.first_name || '',
+        lastName: user.last_name || '',
+        username: user.username || '',
+        phone: user.phone || '',
+        city: user.city || '',
+      });
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!profileData.firstName || !profileData.username) {
+      Alert.alert('Error', 'First name and username are required.');
       return;
     }
 
-    // Here you would typically make an API call to update the profile
-    Alert.alert(
-      'Success', 
-      'Profile updated successfully!',
-      [{ text: 'OK', onPress: () => setShowEditProfile(false) }]
-    );
+    try {
+      await updateProfileMutation.mutateAsync({
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        username: profileData.username,
+        phone: profileData.phone,
+        city: profileData.city,
+      });
+      
+      Alert.alert(
+        'Success', 
+        'Profile updated successfully!',
+        [{ text: 'OK', onPress: () => setShowEditProfile(false) }]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update profile. Please try again.');
+    }
   };
 
   const handleChangePassword = () => {
@@ -70,7 +98,17 @@ export default function SettingsScreen() {
     );
   };
 
-  const settingSections = [
+  type MenuItem = {
+    icon: string;
+    label: string;
+    onPress: () => void;
+    showArrow?: boolean;
+    showSwitch?: boolean;
+    switchValue?: boolean;
+    textColor?: string;
+  };
+
+  const settingSections: Array<{ title: string; items: MenuItem[] }> = [
     {
       title: 'Account',
       items: [
@@ -210,6 +248,16 @@ export default function SettingsScreen() {
     }
   ];
 
+  // Show loading state while fetching profile
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center" style={{ paddingTop: insets.top }}>
+        <ActivityIndicator size="large" color="#15785B" />
+        <Text className="text-gray-500 mt-4">Loading settings...</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       {/* Header */}
@@ -290,7 +338,7 @@ export default function SettingsScreen() {
           <View className="items-center mb-6">
             <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center mb-3">
               <Text className="text-white text-4xl font-bold">
-                {profileData.name?.charAt(0).toUpperCase() || 'U'}
+                {profileData.firstName?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
             <Button variant="outline" size="sm">
@@ -299,19 +347,26 @@ export default function SettingsScreen() {
           </View>
 
           <Input
-            label="Full Name"
-            placeholder="Enter your full name"
-            value={profileData.name}
-            onChangeText={(text) => setProfileData({ ...profileData, name: text })}
+            label="First Name"
+            placeholder="Enter your first name"
+            value={profileData.firstName}
+            onChangeText={(text) => setProfileData({ ...profileData, firstName: text })}
             className="mb-4"
           />
 
           <Input
-            label="Email"
-            placeholder="Enter your email"
-            value={profileData.email}
-            onChangeText={(text) => setProfileData({ ...profileData, email: text })}
-            keyboardType="email-address"
+            label="Last Name"
+            placeholder="Enter your last name"
+            value={profileData.lastName}
+            onChangeText={(text) => setProfileData({ ...profileData, lastName: text })}
+            className="mb-4"
+          />
+
+          <Input
+            label="Username"
+            placeholder="Enter your username"
+            value={profileData.username}
+            onChangeText={(text) => setProfileData({ ...profileData, username: text })}
             autoCapitalize="none"
             className="mb-4"
           />
@@ -322,11 +377,27 @@ export default function SettingsScreen() {
             value={profileData.phone}
             onChangeText={(text) => setProfileData({ ...profileData, phone: text })}
             keyboardType="phone-pad"
+            className="mb-4"
+          />
+
+          <Input
+            label="City"
+            placeholder="Enter your city"
+            value={profileData.city}
+            onChangeText={(text) => setProfileData({ ...profileData, city: text })}
             className="mb-6"
           />
 
-          <Button onPress={handleSaveProfile} className="mb-4">
-            Save Changes
+          <Button 
+            onPress={handleSaveProfile} 
+            disabled={updateProfileMutation.isPending}
+            className="mb-4"
+          >
+            {updateProfileMutation.isPending ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text>Save Changes</Text>
+            )}
           </Button>
         </ScrollView>
       </BottomSheet>

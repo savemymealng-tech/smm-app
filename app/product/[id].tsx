@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,25 +6,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   AddToCartButton,
   ProductAdditionalInfo,
-  ProductCustomizations,
   ProductImageHeader,
   ProductInfoCard,
-  VendorInfoCard,
+  VendorInfoCard
 } from "@/components/product";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { useProduct } from "@/lib/hooks/use-products";
-import { useVendor } from "@/lib/hooks/use-vendors";
+import { useMeal } from "@/lib/hooks";
+import { useHybridAddToCart } from "@/lib/hooks/use-hybrid-cart";
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: product, isLoading } = useProduct(id || "");
-  const { data: vendor } = useVendor(product?.vendorId || "");
+  const { data: product, isLoading } = useMeal(id || "");
   const [quantity, setQuantity] = useState(1);
   const [selectedCustomizations, setSelectedCustomizations] = useState<
     Record<string, string[]>
   >({});
+  
+  const addToCartMutation = useHybridAddToCart();
 
   if (isLoading) {
     return (
@@ -38,32 +40,23 @@ export default function ProductDetailScreen() {
     return (
       <View className="flex-1 items-center justify-center">
         <Text>Product not found</Text>
+        <Button onPress={() => router.back()} className="mt-4">
+          <Text className="text-white">Go Back</Text>
+        </Button>
       </View>
     );
   }
-
-  const toggleCustomization = (customizationId: string, optionId: string) => {
-    const customization = product.customizations?.find(
-      (c) => c.id === customizationId
-    );
-    if (!customization) return;
-
-    if (customization.type === "single") {
-      setSelectedCustomizations({
-        ...selectedCustomizations,
-        [customizationId]: [optionId],
-      });
-    } else {
-      const current = selectedCustomizations[customizationId] || [];
-      const newSelection = current.includes(optionId)
-        ? current.filter((id) => id !== optionId)
-        : [...current, optionId];
-      setSelectedCustomizations({
-        ...selectedCustomizations,
-        [customizationId]: newSelection,
-      });
-    }
+  
+  const handleAddToCart = () => {
+    addToCartMutation.mutate({
+      product_id: product.id,
+      quantity,
+      product, // Pass product for local cart
+    });
   };
+
+  // Debug log all product data
+  console.log("Product Data:", { product });
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -72,19 +65,11 @@ export default function ProductDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        <ProductImageHeader images={product.images} />
+        <ProductImageHeader images={[product.photo_url]} />
 
-        {vendor && <VendorInfoCard vendor={vendor} />}
+        {product.vendor && <VendorInfoCard vendor={product.vendor} />}
 
         <ProductInfoCard product={product} />
-
-        {product.customizations && product.customizations.length > 0 && (
-          <ProductCustomizations
-            customizations={product.customizations}
-            selectedCustomizations={selectedCustomizations}
-            onToggleCustomization={toggleCustomization}
-          />
-        )}
 
         <ProductAdditionalInfo product={product} />
       </ScrollView>
@@ -94,6 +79,8 @@ export default function ProductDetailScreen() {
         quantity={quantity}
         selectedCustomizations={selectedCustomizations}
         onQuantityChange={setQuantity}
+        onAddToCart={handleAddToCart}
+        isLoading={addToCartMutation.isPending}
       />
     </View>
   );
