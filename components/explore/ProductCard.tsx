@@ -27,7 +27,7 @@ export function ProductCard({ item }: ProductCardProps) {
   return (
     <Pressable
       onPress={() => router.push(`/product/${item.id}`)}
-      className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-md border border-gray-100 dark:border-gray-700 mb-4 w-full"
+      className="bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100 mb-4 w-full"
     >
       <View className="relative">
         <Image
@@ -54,13 +54,13 @@ export function ProductCard({ item }: ProductCardProps) {
       </View>
       <View className="p-3">
         <Text
-          className="font-semibold text-sm mb-1 text-gray-900 dark:text-white"
+          className="font-semibold text-sm mb-1 text-gray-900"
           numberOfLines={2}
         >
           {item.name}
         </Text>
         {item.description && (
-          <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2" numberOfLines={1}>
+          <Text className="text-xs text-gray-500 mb-2" numberOfLines={1}>
             {item.description}
           </Text>
         )}
@@ -84,18 +84,18 @@ export function ProductCard({ item }: ProductCardProps) {
           <View className="flex-1">
             {hasDiscount ? (
               <View className="flex-row items-center">
-                <Text className="font-bold text-base text-gray-900 dark:text-white mr-2">
+                <Text className="font-bold text-base text-gray-900 mr-2">
                   ₦{price.toFixed(0)}
                 </Text>
-                <Text className="font-bold text-base text-gray-900 dark:text-white mr-1">
+                <Text className="font-bold text-base text-gray-900 mr-1">
                   ₦{price.toFixed(0)}
                 </Text>
-                <Text className="text-xs text-gray-400 dark:text-gray-500 line-through">
+                <Text className="text-xs text-gray-400 line-through">
                   ₦{originalPrice?.toFixed(0)}
                 </Text>
               </View>
             ) : (
-              <Text className="font-bold text-base text-gray-900 dark:text-white">
+              <Text className="font-bold text-base text-gray-900">
                 ₦{price.toFixed(0)}
               </Text>
             )}

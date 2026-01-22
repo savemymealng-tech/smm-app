@@ -8,7 +8,7 @@ import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
-import { initAuthAtom, initCartAtom, initThemeAtom } from "@/lib/atoms";
+import { initAuthAtom, initCartAtom } from "@/lib/atoms";
 import { useSetAtom } from "jotai";
 
 export const unstable_settings = {
@@ -61,13 +61,11 @@ function AppProviders() {
 function InitAtoms() {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
-  const initTheme = useSetAtom(initThemeAtom);
 
   useEffect(() => {
     initAuth();
     initCart();
-    initTheme();
-  }, [initAuth, initCart, initTheme]);
+  }, [initAuth, initCart]);
 
   return null;
 }

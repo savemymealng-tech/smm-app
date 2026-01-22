@@ -251,7 +251,14 @@ export default function SignupScreen() {
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-4"
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: 0,
+                  bottom: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
               >
                 <IconSymbol
                   name={showPassword ? 'eye.slash' : 'eye'}
@@ -294,7 +301,14 @@ export default function SignupScreen() {
               />
               <Pressable
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-4 top-4"
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: 0,
+                  bottom: 0,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
               >
                 <IconSymbol
                   name={showConfirmPassword ? 'eye.slash' : 'eye'}

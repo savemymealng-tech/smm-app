@@ -1,21 +1,22 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomSheet } from '@/components/ui/bottom-sheet';
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { Colors } from '@/constants/theme';
-import { useProfile, useUpdateProfile } from '@/lib/hooks/use-profile';
+import {
+  AppInfo,
+  EditProfileSheet,
+  MenuItem,
+  SettingsHeader,
+  SettingsSection,
+} from '@/components/settings';
+import { useProfile } from '@/lib/hooks/use-profile';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: user, isLoading } = useProfile();
-  const updateProfileMutation = useUpdateProfile();
   
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -46,31 +47,6 @@ export default function SettingsScreen() {
     }
   }, [user]);
 
-  const handleSaveProfile = async () => {
-    if (!profileData.firstName || !profileData.username) {
-      Alert.alert('Error', 'First name and username are required.');
-      return;
-    }
-
-    try {
-      await updateProfileMutation.mutateAsync({
-        first_name: profileData.firstName,
-        last_name: profileData.lastName,
-        username: profileData.username,
-        phone: profileData.phone,
-        city: profileData.city,
-      });
-      
-      Alert.alert(
-        'Success', 
-        'Profile updated successfully!',
-        [{ text: 'OK', onPress: () => setShowEditProfile(false) }]
-      );
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update profile. Please try again.');
-    }
-  };
-
   const handleChangePassword = () => {
     Alert.alert(
       'Change Password',
@@ -96,16 +72,6 @@ export default function SettingsScreen() {
         }}
       ]
     );
-  };
-
-  type MenuItem = {
-    icon: string;
-    label: string;
-    onPress: () => void;
-    showArrow?: boolean;
-    showSwitch?: boolean;
-    switchValue?: boolean;
-    textColor?: string;
   };
 
   const settingSections: Array<{ title: string; items: MenuItem[] }> = [
@@ -259,148 +225,29 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="px-4 py-4 flex-row items-center border-b border-gray-100">
-        <Pressable 
-          onPress={() => router.back()} 
-          className="w-10 h-10 rounded-full items-center justify-center -ml-2"
-        >
-          <IconSymbol name="chevron.left" size={24} color={Colors.light.text} />
-        </Pressable>
-        <Text className="text-xl font-bold ml-2 text-gray-900">Settings</Text>
-      </View>
+    <View className="flex flex-col flex-1 bg-white" style={{ paddingTop: insets.top }}>
+      <SettingsHeader />
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex flex-col" showsVerticalScrollIndicator={false}>
         <View className="px-4 py-6">
-          {settingSections.map((section, sectionIndex) => (
-            <View key={section.title} className="mb-8">
-              <Text className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">
-                {section.title}
-              </Text>
-              <View className="bg-white rounded-[24px] border border-gray-100 overflow-hidden shadow-sm">
-                {section.items.map((item, itemIndex) => (
-                  <Pressable
-                    key={item.label}
-                    onPress={item.onPress}
-                    className={`flex-row items-center justify-between p-5 ${
-                      itemIndex < section.items.length - 1 ? 'border-b border-gray-50' : ''
-                    }`}
-                  >
-                    <View className="flex-row items-center flex-1">
-                      <View 
-                        className="w-9 h-9 rounded-full items-center justify-center mr-4"
-                        style={{ backgroundColor: `${item.textColor?.includes('red') ? "#fee2e2" : "#f8f9fa"}` }}
-                      >
-                        <IconSymbol 
-                          name={item.icon} 
-                          size={20} 
-                          color={item.textColor?.includes('red') ? "#ef4444" : "#5f6368"} 
-                        />
-                      </View>
-                      <Text className={`text-base font-medium ${item.textColor || 'text-gray-800'}`}>
-                        {item.label}
-                      </Text>
-                    </View>
-                    
-                    {item.showSwitch && (
-                      <Switch
-                        value={item.switchValue}
-                        onValueChange={item.onPress}
-                        trackColor={{ false: '#e2e8f0', true: '#15785B' }}
-                        thumbColor={'#ffffff'}
-                      />
-                    )}
-                    
-                    {item.showArrow && (
-                      <IconSymbol name="chevron.right" size={18} color="#dadce0" />
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+          {settingSections.map((section) => (
+            <SettingsSection
+              key={section.title}
+              title={section.title}
+              items={section.items}
+            />
           ))}
 
-          {/* App Info */}
-          <View className="items-center py-8">
-            <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest">Savemymeal</Text>
-            <Text className="text-gray-300 text-[10px] mt-1">v1.0.0 • Made with ?</Text>
-          </View>
+          <AppInfo />
         </View>
       </ScrollView>
 
-      {/* Edit Profile Bottom Sheet */}
-      <BottomSheet
+      <EditProfileSheet
         visible={showEditProfile}
         onClose={() => setShowEditProfile(false)}
-        title="Edit Profile">
-        <ScrollView className="p-4">
-          <View className="items-center mb-6">
-            <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center mb-3">
-              <Text className="text-white text-4xl font-bold">
-                {profileData.firstName?.charAt(0).toUpperCase() || 'U'}
-              </Text>
-            </View>
-            <Button variant="outline" size="sm">
-              Change Photo
-            </Button>
-          </View>
-
-          <Input
-            label="First Name"
-            placeholder="Enter your first name"
-            value={profileData.firstName}
-            onChangeText={(text) => setProfileData({ ...profileData, firstName: text })}
-            className="mb-4"
-          />
-
-          <Input
-            label="Last Name"
-            placeholder="Enter your last name"
-            value={profileData.lastName}
-            onChangeText={(text) => setProfileData({ ...profileData, lastName: text })}
-            className="mb-4"
-          />
-
-          <Input
-            label="Username"
-            placeholder="Enter your username"
-            value={profileData.username}
-            onChangeText={(text) => setProfileData({ ...profileData, username: text })}
-            autoCapitalize="none"
-            className="mb-4"
-          />
-
-          <Input
-            label="Phone Number"
-            placeholder="Enter your phone number"
-            value={profileData.phone}
-            onChangeText={(text) => setProfileData({ ...profileData, phone: text })}
-            keyboardType="phone-pad"
-            className="mb-4"
-          />
-
-          <Input
-            label="City"
-            placeholder="Enter your city"
-            value={profileData.city}
-            onChangeText={(text) => setProfileData({ ...profileData, city: text })}
-            className="mb-6"
-          />
-
-          <Button 
-            onPress={handleSaveProfile} 
-            disabled={updateProfileMutation.isPending}
-            className="mb-4"
-          >
-            {updateProfileMutation.isPending ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text>Save Changes</Text>
-            )}
-          </Button>
-        </ScrollView>
-      </BottomSheet>
+        profileData={profileData}
+        onProfileDataChange={setProfileData}
+      />
     </View>
   );
 }

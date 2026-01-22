@@ -42,7 +42,7 @@ const SearchBar = () => (
   <View className="px-4 mb-4">
     <Pressable
       onPress={() => router.push("/explore")}
-      className="flex-row items-center bg-white dark:bg-gray-800 rounded-full px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700"
+      className="flex-row items-center bg-white rounded-full px-4 py-3 shadow-sm border border-gray-100"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -52,10 +52,10 @@ const SearchBar = () => (
       }}
     >
       <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
-      <Text className="ml-3 text-gray-400 dark:text-gray-500 text-base flex-1">
+      <Text className="ml-3 text-gray-400 text-base flex-1">
         Search for food, groceries...
       </Text>
-      <View className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-2" />
+      <View className="w-px h-6 bg-gray-200 mx-2" />
       <IconSymbol name="location.fill" size={18} color={Colors.light.tint} />
     </Pressable>
   </View>
@@ -64,11 +64,11 @@ const SearchBar = () => (
 const WelcomeHeader = () => (
   <View className="px-4 py-6 flex-row items-center justify-between">
     <View>
-      <Text className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
+      <Text className="text-sm text-gray-500 font-medium uppercase tracking-wider">
         Deliver to
       </Text>
       <View className="flex-row items-center mt-0.5">
-        <Text className="text-lg font-bold mr-1 dark:text-white">Current Location</Text>
+        <Text className="text-lg font-bold mr-1">Current Location</Text>
         <IconSymbol name="chevron.right" size={14} color="#000" />
       </View>
     </View>
@@ -108,13 +108,13 @@ const Section = ({
 }) => (
   <View className="mb-8">
     <View className="flex-row items-center justify-between px-4 mb-4">
-      <Text className="text-xl font-bold text-gray-900 dark:text-white">{title}</Text>
+      <Text className="text-xl font-bold text-gray-900">{title}</Text>
       {onSeeAll && (
         <Pressable
           onPress={onSeeAll}
-          className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-full"
+          className="bg-primary/10 px-3 py-1 rounded-full"
         >
-          <Text className="text-primary dark:text-primary-foreground font-semibold text-sm">View all</Text>
+          <Text className="text-primary font-semibold text-sm">View all</Text>
         </Pressable>
       )}
     </View>
@@ -129,13 +129,13 @@ const SectionEmptyState = ({
   message: string;
   icon?: any;
 }) => (
-  <View className="px-4 py-8 items-center justify-center bg-gray-50/50 dark:bg-gray-800/50 rounded-[24px] mx-4 border border-dashed border-gray-200 dark:border-gray-700">
+  <View className="px-4 py-8 items-center justify-center bg-gray-50/50 rounded-[24px] mx-4 border border-dashed border-gray-200">
     <IconSymbol
       name={icon || "square.grid.2x2"}
       size={32}
       color="#9ca3af"
     />
-    <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2 font-medium">{message}</Text>
+    <Text className="text-gray-500 text-sm mt-2 font-medium">{message}</Text>
   </View>
 );
 
@@ -143,7 +143,7 @@ const VendorCard = ({ item }: { item: FeaturedVendor }) => (
   <View style={{ width: 165, marginRight: 12 }}>
     <Pressable
       onPress={() => router.push(`/vendor/${item.id}`)}
-      className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden"
+      className="bg-white rounded-3xl overflow-hidden"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -158,25 +158,25 @@ const VendorCard = ({ item }: { item: FeaturedVendor }) => (
         className="w-full h-[140px]"
         resizeMode="cover"
       />
-      <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
+        <View className="absolute top-2.5 right-2.5 bg-white/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
         <IconSymbol name="star.fill" size={11} color="#fbbf24" />
-        <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
+          <Text className="text-[11px] font-bold ml-1 text-gray-900">
           {parseFloat(item.rating || '0').toFixed(1)}
         </Text>
       </View>
     </View>
     <View className="p-3">
-      <Text className="font-bold text-base mb-0.5 text-gray-900 dark:text-white" numberOfLines={1}>
+        <Text className="font-bold text-base mb-0.5 text-gray-900" numberOfLines={1}>
         {item.business_name}
       </Text>
       <View className="flex-row items-center mb-1">
         <IconSymbol name="location.fill" size={11} color="#9ca3af" />
-        <Text className="text-xs text-gray-500 dark:text-gray-400 ml-1 flex-1" numberOfLines={1}>
+          <Text className="text-xs text-gray-500 ml-1 flex-1" numberOfLines={1}>
           {item.city || 'Lagos'}
         </Text>
       </View>
       {item.distance && (
-        <Text className="text-[11px] text-gray-400 dark:text-gray-500">
+          <Text className="text-[11px] text-gray-400">
           {item.distance}
         </Text>
       )}
@@ -195,7 +195,7 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
     <View style={{ width: 165, marginRight: 12 }}>
       <Pressable
         onPress={() => router.push(`/product/${item.id}`)}
-        className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden"
+        className="bg-white rounded-3xl overflow-hidden"
         style={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
@@ -228,12 +228,12 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
         )}
       </View>
       <View className="p-3">
-        <Text className="font-bold text-base mb-1 text-gray-900 dark:text-white" numberOfLines={1}>
+          <Text className="font-bold text-base mb-1 text-gray-900" numberOfLines={1}>
           {item.name}
         </Text>
         <View className="flex-row items-center justify-between">
           <View>
-            <Text className="text-sm font-bold text-[#1E8449] dark:text-green-400">
+              <Text className="text-sm font-bold text-[#1E8449]">
               ₦{price.toFixed(0)}
             </Text>
             {hasDiscount && (
@@ -243,7 +243,7 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
             )}
           </View>
           {item.quantity_available > 0 && item.quantity_available < 10 && (
-            <Text className="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
+              <Text className="text-[10px] text-amber-600 font-medium">
               {item.quantity_available} left
             </Text>
           )}
@@ -259,7 +259,7 @@ const CategoryCard = ({ item }: { item: FeaturedCategory }) => (
     onPress={() => router.push(`/category/${item.id}`)}
     className="items-center mr-6"
   >
-    <View className="w-16 h-16 rounded-full bg-gray-50 dark:bg-gray-800 items-center justify-center mb-2 overflow-hidden border border-gray-100 dark:border-gray-700">
+    <View className="w-16 h-16 rounded-full bg-gray-50 items-center justify-center mb-2 overflow-hidden border border-gray-100">
       <IconSymbol
         name="square.grid.2x2"
         size={24}
@@ -267,7 +267,7 @@ const CategoryCard = ({ item }: { item: FeaturedCategory }) => (
       />
     </View>
     <Text
-      className="font-medium text-[13px] text-gray-700 dark:text-gray-300 text-center"
+      className="font-medium text-[13px] text-gray-700 text-center"
       numberOfLines={1}
     >
       {item.name}
@@ -313,7 +313,7 @@ export default function HomeScreen() {
     loadingFeatured || loadingProducts || loadingCategories;
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-900">
+    <View className="flex-1 bg-white">
       <ScrollView
         className="flex-1"
         style={{ paddingTop: insets.top }}

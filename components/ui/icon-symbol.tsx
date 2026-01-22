@@ -27,14 +27,17 @@ const MAPPING: IconMapping = {
   "heart.fill": "favorite",
   "star.fill": "star",
   "location.fill": "location-on",
+  location: "location-on",
   "bell.fill": "notifications",
   "creditcard.fill": "credit-card",
   "gear.fill": "settings",
   "arrow.back": "arrow-back",
+  "arrow.left": "arrow-back",
   "arrow.forward": "arrow-forward",
   checkmark: "check",
   plus: "add",
   minus: "remove",
+  pencil: "edit",
   "trash.fill": "delete",
   trash: "delete",
   "map.fill": "map",
@@ -42,6 +45,8 @@ const MAPPING: IconMapping = {
   "clock.fill": "access-time",
   "tag.fill": "local-offer",
   "square.grid.2x2": "grid-view",
+  eye: "visibility",
+  "eye.slash": "visibility-off",
 };
 
 /**

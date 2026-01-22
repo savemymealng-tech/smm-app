@@ -97,6 +97,16 @@ export const API_CONFIG = {
       PICTURE: '/customers/profile/picture',
     },
     
+    // Addresses
+    ADDRESSES: {
+      LIST: '/customers/addresses',
+      BY_ID: (id: number) => `/customers/addresses/${id}`,
+      CREATE: '/customers/addresses',
+      UPDATE: (id: number) => `/customers/addresses/${id}`,
+      DELETE: (id: number) => `/customers/addresses/${id}`,
+      SET_DEFAULT: (id: number) => `/customers/addresses/${id}/default`,
+    },
+    
     // Locations
     LOCATIONS: {
       SEARCH: '/locations/search',

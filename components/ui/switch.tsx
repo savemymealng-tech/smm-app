@@ -13,7 +13,7 @@ function Switch({
         Platform.select({
           web: 'focus-visible:border-ring focus-visible:ring-ring/50 peer inline-flex outline-none transition-all focus-visible:ring-[3px] disabled:cursor-not-allowed',
         }),
-        props.checked ? 'bg-primary' : 'bg-input dark:bg-input/80',
+        props.checked ? 'bg-primary' : 'bg-input',
         props.disabled && 'opacity-50',
         className
       )}
@@ -25,8 +25,8 @@ function Switch({
             web: 'pointer-events-none block ring-0',
           }),
           props.checked
-            ? 'dark:bg-primary-foreground translate-x-3.5'
-            : 'dark:bg-foreground translate-x-0'
+            ? 'translate-x-3.5'
+            : 'translate-x-0'
         )}
       />
     </SwitchPrimitives.Root>
