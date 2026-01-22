@@ -21,7 +21,7 @@ export const featuredApi = {
       API_CONFIG.ENDPOINTS.FEATURED.CATEGORIES,
       { params: { limit } }
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
