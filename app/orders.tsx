@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useOrders } from "@/lib/hooks/use-orders";
+import { useReorder } from "@/lib/hooks/useOrders";
 import { formatCurrency } from "@/lib/utils";
 import type { Order, OrderStatus } from "../types";
 
@@ -15,11 +16,22 @@ export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: orders, isLoading } = useOrders();
+  const reorderMutation = useReorder();
   const [selectedStatus, setSelectedStatus] = useState<"all" | OrderStatus>(
     "all"
   );
+  const [reorderingOrderId, setReorderingOrderId] = useState<string | null>(null);
 
   const ordersList = orders || [];
+
+  const handleReorder = (order: Order) => {
+    setReorderingOrderId(String(order.id));
+    reorderMutation.mutate(order as any, {
+      onSettled: () => {
+        setReorderingOrderId(null);
+      },
+    });
+  };
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
@@ -245,10 +257,18 @@ export default function OrdersScreen() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onPress={() => router.push(`/vendor/${order.vendorId}`)}
+                        onPress={() => handleReorder(order)}
+                        disabled={reorderingOrderId === String(order.id)}
                         className="flex-1"
                       >
-                        Order Again
+                        {reorderingOrderId === String(order.id) ? (
+                          <View className="flex-row items-center">
+                            <ActivityIndicator size="small" color="#15785B" />
+                            <Text className="ml-2">Adding...</Text>
+                          </View>
+                        ) : (
+                          <Text>Order Again</Text>
+                        )}
                       </Button>
                       {!order.rating && (
                         <Button
@@ -258,7 +278,7 @@ export default function OrdersScreen() {
                           }
                           className="flex-1"
                         >
-                          Rate Order
+                          <Text className="text-white">Rate Order</Text>
                         </Button>
                       )}
                     </>

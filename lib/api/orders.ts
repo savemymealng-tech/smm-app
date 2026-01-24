@@ -5,7 +5,7 @@
 
 import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
-import type { Order, PlaceOrderRequest } from '@/types/api';
+import type { Order, PlaceOrderRequest, Review, SubmitReviewRequest } from '@/types/api';
 
 export const ordersApi = {
   /**
@@ -71,6 +71,23 @@ export const ordersApi = {
     }
     
     throw new Error(response.data.error || 'Failed to cancel order');
+  },
+
+  /**
+   * Submit Order Review
+   * POST /customers/orders/:id/review
+   */
+  async submitReview(data: SubmitReviewRequest): Promise<Review> {
+    const response = await apiClient.post<ApiResponse<Review>>(
+      `${API_CONFIG.ENDPOINTS.ORDERS.BY_ID(data.order_id)}/review`,
+      data
+    );
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to submit review');
   },
 };
  

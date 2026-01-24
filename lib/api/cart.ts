@@ -95,7 +95,7 @@ export const cartApi = {
 
   /**
    * Update Cart Item Quantity
-   * PUT /customers/cart
+   * PUT /customers/cart/item
    */
   async updateCart(data: UpdateCartRequest): Promise<Cart> {
     const response = await apiClient.put<ApiResponse<Cart>>(
@@ -112,7 +112,7 @@ export const cartApi = {
 
   /**
    * Remove Item from Cart
-   * DELETE /customers/cart
+   * DELETE /customers/cart/item
    */
   async removeFromCart(data: RemoveFromCartRequest): Promise<Cart> {
     const response = await apiClient.delete<ApiResponse<Cart>>(
@@ -129,7 +129,7 @@ export const cartApi = {
 
   /**
    * Clear Entire Cart
-   * DELETE /customers/cart/clear
+   * DELETE /customers/cart
    */
   async clearCart(): Promise<void> {
     const response = await apiClient.delete<ApiResponse<null>>(

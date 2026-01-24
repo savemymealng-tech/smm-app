@@ -1,10 +1,10 @@
-import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
-
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { toast } from '@/components/ui/toast';
 import { useUpdateProfile } from '@/lib/hooks/use-profile';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 
 type ProfileData = {
   firstName: string;
@@ -31,7 +31,7 @@ export function EditProfileSheet({
 
   const handleSaveProfile = async () => {
     if (!profileData.firstName || !profileData.username) {
-      Alert.alert('Error', 'First name and username are required.');
+      toast.warning('Missing Fields', 'First name and username are required.');
       return;
     }
 
@@ -44,13 +44,10 @@ export function EditProfileSheet({
         city: profileData.city,
       });
       
-      Alert.alert(
-        'Success', 
-        'Profile updated successfully!',
-        [{ text: 'OK', onPress: () => onClose() }]
-      );
+      toast.success('Profile Updated', 'Your profile has been updated successfully!');
+      onClose();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update profile. Please try again.');
+      toast.error('Update Failed', error.message || 'Failed to update profile. Please try again.');
     }
   };
 

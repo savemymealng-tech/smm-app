@@ -15,8 +15,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors } from "@/lib/hooks";
-import type { FeaturedCategory, FeaturedProduct, FeaturedVendor } from "../../types/api";
+import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
+import { useLocation } from "@/lib/hooks/useLocation";
+import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -61,18 +62,77 @@ const SearchBar = () => (
   </View>
 );
 
-const WelcomeHeader = () => (
-  <View className="px-4 py-6 flex-row items-center justify-between">
-    <View>
+const WelcomeHeader = ({
+  address,
+  isLoading,
+  onPress
+}: {
+  address?: string;
+  isLoading?: boolean;
+  onPress?: () => void;
+}) => (
+  <Pressable onPress={onPress} className="px-4 py-6 flex-row items-center justify-between">
+    <View className="flex-1">
       <Text className="text-sm text-gray-500 font-medium uppercase tracking-wider">
         Deliver to
       </Text>
       <View className="flex-row items-center mt-0.5">
-        <Text className="text-lg font-bold mr-1">Current Location</Text>
+        {isLoading ? (
+          <Text className="text-lg font-bold mr-1 text-gray-400">Getting location...</Text>
+        ) : (
+          <Text className="text-lg font-bold mr-1 flex-1" numberOfLines={1}>
+            {address || 'Current Location'}
+          </Text>
+        )}
         <IconSymbol name="chevron.right" size={14} color="#000" />
       </View>
     </View>
+  </Pressable>
+);
 
+const NearbyVendorCard = ({ item }: { item: Vendor }) => (
+  <View style={{ width: 165, marginRight: 12 }}>
+    <Pressable
+      onPress={() => router.push(`/vendor/${item.id}`)}
+      className="bg-white rounded-3xl overflow-hidden"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3,
+      }}
+    >
+      <View className="relative">
+        <Image
+          source={item.logo ? { uri: item.logo } : require('@/assets/images/default-profile.jpg')}
+          className="w-full h-[140px]"
+          resizeMode="cover"
+        />
+        <View className="absolute top-2.5 right-2.5 bg-white/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
+          <IconSymbol name="star.fill" size={11} color="#fbbf24" />
+          <Text className="text-[11px] font-bold ml-1 text-gray-900">
+            {parseFloat(item.rating || '0').toFixed(1)}
+          </Text>
+        </View>
+        {item.distance && (
+          <View className="absolute bottom-2.5 left-2.5 bg-[#1E8449] rounded-full px-2 py-0.5">
+            <Text className="text-[10px] font-bold text-white">{item.distance} km</Text>
+          </View>
+        )}
+      </View>
+      <View className="p-3">
+        <Text className="font-bold text-base mb-0.5 text-gray-900" numberOfLines={1}>
+          {item.business_name}
+        </Text>
+        <View className="flex-row items-center mb-1">
+          <IconSymbol name="location.fill" size={11} color="#9ca3af" />
+          <Text className="text-xs text-gray-500 ml-1 flex-1" numberOfLines={1}>
+            {item.city || 'Lagos'}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
   </View>
 );
 
@@ -277,6 +337,26 @@ const CategoryCard = ({ item }: { item: FeaturedCategory }) => (
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+
+  // Location hook for nearby vendors
+  const {
+    location,
+    isLoading: loadingLocation,
+    refreshLocation,
+  } = useLocation();
+
+  // Nearby vendors based on user location
+  const {
+    data: nearbyVendors,
+    isLoading: loadingNearby,
+    refetch: refetchNearby,
+  } = useNearbyVendors(
+    location?.coords.latitude ?? null,
+    location?.coords.longitude ?? null,
+    10, // 10km radius
+    10  // limit to 10 vendors
+  );
+
   const {
     data: featuredVendors,
     isLoading: loadingFeatured,
@@ -286,19 +366,32 @@ export default function HomeScreen() {
   const {
     data: featuredProducts,
     isLoading: loadingProducts,
+    refetch: refetchProducts,
   } = useFeaturedProducts();
 
   const { 
     data: categories, 
-    isLoading: loadingCategories 
+    isLoading: loadingCategories,
+    refetch: refetchCategories,
   } = useFeaturedCategories();
 
   const onRefresh = () => {
     refetchVendors();
+    refetchProducts();
+    refetchCategories();
+    if (location) {
+      refetchNearby();
+    } else {
+      refreshLocation();
+    }
   };
 
   const renderVendorItem = ({ item }: { item: FeaturedVendor }) => (
     <VendorCard item={item} />
+  );
+
+  const renderNearbyVendorItem = ({ item }: { item: Vendor }) => (
+    <NearbyVendorCard item={item} />
   );
 
   const renderProductItem = ({ item }: { item: FeaturedProduct }) => (
@@ -326,7 +419,11 @@ export default function HomeScreen() {
           />
         }
       >
-        <WelcomeHeader />
+        <WelcomeHeader
+          address={location?.address}
+          isLoading={loadingLocation}
+          onPress={refreshLocation}
+        />
         <SearchBar />
         <AdBanner />
 
@@ -357,6 +454,45 @@ export default function HomeScreen() {
             />
           )}
         </Section>
+
+        {/* Nearby Vendors Section - Only show if we have location */}
+        {(location || loadingNearby) && (
+          <Section
+            title="Nearby Stores"
+            onSeeAll={
+              nearbyVendors?.length
+                ? () => router.push("/explore")
+                : undefined
+            }
+          >
+            {loadingNearby || loadingLocation ? (
+              <View className="flex-row px-4">
+                <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
+                <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
+                <Skeleton className="w-[165px] h-[200px] rounded-3xl" />
+              </View>
+            ) : !nearbyVendors?.length ? (
+              <SectionEmptyState
+                message="No stores found nearby"
+                icon="location.slash.fill"
+              />
+            ) : (
+              <FlashList<Vendor>
+                data={nearbyVendors || []}
+                renderItem={renderNearbyVendorItem}
+                keyExtractor={(item) => String(item.id)}
+                horizontal
+                // @ts-ignore
+                estimatedItemSize={165}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingRight: 32,
+                }}
+              />
+            )}
+          </Section>
+        )}
 
         <Section
           title="Featured Stores"

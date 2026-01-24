@@ -70,9 +70,9 @@ export const API_CONFIG = {
     CART: {
       GET: '/customers/cart',
       ADD: '/customers/cart',
-      UPDATE: '/customers/cart',
-      REMOVE: '/customers/cart',
-      CLEAR: '/customers/cart/clear',
+      UPDATE: '/customers/cart/item',
+      REMOVE: '/customers/cart/item',
+      CLEAR: '/customers/cart',
     },
     
     // Orders

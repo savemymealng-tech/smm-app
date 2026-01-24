@@ -1,16 +1,26 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PaystackWebView } from "@/components/ui/paystack-webview";
 import { Text } from "@/components/ui/text";
+import { toast } from "@/components/ui/toast";
 import { useInitializePayment, usePlaceOrder, useVerifyPayment } from "@/lib/hooks";
 import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
 import { useProfile } from "@/lib/hooks/use-profile";
 import { formatCurrency } from "@/lib/utils";
 import { Separator } from "@rn-primitives/context-menu";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Address } from "../types";
 
 export default function CheckoutScreen() {
@@ -56,6 +66,11 @@ export default function CheckoutScreen() {
   const [showPaymentWebView, setShowPaymentWebView] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  
+  // Success dialog state
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [successOrderId, setSuccessOrderId] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Set default address on mount or when mockAddresses changes
   useEffect(() => {
@@ -87,15 +102,12 @@ export default function CheckoutScreen() {
     });
 
     if (!selectedAddress) {
-      Alert.alert(
-        "Missing Information",
-        "Please select a delivery address."
-      );
+      toast.warning("Missing Information", "Please select a delivery address.");
       return;
     }
 
     if (cart.length === 0) {
-      Alert.alert("Empty Cart", "Your cart is empty.");
+      toast.warning("Empty Cart", "Your cart is empty.");
       return;
     }
 
@@ -145,68 +157,50 @@ export default function CheckoutScreen() {
         setPaymentUrl(paymentResponse.authorization_url);
         setShowPaymentWebView(true);
       } else {
-        // Cash on delivery - clear cart and navigate
+        // Cash on delivery - clear cart and show success
         clearCartMutation.mutate();
-        Alert.alert(
-          "Order Placed Successfully!",
-          "Your order has been confirmed. Pay on delivery.",
-          [{ 
-            text: "View Order", 
-            onPress: () => router.replace(`/order/${orderResponse.id}`) 
-          }]
-        );
+        setSuccessOrderId(orderResponse.id);
+        setSuccessMessage("Your order has been confirmed. Pay on delivery.");
+        setSuccessDialogOpen(true);
       }
     } catch (error: any) {
       console.error('Order placement error:', error);
       const errorMessage = error.response?.data?.error || error.message || "Failed to place order. Please try again.";
-      Alert.alert("Order Error", errorMessage);
+      toast.error("Order Error", errorMessage);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handlePaymentWebViewNav = async (navState: any) => {
-    const { url } = navState;
+  const handlePaymentSuccess = async (reference: string) => {
+    setShowPaymentWebView(false);
+    setIsProcessing(true);
     
-    // Check if payment was successful (Paystack redirects to callback URL)
-    if (url.includes('/payment/callback') || url.includes('success')) {
-      setShowPaymentWebView(false);
-      
-      if (paymentReference) {
-        try {
-          await verifyPaymentMutation.mutateAsync(paymentReference);
-          // Clear cart after successful payment
-          clearCartMutation.mutate();
-          Alert.alert(
-            "Payment Successful!",
-            "Your order has been confirmed.",
-            [{ 
-              text: "View Orders", 
-              onPress: () => router.replace("/orders") 
-            }]
-          );
-        } catch (error) {
-          Alert.alert("Payment Verification Failed", "Please contact support.");
-        }
-      }
-    } else if (url.includes('/payment/cancel') || url.includes('cancel')) {
-      setShowPaymentWebView(false);
-      Alert.alert("Payment Cancelled", "You cancelled the payment.");
+    try {
+      await verifyPaymentMutation.mutateAsync(reference);
+      // Clear cart after successful payment
+      clearCartMutation.mutate();
+      setSuccessMessage("Payment successful! Your order has been confirmed.");
+      setSuccessDialogOpen(true);
+    } catch (error) {
+      toast.error("Verification Failed", "Payment received but verification failed. Please contact support.");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  if (showPaymentWebView && paymentUrl) {
-    // Open payment in browser instead of WebView
-    Linking.openURL(paymentUrl);
+  const handlePaymentCancel = () => {
     setShowPaymentWebView(false);
-    
-    return (
-      <View className="flex-1 items-center justify-center" style={{ paddingTop: insets.top }}>
-        <ActivityIndicator size="large" />
-        <Text className="mt-4 text-gray-600">Redirecting to payment...</Text>
-      </View>
-    );
-  }
+    setPaymentUrl(null);
+    setPaymentReference(null);
+    toast.warning("Payment Cancelled", "You cancelled the payment. Your order is pending.");
+  };
+
+  const handlePaymentWebViewClose = () => {
+    setShowPaymentWebView(false);
+    setPaymentUrl(null);
+    setPaymentReference(null);
+  };
 
   return (
     <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
@@ -382,6 +376,42 @@ export default function CheckoutScreen() {
           )}
         </Button>
       </View>
+
+      {/* Success Dialog */}
+      <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Order Placed Successfully!</AlertDialogTitle>
+            <AlertDialogDescription>
+              {successMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onPress={() => {
+              setSuccessDialogOpen(false);
+              if (successOrderId) {
+                router.replace(`/order/${successOrderId}`);
+              } else {
+                router.replace("/orders");
+              }
+            }}>
+              <Text className="text-white">View Order</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Paystack Payment WebView */}
+      {paymentUrl && paymentReference && (
+        <PaystackWebView
+          visible={showPaymentWebView}
+          authorizationUrl={paymentUrl}
+          reference={paymentReference}
+          onClose={handlePaymentWebViewClose}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentCancel={handlePaymentCancel}
+        />
+      )}
     </View>
   );
 }

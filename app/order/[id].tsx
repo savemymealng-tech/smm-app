@@ -1,12 +1,23 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
-import { useCancelOrder, useTrackOrder } from '@/lib/hooks';
+import { toast } from '@/components/ui/toast';
+import { useCancelOrder, useReorder, useTrackOrder } from '@/lib/hooks';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATUS_COLORS = {
   pending: 'text-yellow-600 bg-yellow-100',
@@ -35,31 +46,32 @@ export default function OrderDetailScreen() {
 
   const { data: order, isLoading, refetch } = useTrackOrder(id || '');
   const cancelOrderMutation = useCancelOrder();
+  const reorderMutation = useReorder();
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+
+  const handleReorder = () => {
+    if (order) {
+      reorderMutation.mutate(order as any);
+    }
+  };
 
   const handleCancelOrder = () => {
     if (!order || order.status !== 'pending') {
-      Alert.alert('Cannot Cancel', 'Only pending orders can be cancelled.');
+      toast.warning('Cannot Cancel', 'Only pending orders can be cancelled.');
       return;
     }
+    setCancelDialogOpen(true);
+  };
 
-    Alert.alert(
-      'Cancel Order',
-      'Are you sure you want to cancel this order?',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: () => {
-            cancelOrderMutation.mutate(String(order.id), {
-              onSuccess: () => {
-                refetch();
-              },
-            });
-          },
+  const confirmCancelOrder = () => {
+    if (order) {
+      cancelOrderMutation.mutate(String(order.id), {
+        onSuccess: () => {
+          refetch();
         },
-      ]
-    );
+      });
+    }
+    setCancelDialogOpen(false);
   };
 
   if (isLoading) {
@@ -251,6 +263,32 @@ export default function OrderDetailScreen() {
         {/* Actions */}
         {order.status === 'delivered' && (
           <View className="px-4 pb-6">
+            {/* Reorder Section */}
+            <View className="bg-white rounded-xl p-4 mb-4">
+              <Text className="text-lg font-semibold mb-2 text-center">Order Again?</Text>
+              <Text className="text-gray-600 text-center mb-4">
+                Add the same items to your cart
+              </Text>
+              <Button 
+                variant="outline"
+                onPress={handleReorder}
+                disabled={reorderMutation.isPending}
+              >
+                {reorderMutation.isPending ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color="#15785B" />
+                    <Text className="ml-2 text-primary">Adding to cart...</Text>
+                  </View>
+                ) : (
+                  <View className="flex-row items-center">
+                    <IconSymbol name="arrow.clockwise" size={18} color="#15785B" />
+                    <Text className="ml-2 text-primary">Reorder</Text>
+                  </View>
+                )}
+              </Button>
+            </View>
+
+            {/* Rate Order Section */}
             <View className="bg-white rounded-xl p-4">
               <Text className="text-lg font-semibold mb-2 text-center">Rate Your Order</Text>
               <Text className="text-gray-600 text-center mb-4">
@@ -263,7 +301,26 @@ export default function OrderDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Cancel Order Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this order?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>No</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmCancelOrder} className="bg-red-500">
+              <Text className="text-white">Yes, Cancel</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </View>
   );
-
 }

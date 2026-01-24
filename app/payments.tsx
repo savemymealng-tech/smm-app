@@ -1,14 +1,24 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { useProfile } from '@/lib/hooks/use-profile';
-import { Text } from '@/components/ui/text';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Input } from '@/components/ui/input';
-import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Text } from '@/components/ui/text';
+import { toast } from '@/components/ui/toast';
+import { useProfile } from '@/lib/hooks/use-profile';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PaymentMethod } from '../types';
 
 export default function PaymentsScreen() {
@@ -17,6 +27,8 @@ export default function PaymentsScreen() {
   const { data: user } = useProfile();
   
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   const [selectedPaymentType, setSelectedPaymentType] = useState<PaymentMethod['type']>('card');
   const [formData, setFormData] = useState({
     cardNumber: '',
@@ -65,31 +77,30 @@ export default function PaymentsScreen() {
   const handleSavePaymentMethod = () => {
     if (selectedPaymentType === 'card') {
       if (!formData.cardNumber || !formData.expiryMonth || !formData.expiryYear || !formData.cvv || !formData.name) {
-        Alert.alert('Error', 'Please fill in all card details.');
+        toast.warning('Missing Details', 'Please fill in all card details.');
         return;
       }
     }
 
     // Here you would typically make an API call to save the payment method
-    Alert.alert(
-      'Success', 
-      'Payment method added successfully!',
-      [{ text: 'OK', onPress: () => setShowAddForm(false) }]
-    );
+    setShowAddForm(false);
+    toast.success('Payment Added', 'Payment method added successfully!');
   };
 
   const handleDeletePaymentMethod = (paymentId: string) => {
-    Alert.alert(
-      'Remove Payment Method',
-      'Are you sure you want to remove this payment method?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => {
-          // Here you would typically make an API call to delete the payment method
-          Alert.alert('Success', 'Payment method removed successfully!');
-        }}
-      ]
-    );
+    setPaymentToDelete(paymentId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeletePayment = () => {
+    // Here you would typically make an API call to delete the payment method
+    setDeleteDialogOpen(false);
+    setPaymentToDelete(null);
+    toast.success('Removed', 'Payment method removed successfully!');
+  };
+
+  const handleSetDefault = (paymentId: string) => {
+    toast.success('Default Updated', 'Set as default payment method!');
   };
 
   const getPaymentIcon = (method: PaymentMethod) => {
@@ -163,7 +174,7 @@ export default function PaymentsScreen() {
                       <Text className="font-semibold text-base">
                         {method.type === 'apple_pay' ? 'Apple Pay' :
                          method.type === 'google_pay' ? 'Google Pay' :
-                         `???? ???? ???? ${method.last4}`}
+                         `•••• •••• •••• ${method.last4}`}
                       </Text>
                       {method.isDefault && (
                         <View className="ml-2 bg-green-100 px-2 py-1 rounded-full">
@@ -173,7 +184,7 @@ export default function PaymentsScreen() {
                     </View>
                     {method.brand && (
                       <Text className="text-gray-600 capitalize">
-                        {method.brand} ? Expires {method.expiryMonth?.toString().padStart(2, '0')}/{method.expiryYear}
+                        {method.brand} • Expires {method.expiryMonth?.toString().padStart(2, '0')}/{method.expiryYear}
                       </Text>
                     )}
                   </View>
@@ -190,7 +201,7 @@ export default function PaymentsScreen() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onPress={() => Alert.alert('Success', 'Set as default payment method!')}
+                  onPress={() => handleSetDefault(method.id)}
                   className="mt-3 self-start">
                   Set as Default
                 </Button>
@@ -316,6 +327,26 @@ export default function PaymentsScreen() {
           </Button>
         </ScrollView>
       </BottomSheet>
+
+      {/* Delete Payment Method Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this payment method?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmDeletePayment} className="bg-red-500">
+              <Text className="text-white">Remove</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </View>
   );
 }
