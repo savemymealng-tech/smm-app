@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { Alert } from 'react-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useCart() {
   return useQuery({
@@ -17,10 +17,10 @@ export function useAddToCart() {
       api.cart.addToCart(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      Alert.alert('Success', 'Item added to cart');
+      toast.success('Added to Cart', 'Item added to cart');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to add item to cart');
+      toast.error('Error', error.message || 'Failed to add item to cart');
     },
   });
 }
@@ -35,7 +35,7 @@ export function useUpdateCartItem() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to update cart');
+      toast.error('Error', error.message || 'Failed to update cart');
     },
   });
 }
@@ -49,7 +49,7 @@ export function useRemoveFromCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to remove item');
+      toast.error('Error', error.message || 'Failed to remove item');
     },
   });
 }
@@ -61,10 +61,10 @@ export function useClearCart() {
     mutationFn: () => api.cart.clearCart(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      Alert.alert('Success', 'Cart cleared');
+      toast.success('Cart Cleared', 'Your cart has been cleared');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to clear cart');
+      toast.error('Error', error.message || 'Failed to clear cart');
     },
   });
 }

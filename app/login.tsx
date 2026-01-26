@@ -1,16 +1,15 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable, KeyboardAvoidingView, Platform, Alert, Image, TextInput, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAtom } from 'jotai';
-
-import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
+import { Text } from '@/components/ui/text';
+import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { setAuthStateAtom } from '@/lib/atoms/auth';
 import type { User } from '@/types';
+import { router } from 'expo-router';
+import { useAtom } from 'jotai';
+import { useState } from 'react';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -94,6 +93,10 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = () => {
+    toast.info('Coming Soon', 'Password reset feature coming soon!');
   };
 
   return (
@@ -231,7 +234,7 @@ export default function LoginScreen() {
 
           {/* Forgot Password */}
           <Pressable
-            onPress={() => Alert.alert('Forgot Password', 'Password reset feature coming soon!')}
+            onPress={handleForgotPassword}
             className="self-end mb-6"
           >
             <Text className="text-blue-600 text-sm font-medium">

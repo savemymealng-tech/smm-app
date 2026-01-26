@@ -1,10 +1,35 @@
+/**
+ * Vendor hooks with filter support
+ * Note: useNearbyVendors and useSearchVendors are exported from useVendors.ts
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import type { VendorParams } from "../../types";
 import { api } from "../api";
 
-export function useVendors(filters?: VendorParams) {
+/**
+ * Hook to fetch a single vendor by ID
+ * @param id - Vendor ID
+ */
+export function useVendor(id: string) {
   return useQuery({
-    queryKey: ["vendors", filters],
+    queryKey: ["vendor", id],
+    queryFn: async () => {
+      const vendor = await api.vendors.getVendorById(Number(id));
+      return vendor;
+    },
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook to fetch vendors with filter support
+ * @param filters - Optional filters for vendors
+ */
+export function useVendorsFiltered(filters?: VendorParams) {
+  return useQuery({
+    queryKey: ["vendors", "filtered", filters],
     queryFn: async () => {
       // Map app filters to API params
       const params = {
@@ -25,17 +50,6 @@ export function useVendors(filters?: VendorParams) {
 
       return result.vendors;
     },
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useVendor(id: string) {
-  return useQuery({
-    queryKey: ["vendor", id],
-    queryFn: async () => {
-      return await api.vendors.getVendorById(id);
-    },
-    enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
 }

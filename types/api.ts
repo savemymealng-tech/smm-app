@@ -274,6 +274,39 @@ export interface PaymentHistory {
 }
 
 // ============================================
+// REVIEW TYPES
+// ============================================
+
+export interface SubmitReviewRequest {
+  order_id: number;
+  rating: number; // 1-5 star rating
+  review?: string; // Optional text review
+  food_quality_rating?: number; // 1-5
+  delivery_rating?: number; // 1-5
+  packaging_rating?: number; // 1-5
+}
+
+export interface Review {
+  id: number;
+  order_id: number;
+  customer_id: number;
+  vendor_id: number;
+  rating: number;
+  review?: string;
+  food_quality_rating?: number;
+  delivery_rating?: number;
+  packaging_rating?: number;
+  createdAt: string;
+  updatedAt: string;
+  customer?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    avatar?: string;
+  };
+}
+
+// ============================================
 // FEATURED CONTENT TYPES
 // ============================================
 

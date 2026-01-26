@@ -3,12 +3,12 @@
  * Uses local storage when not logged in, syncs to API when logged in
  */
 
+import { toast } from '@/components/ui/toast';
 import type { CartItem as LocalCartItem } from '@/types';
 import type { AddToCartRequest, Meal, UpdateCartRequest } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAtom, useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 import { api } from '../api';
 import { authAtom } from '../atoms/auth';
 import { persistCartAtom } from '../atoms/cart';
@@ -70,10 +70,10 @@ export function useHybridCart() {
           // Refetch API cart
           await refetchApiCart();
           
-          Alert.alert('Success', 'Your cart has been synced!');
+          toast.success('Cart Synced', 'Your cart has been synced!');
         } catch (error: any) {
           console.error('Cart sync error:', error);
-          Alert.alert('Sync Warning', 'Some items could not be synced to your cart.');
+          toast.warning('Sync Warning', 'Some items could not be synced to your cart.');
         } finally {
           setIsSyncing(false);
         }
@@ -138,10 +138,10 @@ export function useHybridAddToCart() {
     onSuccess: (data) => {
       queryClient.setQueryData(['cart'], data);
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      Alert.alert('Success', 'Item added to cart');
+      toast.success('Added to Cart', 'Item added to cart');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to add item to cart');
+      toast.error('Error', error.message || 'Failed to add item to cart');
     },
   });
 
@@ -181,7 +181,7 @@ export function useHybridAddToCart() {
       return [...prev, newItem];
     });
 
-    Alert.alert('Success', 'Item added to cart');
+    toast.success('Added to Cart', 'Item added to cart');
   };
 
   return {
@@ -215,7 +215,7 @@ export function useHybridUpdateCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to update cart');
+      toast.error('Error', error.message || 'Failed to update cart');
     },
   });
 
@@ -260,7 +260,7 @@ export function useHybridRemoveFromCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to remove item');
+      toast.error('Error', error.message || 'Failed to remove item');
     },
   });
 
@@ -294,10 +294,10 @@ export function useHybridClearCart() {
         subtotal: '0.00',
       });
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      Alert.alert('Success', 'Cart cleared');
+      toast.success('Cart Cleared', 'Your cart has been cleared');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to clear cart');
+      toast.error('Error', error.message || 'Failed to clear cart');
     },
   });
 
@@ -307,7 +307,7 @@ export function useHybridClearCart() {
         apiMutation.mutate();
       } else {
         setLocalCart([]);
-        Alert.alert('Success', 'Cart cleared');
+        toast.success('Cart Cleared', 'Your cart has been cleared');
       }
     },
     isPending: apiMutation.isPending,

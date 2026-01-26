@@ -1,9 +1,15 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Text } from '@/components/ui/text';
+import { toast } from '@/components/ui/toast';
 import {
   AppInfo,
   EditProfileSheet,
@@ -12,6 +18,10 @@ import {
   SettingsSection,
 } from '@/components/settings';
 import { useProfile } from '@/lib/hooks/use-profile';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -19,6 +29,8 @@ export default function SettingsScreen() {
   const { data: user, isLoading } = useProfile();
   
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notifications, setNotifications] = useState({
     orderUpdates: true,
     promotions: true,
@@ -48,30 +60,22 @@ export default function SettingsScreen() {
   }, [user]);
 
   const handleChangePassword = () => {
-    Alert.alert(
-      'Change Password',
-      'A password reset link will be sent to your email address.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Send Link', onPress: () => {
-          Alert.alert('Success', 'Password reset link sent to your email!');
-        }}
-      ]
-    );
+    setPasswordDialogOpen(true);
+  };
+
+  const confirmChangePassword = () => {
+    setPasswordDialogOpen(false);
+    toast.success('Email Sent', 'Password reset link sent to your email!');
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {
-          Alert.alert('Account Deleted', 'Your account has been deleted successfully.');
-          // Here you would handle account deletion and navigation to auth screen
-        }}
-      ]
-    );
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAccount = () => {
+    setDeleteDialogOpen(false);
+    toast.success('Account Deleted', 'Your account has been deleted successfully.');
+    // Here you would handle account deletion and navigation to auth screen
   };
 
   const settingSections: Array<{ title: string; items: MenuItem[] }> = [
@@ -143,25 +147,25 @@ export default function SettingsScreen() {
         {
           icon: 'questionmark.circle.fill',
           label: 'Help Center',
-          onPress: () => Alert.alert('Help Center', 'Contact support at help@foodapp.com'),
+          onPress: () => toast.info('Help Center', 'Contact support at help@foodapp.com'),
           showArrow: true
         },
         {
           icon: 'envelope.fill',
           label: 'Contact Us',
-          onPress: () => Alert.alert('Contact Us', 'Email: support@foodapp.com\nPhone: (555) 123-4567'),
+          onPress: () => toast.info('Contact Us', 'Email: support@foodapp.com'),
           showArrow: true
         },
         {
           icon: 'doc.text.fill',
           label: 'Terms of Service',
-          onPress: () => Alert.alert('Terms of Service', 'View our terms at foodapp.com/terms'),
+          onPress: () => Linking.openURL('https://foodapp.com/terms'),
           showArrow: true
         },
         {
           icon: 'hand.raised.fill',
           label: 'Privacy Policy',
-          onPress: () => Alert.alert('Privacy Policy', 'View our privacy policy at foodapp.com/privacy'),
+          onPress: () => Linking.openURL('https://foodapp.com/privacy'),
           showArrow: true
         }
       ]
@@ -172,29 +176,27 @@ export default function SettingsScreen() {
         {
           icon: 'info.circle.fill',
           label: 'About',
-          onPress: () => Alert.alert('About', 'FoodApp v1.0.0\nMade with ??'),
+          onPress: () => toast.info('About', 'FoodApp v1.0.0'),
           showArrow: true
         },
         {
           icon: 'star.fill',
           label: 'Rate App',
-          onPress: () => Alert.alert('Rate App', 'Thanks for using our app! Please rate us on the App Store.'),
+          onPress: () => toast.success('Thank You!', 'Thanks for using our app!'),
           showArrow: true
         },
         {
           icon: 'square.and.arrow.up.fill',
           label: 'Share App',
-          onPress: () => Alert.alert('Share App', 'Share with friends: Download FoodApp for the best food delivery!'),
+          onPress: () => toast.info('Share', 'Download FoodApp for the best food delivery!'),
           showArrow: true
         },
         {
           icon: 'building.2.fill',
           label: 'Become a Partner',
           onPress: () => {
-            // Open web partner page
-            const webUrl = 'https://yourwebsite.com/vendor'; // Replace with actual web URL
-            // In a real app, you'd use Linking.openURL(webUrl)
-            Alert.alert('Become a Partner', `Visit our website to become a partner: ${webUrl}`);
+            const webUrl = 'https://yourwebsite.com/vendor';
+            Linking.openURL(webUrl);
           },
           showArrow: true
         }
@@ -248,6 +250,46 @@ export default function SettingsScreen() {
         profileData={profileData}
         onProfileDataChange={setProfileData}
       />
+
+      {/* Change Password Dialog */}
+      <AlertDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Password</AlertDialogTitle>
+            <AlertDialogDescription>
+              A password reset link will be sent to your email address.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmChangePassword}>
+              <Text className="text-white">Send Link</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Account Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete your account? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmDeleteAccount} className="bg-red-500">
+              <Text className="text-white">Delete</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </View>
   );
 }

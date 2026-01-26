@@ -9,8 +9,9 @@ export function useOrders(params?: { status?: string; page?: number; limit?: num
   return useQuery({
     queryKey: ['orders', params],
     queryFn: async () => {
-      const result = await api.orders.getOrderHistory(params)
-      return result.orders
+      const result = await api.orders.getOrderHistory()
+      // API returns the orders array directly
+      return result || []
     },
     staleTime: 2 * 60 * 1000,
   })
@@ -20,7 +21,7 @@ export function useOrder(id: string) {
   return useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
-      return await api.orders.trackOrder(id)
+      return await api.orders.trackOrder(Number(id))
     },
     enabled: !!id,
     staleTime: 1 * 60 * 1000,
@@ -48,7 +49,7 @@ export function useCancelOrder() {
 
   return useMutation({
     mutationFn: async (orderId: string) => {
-      return await api.orders.cancelOrder(orderId)
+      return await api.orders.cancelOrder(Number(orderId))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })

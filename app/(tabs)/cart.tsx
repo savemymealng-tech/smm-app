@@ -1,6 +1,27 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { Colors } from "@/constants/theme";
+import {
+  useHybridCart,
+  useHybridClearCart,
+  useHybridRemoveFromCart,
+  useHybridUpdateCart
+} from "@/lib/hooks/use-hybrid-cart";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import { Alert, Platform, RefreshControl, ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Platform, RefreshControl, ScrollView, View } from "react-native";
 import { FadeInDown, SlideOutDown } from "react-native-reanimated";
 import {
   SafeAreaView,
@@ -13,16 +34,6 @@ import {
   CartItemCard,
   CartSummary,
 } from "@/components/cart";
-import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
-import { Colors } from "@/constants/theme";
-import {
-  useHybridCart,
-  useHybridClearCart,
-  useHybridRemoveFromCart,
-  useHybridUpdateCart
-} from "@/lib/hooks/use-hybrid-cart";
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
@@ -42,6 +53,12 @@ export default function CartScreen() {
   const removeFromCartMutation = useHybridRemoveFromCart();
   const clearCartMutation = useHybridClearCart();
 
+  // Dialog states
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [itemToRemove, setItemToRemove] = useState<number | string | null>(null);
+
   // Calculate total from values (server provides fees, or they're 0)
   const total = subtotal + deliveryFee + serviceFee + tax;
   
@@ -53,33 +70,20 @@ export default function CartScreen() {
     total,
   };
 
-  // Debug logging
-  console.log('==== CART DEBUG ====');
-  console.log('isAuthenticated:', isAuthenticated);
-  console.log('isLoading:', isLoading);
-  console.log('cart:', cart);
-  console.log('cart length:', cart.length);
-  console.log('totalItems:', totalItems);
-  console.log('subtotal:', subtotal);
-  console.log('===================');
-
   const handleRemoveItem = (id: number | string) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    
-    Alert.alert(
-      'Remove Item',
-      'Are you sure you want to remove this item from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeFromCartMutation.mutate(id),
-        },
-      ]
-    );
+    setItemToRemove(id);
+    setRemoveDialogOpen(true);
+  };
+
+  const confirmRemoveItem = () => {
+    if (itemToRemove !== null) {
+      removeFromCartMutation.mutate(itemToRemove);
+    }
+    setRemoveDialogOpen(false);
+    setItemToRemove(null);
   };
 
   const handleUpdateQuantity = (id: number | string, quantity: number) => {
@@ -102,17 +106,7 @@ export default function CartScreen() {
     
     // Check if user is logged in
     if (!isAuthenticated) {
-      Alert.alert(
-        'Login Required',
-        'Please login to proceed with checkout',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Login',
-            onPress: () => router.push('/login'),
-          },
-        ]
-      );
+      setLoginDialogOpen(true);
       return;
     }
     
@@ -123,19 +117,12 @@ export default function CartScreen() {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
-    
-    Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items from your cart?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => clearCartMutation.mutate(),
-        },
-      ]
-    );
+    setClearDialogOpen(true);
+  };
+
+  const confirmClearCart = () => {
+    clearCartMutation.mutate();
+    setClearDialogOpen(false);
   };
 
   if (isLoading) {
@@ -246,6 +233,69 @@ export default function CartScreen() {
           bottomInset={insets.bottom}
         />
       </ScrollView>
+
+      {/* Remove Item Dialog */}
+      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this item from your cart?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmRemoveItem} className="bg-red-500">
+              <Text className="text-white">Remove</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Cart Dialog */}
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Cart</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove all items from your cart?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={confirmClearCart} className="bg-red-500">
+              <Text className="text-white">Clear All</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Login Required Dialog */}
+      <AlertDialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Login Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please login to proceed with checkout
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>Cancel</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={() => {
+              setLoginDialogOpen(false);
+              router.push('/login');
+            }}>
+              <Text className="text-white">Login</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SafeAreaView>
   );
 }

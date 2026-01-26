@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { Alert } from 'react-native';
-import type { PlaceOrderRequest } from '@/types/api';
+import type { Order, PlaceOrderRequest, SubmitReviewRequest } from '@/types/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
@@ -13,7 +14,7 @@ export function usePlaceOrder() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to place order');
+      toast.error('Order Failed', error.message || 'Failed to place order');
     },
   });
 }
@@ -42,10 +43,75 @@ export function useCancelOrder() {
     onSuccess: (_, orderId) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders', orderId] });
-      Alert.alert('Success', 'Order cancelled successfully');
+      toast.success('Order Cancelled', 'Your order has been cancelled');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to cancel order');
+      toast.error('Error', error.message || 'Failed to cancel order');
+    },
+  });
+}
+
+/**
+ * Hook to re-order items from a previous order
+ * Clears the current cart and adds all items from the specified order
+ */
+export function useReorder() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: async (order: Order) => {
+      // Clear the current cart first
+      try {
+        await api.cart.clearCart();
+      } catch (error) {
+        // Cart might already be empty, continue anyway
+        console.log('Cart clear skipped (may be empty)');
+      }
+
+      // Add each item from the order to the cart
+      const addPromises = order.items.map((item) =>
+        api.cart.addToCart({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        })
+      );
+
+      // Add items sequentially to avoid race conditions
+      for (const promise of addPromises) {
+        await promise;
+      }
+
+      return order;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      toast.success('Items Added', 'Order items have been added to your cart');
+      router.push('/(tabs)/cart');
+    },
+    onError: (error: any) => {
+      toast.error('Reorder Failed', error.message || 'Failed to add items to cart. Some items may be unavailable.');
+    },
+  });
+}
+
+/**
+ * Hook to submit a review for an order
+ */
+export function useSubmitReview() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: (reviewData: SubmitReviewRequest) => api.orders.submitReview(reviewData),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders', String(variables.order_id)] });
+      toast.success('Review Submitted', 'Thank you for your feedback!');
+      router.back();
+    },
+    onError: (error: any) => {
+      toast.error('Error', error.message || 'Failed to submit review. Please try again.');
     },
   });
 }
