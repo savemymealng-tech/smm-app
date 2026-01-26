@@ -90,7 +90,7 @@ export default function ExploreScreen() {
 
   return (
     <View className="flex-1 bg-white">
-      <View className="px-4 pt-4 pb-2">
+      <View className="px-4 pt-10 pb-2">
         <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-3">
           <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
           <TextInput
