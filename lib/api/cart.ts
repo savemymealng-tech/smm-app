@@ -95,7 +95,7 @@ export const cartApi = {
 
   /**
    * Update Cart Item Quantity
-   * PUT /customers/cart/item
+   * PUT /customers/cart
    */
   async updateCart(data: UpdateCartRequest): Promise<Cart> {
     const response = await apiClient.put<ApiResponse<Cart>>(
@@ -112,16 +112,59 @@ export const cartApi = {
 
   /**
    * Remove Item from Cart
-   * DELETE /customers/cart/item
+   * DELETE /customers/cart
    */
   async removeFromCart(data: RemoveFromCartRequest): Promise<Cart> {
-    const response = await apiClient.delete<ApiResponse<Cart>>(
+    console.log('🛒 cartApi.removeFromCart - Removing item:', data.product_id);
+    console.log('🛒 cartApi.removeFromCart - Request data:', data);
+    console.log('🛒 cartApi.removeFromCart - Endpoint:', API_CONFIG.ENDPOINTS.CART.REMOVE);
+    
+    const response = await apiClient.post<ApiResponse<any>>(
       API_CONFIG.ENDPOINTS.CART.REMOVE,
-      { data }
+      data
     );
     
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+    console.log('🛒 cartApi.removeFromCart - Response:', response.data);
+    
+    if (response.data.success) {
+      // Handle both response formats
+      const rawData = response.data.data;
+      
+      if (Array.isArray(rawData)) {
+        // Server returned array directly - transform to expected format
+        const items = rawData.map((item: any) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          product: {
+            id: item.product_id,
+            name: item.name,
+            price: item.price,
+            photo_url: item.photo_url || '',
+            quantity_available: item.quantity_available || 999,
+            vendor_id: item.vendor_id,
+            vendor: item.vendor,
+          },
+        }));
+        
+        const subtotal = items.reduce((sum, item) => {
+          return sum + (parseFloat(item.product.price) * item.quantity);
+        }, 0);
+        
+        return {
+          items,
+          total_items: items.reduce((sum, item) => sum + item.quantity, 0),
+          subtotal: subtotal.toFixed(2),
+        };
+      } else if (rawData) {
+        return rawData as Cart;
+      }
+      
+      // If no data, return empty cart
+      return {
+        items: [],
+        total_items: 0,
+        subtotal: '0.00',
+      };
     }
     
     throw new Error(response.data.error || 'Failed to remove item from cart');
@@ -129,16 +172,26 @@ export const cartApi = {
 
   /**
    * Clear Entire Cart
-   * DELETE /customers/cart
+   * DELETE /customers/cart/clear
    */
-  async clearCart(): Promise<void> {
-    const response = await apiClient.delete<ApiResponse<null>>(
+  async clearCart(): Promise<Cart> {
+    console.log('🛒 cartApi.clearCart - Clearing entire cart');
+    const response = await apiClient.delete<ApiResponse<any>>(
       API_CONFIG.ENDPOINTS.CART.CLEAR
     );
     
-    if (!response.data.success) {
-      throw new Error(response.data.error || 'Failed to clear cart');
+    console.log('🛒 cartApi.clearCart - Response:', response.data);
+    
+    if (response.data.success) {
+      // Return empty cart structure
+      return {
+        items: [],
+        total_items: 0,
+        subtotal: '0.00',
+      };
     }
+    
+    throw new Error(response.data.error || 'Failed to clear cart');
   },
 };
 

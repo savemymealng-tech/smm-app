@@ -1,6 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { NearbyVendorsParams, SearchVendorsParams } from '@/types/api';
+import { useQuery } from '@tanstack/react-query';
+
+/**
+ * Hook to fetch all vendors
+ * @param limit - Max number of results (default: 100)
+ */
+export function useAllVendors(limit: number = 100) {
+  return useQuery({
+    queryKey: ['vendors', 'all', limit],
+    queryFn: async () => {
+      const vendors = await api.vendors.listVendors({ limit });
+      console.log('📋 All vendors:', vendors.length);
+      return vendors;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
 
 /**
  * Hook to fetch nearby vendors based on GPS coordinates

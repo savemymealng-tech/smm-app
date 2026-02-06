@@ -4,6 +4,7 @@ import { Pressable, View } from "react-native";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
+import { getImageSource } from "@/lib/utils";
 import type { Vendor } from "@/types/api";
 
 interface VendorInfoCardProps {
@@ -23,7 +24,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
           className="w-14 h-14 rounded-full border-2 border-blue-100"
           alt={vendor.business_name}
         >
-          <AvatarImage source={vendor.logo ? { uri: vendor.logo } : require('@/assets/images/default-profile.jpg')} />
+          <AvatarImage source={getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg')} />
           <AvatarFallback className="bg-blue-100">
             <Text className="text-blue-600 font-bold text-lg">
               {vendor.business_name.charAt(0)}

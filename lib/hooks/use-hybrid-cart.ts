@@ -15,7 +15,7 @@ import { persistCartAtom } from '../atoms/cart';
 
 /**
  * Main hybrid cart hook
- * Automatically switches between local and API cart based on auth state
+ * Always uses local storage, syncs with API in background when authenticated
  */
 export function useHybridCart() {
   const authState = useAtomValue(authAtom);
@@ -23,15 +23,14 @@ export function useHybridCart() {
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Fetch API cart only when authenticated
+  // Fetch API cart only when authenticated - to sync it to local storage
   const { data: apiCart, isLoading: apiLoading, refetch: refetchApiCart } = useQuery({
     queryKey: ['cart'],
     queryFn: async () => {
-      console.log('useHybridCart - Fetching API cart...');
+      console.log('useHybridCart - Fetching API cart for sync...');
       try {
         const result = await api.cart.getCart();
-        console.log('useHybridCart - API cart result type:', typeof result, 'isArray:', Array.isArray(result));
-        console.log('useHybridCart - API cart result:', JSON.stringify(result, null, 2));
+        console.log('useHybridCart - API cart fetched:', result);
         return result;
       } catch (error: any) {
         console.log('useHybridCart - Error fetching cart:', error);
@@ -48,65 +47,57 @@ export function useHybridCart() {
     refetchOnWindowFocus: false,
   });
 
-  // Sync local cart to API when user logs in
+  // Sync API cart to local storage when fetched (on login or refetch)
   useEffect(() => {
-    const syncLocalCartToApi = async () => {
-      if (authState.isAuthenticated && localCart.length > 0 && !isSyncing) {
-        setIsSyncing(true);
-        console.log('🔄 Syncing local cart to API...', localCart.length, 'items');
+    if (authState.isAuthenticated && apiCart && !isSyncing) {
+      const syncApiToLocal = () => {
+        console.log('🔄 Syncing API cart to local storage...');
         
-        try {
-          // Add each local cart item to API
-          for (const item of localCart) {
-            await api.cart.addToCart({
-              product_id: Number(item.productId),
-              quantity: item.quantity,
+        if (apiCart.items && apiCart.items.length > 0) {
+          // Convert API cart items to local cart format
+          const localItems: LocalCartItem[] = apiCart.items.map((item) => ({
+            id: `${item.product_id}-${Date.now()}`,
+            productId: String(item.product_id),
+            vendorId: String(item.product.vendor_id),
+            product: item.product as any,
+            quantity: item.quantity,
+            customizations: {},
+            unitPrice: parseFloat(item.product.price),
+            totalPrice: parseFloat(item.product.price) * item.quantity,
+          }));
+          
+          // Merge with existing local cart (avoid duplicates)
+          setLocalCart((prev) => {
+            const merged = [...prev];
+            
+            localItems.forEach((apiItem) => {
+              const existingIndex = merged.findIndex(
+                (localItem) => Number(localItem.productId) === Number(apiItem.productId)
+              );
+              
+              if (existingIndex === -1) {
+                // Item not in local cart, add it
+                merged.push(apiItem);
+              } else {
+                // Item exists, use the one with higher quantity
+                if (apiItem.quantity > merged[existingIndex].quantity) {
+                  merged[existingIndex] = apiItem;
+                }
+              }
             });
-          }
+            
+            return merged;
+          });
           
-          // Clear local cart after successful sync
-          setLocalCart([]);
-          
-          // Refetch API cart
-          await refetchApiCart();
-          
-          toast.success('Cart Synced', 'Your cart has been synced!');
-        } catch (error: any) {
-          console.error('Cart sync error:', error);
-          toast.warning('Sync Warning', 'Some items could not be synced to your cart.');
-        } finally {
-          setIsSyncing(false);
+          console.log('✅ API cart synced to local storage');
         }
-      }
-    };
+      };
+      
+      syncApiToLocal();
+    }
+  }, [authState.isAuthenticated, apiCart]);
 
-    syncLocalCartToApi();
-  }, [authState.isAuthenticated]);
-
-  // Return API cart when logged in, local cart when not
-  if (authState.isAuthenticated) {
-    console.log('useHybridCart - Returning API cart:');
-    console.log('  - apiCart:', apiCart);
-    console.log('  - apiCart type:', typeof apiCart, 'isArray:', Array.isArray(apiCart));
-    console.log('  - apiCart?.items:', apiCart?.items);
-    console.log('  - items length:', apiCart?.items?.length || 0);
-    console.log('  - total_items:', apiCart?.total_items);
-    console.log('  - subtotal:', apiCart?.subtotal);
-    
-    return {
-      cart: apiCart?.items || [],
-      totalItems: apiCart?.total_items || 0,
-      subtotal: parseFloat(apiCart?.subtotal || '0'),
-      deliveryFee: apiCart?.delivery_fee ? parseFloat(apiCart.delivery_fee) : 0,
-      serviceFee: apiCart?.service_fee ? parseFloat(apiCart.service_fee) : 0,
-      tax: apiCart?.tax ? parseFloat(apiCart.tax) : 0,
-      isLoading: apiLoading || isSyncing,
-      isAuthenticated: true,
-      refetch: refetchApiCart,
-    };
-  }
-
-  // Local cart calculations
+  // Always return local cart calculations
   console.log('useHybridCart - Returning local cart:', localCart.length, 'items');
   const totalItems = localCart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = localCart.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -118,30 +109,29 @@ export function useHybridCart() {
     deliveryFee: 0,
     serviceFee: 0,
     tax: 0,
-    isLoading: false,
-    isAuthenticated: false,
-    refetch: async () => {},
+    isLoading: isSyncing || (authState.isAuthenticated && apiLoading),
+    isAuthenticated: authState.isAuthenticated,
+    refetch: refetchApiCart,
   };
 }
 
 /**
- * Add to cart (local or API)
+ * Add to cart (always local first, syncs to API when logged in)
  */
 export function useHybridAddToCart() {
   const authState = useAtomValue(authAtom);
   const [localCart, setLocalCart] = useAtom(persistCartAtom);
   const queryClient = useQueryClient();
 
-  // API mutation
+  // API mutation - only used when authenticated
   const apiMutation = useMutation({
     mutationFn: (data: AddToCartRequest) => api.cart.addToCart(data),
     onSuccess: (data) => {
       queryClient.setQueryData(['cart'], data);
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      toast.success('Added to Cart', 'Item added to cart');
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to add item to cart');
+      toast.error('Error', error.message || 'Failed to sync cart');
     },
   });
 
@@ -186,11 +176,13 @@ export function useHybridAddToCart() {
 
   return {
     mutate: (data: AddToCartRequest & { product?: Meal }) => {
-      if (authState.isAuthenticated) {
-        apiMutation.mutate({ product_id: data.product_id, quantity: data.quantity });
-      } else {
-        if (data.product) {
-          addToLocalCart(data.product, data.quantity);
+      if (data.product) {
+        // Always add to local cart first
+        addToLocalCart(data.product, data.quantity);
+        
+        // If authenticated, also sync to API in background
+        if (authState.isAuthenticated) {
+          apiMutation.mutate({ product_id: data.product_id, quantity: data.quantity });
         }
       }
     },
@@ -201,7 +193,7 @@ export function useHybridAddToCart() {
 }
 
 /**
- * Update cart item (local or API)
+ * Update cart item (always local first, syncs to API when logged in)
  */
 export function useHybridUpdateCart() {
   const authState = useAtomValue(authAtom);
@@ -215,30 +207,36 @@ export function useHybridUpdateCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to update cart');
+      toast.error('Error', error.message || 'Failed to sync cart');
     },
   });
 
   return {
     mutate: (data: { product_id?: number; item_id?: string; quantity: number }) => {
+      // Always update local cart first
+      const itemId = data.item_id || `${data.product_id}-${Date.now()}`;
+      setLocalCart((prev) => {
+        if (data.quantity <= 0) {
+          return prev.filter((item) => item.id !== itemId && Number(item.productId) !== data.product_id);
+        }
+        return prev.map((item) => {
+          const matchesById = item.id === itemId;
+          const matchesByProductId = data.product_id && Number(item.productId) === data.product_id;
+          
+          if (matchesById || matchesByProductId) {
+            return {
+              ...item,
+              quantity: data.quantity,
+              totalPrice: item.unitPrice * data.quantity,
+            };
+          }
+          return item;
+        });
+      });
+      
+      // If authenticated, also sync to API in background
       if (authState.isAuthenticated && data.product_id) {
         apiMutation.mutate({ product_id: data.product_id, quantity: data.quantity });
-      } else if (data.item_id) {
-        // Local cart update
-        setLocalCart((prev) => {
-          if (data.quantity <= 0) {
-            return prev.filter((item) => item.id !== data.item_id);
-          }
-          return prev.map((item) =>
-            item.id === data.item_id
-              ? {
-                  ...item,
-                  quantity: data.quantity,
-                  totalPrice: item.unitPrice * data.quantity,
-                }
-              : item
-          );
-        });
       }
     },
     isPending: apiMutation.isPending,
@@ -246,7 +244,7 @@ export function useHybridUpdateCart() {
 }
 
 /**
- * Remove from cart (local or API)
+ * Remove from cart (always local first, syncs to API when logged in)
  */
 export function useHybridRemoveFromCart() {
   const authState = useAtomValue(authAtom);
@@ -256,21 +254,34 @@ export function useHybridRemoveFromCart() {
   const apiMutation = useMutation({
     mutationFn: (productId: number) => api.cart.removeFromCart({ product_id: productId }),
     onSuccess: (data) => {
+      console.log('🛒 useHybridRemoveFromCart - Success, updating cache with:', data);
       queryClient.setQueryData(['cart'], data);
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to remove item');
+      console.error('🛒 useHybridRemoveFromCart - Error:', error);
+      toast.error('Error', error.message || 'Failed to sync cart removal');
     },
   });
 
   return {
-    mutate: (id: number | string) => {
-      if (authState.isAuthenticated && typeof id === 'number') {
-        apiMutation.mutate(id);
-      } else {
-        // Local cart remove
-        setLocalCart((prev) => prev.filter((item) => item.id !== id));
+    mutate: (id: string) => {
+      console.log('🛒 useHybridRemoveFromCart - Called with id:', id);
+      console.log('🛒 useHybridRemoveFromCart - isAuthenticated:', authState.isAuthenticated);
+      
+      // Find the item to get its product ID for API sync
+      const itemToRemove = localCart.find((item) => item.id === id);
+      const productId = itemToRemove ? Number(itemToRemove.productId) : null;
+      
+      // Always remove from local cart first
+      setLocalCart((prev) => prev.filter((item) => item.id !== id));
+      
+      toast.success('Item Removed', 'Item removed from cart');
+      
+      // If authenticated and we have a product id, also sync to API in background
+      if (authState.isAuthenticated && productId) {
+        console.log('🛒 useHybridRemoveFromCart - Syncing removal to API:', productId);
+        apiMutation.mutate(productId);
       }
     },
     isPending: apiMutation.isPending,
@@ -278,7 +289,7 @@ export function useHybridRemoveFromCart() {
 }
 
 /**
- * Clear cart (local or API)
+ * Clear cart (always local first, syncs to API when logged in)
  */
 export function useHybridClearCart() {
   const authState = useAtomValue(authAtom);
@@ -287,27 +298,28 @@ export function useHybridClearCart() {
 
   const apiMutation = useMutation({
     mutationFn: () => api.cart.clearCart(),
-    onSuccess: () => {
-      queryClient.setQueryData(['cart'], {
-        items: [],
-        total_items: 0,
-        subtotal: '0.00',
-      });
+    onSuccess: (data) => {
+      console.log('🛒 useHybridClearCart - Success, updating cache with:', data);
+      queryClient.setQueryData(['cart'], data);
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      toast.success('Cart Cleared', 'Your cart has been cleared');
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to clear cart');
+      console.error('🛒 useHybridClearCart - Error:', error);
+      toast.error('Error', error.message || 'Failed to sync cart clear');
     },
   });
 
   return {
     mutate: () => {
+      // Always clear local cart first
+      console.log('🛒 useHybridClearCart - Clearing local cart');
+      setLocalCart([]);
+      toast.success('Cart Cleared', 'Your cart has been cleared');
+      
+      // If authenticated, also sync to API in background
       if (authState.isAuthenticated) {
+        console.log('🛒 useHybridClearCart - Syncing clear to API');
         apiMutation.mutate();
-      } else {
-        setLocalCart([]);
-        toast.success('Cart Cleared', 'Your cart has been cleared');
       }
     },
     isPending: apiMutation.isPending,

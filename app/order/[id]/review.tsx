@@ -6,14 +6,14 @@ import { useSubmitReview, useTrackOrder } from '@/lib/hooks';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -154,8 +154,8 @@ export default function ReviewScreen() {
                   {order.vendor?.business_name || 'Vendor'}
                 </Text>
                 <Text className="text-gray-600 text-sm">
-                  Order #{order.id} · {order.items.length} item
-                  {order.items.length > 1 ? 's' : ''}
+                  Order #{order.id} · {(order.orderItems || order.items || []).length} item
+                  {(order.orderItems || order.items || []).length > 1 ? 's' : ''}
                 </Text>
               </View>
             </View>

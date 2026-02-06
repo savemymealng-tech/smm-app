@@ -4,8 +4,10 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -14,7 +16,7 @@ import {
 import { Text } from './text';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.7;
+const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
 
 type Props = {
   visible: boolean;
@@ -94,54 +96,59 @@ export function BottomSheet({
 
   return (
     <Modal transparent visible={visible} animationType="none">
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={handleBackdropPress}
-        >
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
-        </TouchableOpacity>
-
-        <Animated.View
-          style={[
-            styles.bottomSheet,
-            {
-              transform: [{ translateY }],
-              opacity,
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          <LinearGradient
-            colors={["#ffffff", "#f8fafc"]}
-            style={styles.gradient}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.container}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={handleBackdropPress}
           >
-            {/* Handle */}
-            <View style={styles.handle} />
+            <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          </TouchableOpacity>
 
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerContent}>
-                <View>
-                  <Text variant="h3" className="text-gray-900 font-bold">
-                    {title}
-                  </Text>
-                   {description && <View className="flex-row items-center mt-1">
-                      <Text className="text-sm text-gray-600 mt-1">
-                        {description}
-                      </Text>
-                    </View>}
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              {
+                transform: [{ translateY }],
+                opacity,
+              },
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <LinearGradient
+              colors={["#ffffff", "#f8fafc"]}
+              style={styles.gradient}
+            >
+              {/* Handle */}
+              <View style={styles.handle} />
+
+              {/* Header */}
+              <View style={styles.header}>
+                <View style={styles.headerContent}>
+                  <View>
+                    <Text variant="h3" className="text-gray-900 font-bold">
+                      {title}
+                    </Text>
+                     {description && <View className="flex-row items-center mt-1">
+                        <Text className="text-sm text-gray-600 mt-1">
+                          {description}
+                        </Text>
+                      </View>}
+                  </View>
+                 
                 </View>
-               
               </View>
-            </View>
 
-            {/* Content */}
-            <View style={styles.content}>{children}</View>
-          </LinearGradient>
-        </Animated.View>
-      </View>
+              {/* Content */}
+              <View style={styles.content}>{children}</View>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

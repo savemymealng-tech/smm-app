@@ -179,12 +179,22 @@ export interface RemoveFromCartRequest {
 // ============================================
 
 export interface DeliveryAddress {
+  recipient_name: string;
+  phone: string;
   street: string;
   city: string;
-  state: string;
+  state: {
+    id: number;
+    name: string;
+  };
+  country: {
+    id: number;
+    name: string;
+  };
   postal_code?: string;
-  phone: string;
   additional_info?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface OrderItem {
@@ -193,11 +203,29 @@ export interface OrderItem {
   product_id: number;
   quantity: number;
   price: string;
-  subtotal: string;
+  weight?: string;
+  subtotal?: string;
+  createdAt: string;
+  updatedAt: string;
   product: {
     id: number;
+    vendor_id: number;
     name: string;
+    description: string;
+    price: string;
+    original_price?: string;
+    quantity_available: number;
+    expiry_date: string;
     photo_url: string;
+    weight?: string;
+    meta_title?: string;
+    meta_description?: string;
+    tags?: string;
+    is_available: boolean;
+    is_featured: boolean;
+    featured_request_status?: string;
+    createdAt: string;
+    updatedAt: string;
   };
 }
 
@@ -205,25 +233,65 @@ export interface Order {
   id: number;
   customer_id: number;
   vendor_id: number;
+  order_group_id?: string;
   total_amount: string;
   delivery_fee: string;
   service_fee: string;
-  delivery_address: DeliveryAddress;
-  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
-  payment_method: 'card' | 'cash' | 'transfer';
-  payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
+  delivery_address: DeliveryAddress | string;
+  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected' | 'on_the_way' | 'confirmed';
+  payment_method: 'card' | 'cash_on_delivery' | 'wallet' | 'cash' | 'transfer';
+  payment_status?: 'pending' | 'paid' | 'failed' | 'refunded';
+  payment?: {
+    id: number;
+    reference: string;
+    authorization_url: string;
+    status: string;
+    order_id?: number;
+    order_group_id?: string;
+  } | null;
   special_instructions?: string;
+  rejection_reason?: string;
   estimated_delivery_time?: string;
   createdAt: string;
   updatedAt: string;
+  Customer?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    state_id?: number;
+    country_id?: number;
+    state?: {
+      id: number;
+      name: string;
+    } | null;
+    country?: {
+      id: number;
+      name: string;
+    } | null;
+  };
   vendor?: {
     id: number;
     business_name: string;
-    logo: string;
+    logo?: string;
     phone?: string;
     address?: string;
+    city?: string;
+    state_id?: number;
+    country_id?: number;
+    rating?: string;
+    state?: {
+      id: number;
+      name: string;
+    };
+    country?: {
+      id: number;
+      name: string;
+    };
   };
-  items: OrderItem[];
+  orderItems?: OrderItem[];
+  items?: OrderItem[];
 }
 
 export interface PlaceOrderRequest {
@@ -232,6 +300,8 @@ export interface PlaceOrderRequest {
     quantity: number;
   }[];
   delivery_address: DeliveryAddress;
+  special_instructions?: string;
+  payment_method?: 'card' | 'cash_on_delivery' | 'wallet';
 }
 
 // ============================================
@@ -239,8 +309,10 @@ export interface PlaceOrderRequest {
 // ============================================
 
 export interface InitializePaymentRequest {
-  orderId: number;
+  orderId?: number;
+  orderGroupId?: string;
   email: string;
+  callbackUrl?: string;
 }
 
 export interface InitializePaymentResponse {

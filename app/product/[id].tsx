@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -11,10 +11,11 @@ import {
   VendorInfoCard
 } from "@/components/product";
 import { Button } from "@/components/ui/button";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useMeal } from "@/lib/hooks";
-import { useHybridAddToCart } from "@/lib/hooks/use-hybrid-cart";
+import { useHybridAddToCart, useHybridCart } from "@/lib/hooks/use-hybrid-cart";
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -25,8 +26,10 @@ export default function ProductDetailScreen() {
   const [selectedCustomizations, setSelectedCustomizations] = useState<
     Record<string, string[]>
   >({});
+  const [showCartButton, setShowCartButton] = useState(false);
   
   const addToCartMutation = useHybridAddToCart();
+  const { totalItems } = useHybridCart();
 
   if (isLoading) {
     return (
@@ -60,19 +63,63 @@ export default function ProductDetailScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
+      <ProductImageHeader images={[product.photo_url]} />
+      
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: 256, paddingBottom: 120 }}
       >
-        <ProductImageHeader images={[product.photo_url]} />
-
         {product.vendor && <VendorInfoCard vendor={product.vendor} />}
 
         <ProductInfoCard product={product} />
 
         <ProductAdditionalInfo product={product} />
       </ScrollView>
+
+      {/* Floating Go to Cart Button - Shows when cart has items */}
+      {totalItems > 0 && (
+        <View
+          className="absolute bottom-50 right-4 z-50"
+        >
+          <Pressable
+            onPress={() => router.push('/(tabs)/cart')}
+            style={{
+              backgroundColor: '#1E8449',
+              borderRadius: 32,
+              width: 64,
+              height: 64,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 10,
+              elevation: 10,
+            }}
+          >
+            <IconSymbol name="cart.fill" size={28} color="white" />
+            <View 
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                backgroundColor: '#EF4444',
+                borderRadius: 12,
+                minWidth: 24,
+                height: 24,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: 6,
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                {totalItems}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+      )}
 
       <AddToCartButton
         product={product}

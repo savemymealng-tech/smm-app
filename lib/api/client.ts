@@ -5,6 +5,7 @@
 
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { isTokenExpired, isTokenExpiringSoon } from '../utils/jwt';
 import { API_CONFIG } from './config';
 
 // Token storage keys
@@ -82,12 +83,84 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor - add auth token
+// Request queue for handling concurrent 401 errors
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (error?: any) => void;
+}> = [];
+
+const processQueue = (error: any = null, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Helper function to refresh the access token
+const refreshAccessToken = async (): Promise<string> => {
+  const refreshToken = await tokenManager.getRefreshToken();
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await axios.post<ApiResponse<{ token: string; refreshToken?: string }>>(
+    `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
+    { refreshToken }
+  );
+
+  if (response.data.success && response.data.data) {
+    const { token, refreshToken: newRefreshToken } = response.data.data;
+    // Store new tokens
+    await tokenManager.setTokens(token, newRefreshToken || refreshToken);
+    return token;
+  }
+
+  throw new Error('Token refresh failed');
+};
+
+// Request interceptor - add auth token and handle proactive refresh
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const token = await tokenManager.getAccessToken();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    
+    if (token) {
+      // SCENARIO A: Token is expired
+      if (isTokenExpired(token)) {
+        console.log('⚠️ Token expired, refreshing before request...');
+        try {
+          const newToken = await refreshAccessToken();
+          if (config.headers) {
+            config.headers.Authorization = `Bearer ${newToken}`;
+          }
+        } catch (error) {
+          console.error('❌ Token refresh failed:', error);
+          await tokenManager.clearTokens();
+          throw error;
+        }
+      }
+      // SCENARIO B: Token expiring soon (< 10 minutes)
+      else if (isTokenExpiringSoon(token, 10)) {
+        console.log('⏰ Token expiring soon, refreshing in background...');
+        // Non-blocking refresh - don't await
+        refreshAccessToken().catch((error) => {
+          console.error('❌ Background token refresh failed:', error);
+        });
+        // Continue with current token
+        if (config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+      // SCENARIO C: Token is fresh
+      else {
+        if (config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
     }
     
     // Log all requests in development
@@ -108,7 +181,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor - handle errors and token refresh
+// Response interceptor - handle errors and token refresh with request queue
 apiClient.interceptors.response.use(
   (response) => {
     // Log successful responses in development
@@ -129,36 +202,47 @@ apiClient.interceptors.response.use(
     
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // Handle 401 Unauthorized - try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const refreshToken = await tokenManager.getRefreshToken();
-        if (refreshToken) {
-          const response = await axios.post<ApiResponse<{ token: string }>>(
-            `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
-            { refreshToken }
-          );
-
-          if (response.data.success && response.data.data) {
-            const { token } = response.data.data;
-            // Keep existing refresh token since server doesn't return a new one
-            const existingRefreshToken = await tokenManager.getRefreshToken();
-            await tokenManager.setTokens(token, existingRefreshToken || undefined);
-
-            // Retry original request with new token
-            if (originalRequest.headers) {
+    // Handle 401 Unauthorized with request queue
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Another request is already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            if (originalRequest.headers && token) {
               originalRequest.headers.Authorization = `Bearer ${token}`;
             }
             return apiClient(originalRequest);
-          }
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const newToken = await refreshAccessToken();
+        
+        // Process all queued requests
+        processQueue(null, newToken);
+        
+        // Retry original request with new token
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
         }
+        
+        return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed - clear tokens and redirect to login
+        // Refresh failed - clear tokens and reject all queued requests
+        processQueue(refreshError, null);
         await tokenManager.clearTokens();
-        // You might want to emit an event here to notify the app to redirect to login
+        
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

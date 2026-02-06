@@ -1,41 +1,48 @@
-import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
-import { useUpdateProfile, useUploadProfilePicture } from '@/lib/hooks/use-profile';
+import { useProfile, useUpdateProfile, useUploadProfilePicture } from '@/lib/hooks/use-profile';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
-import { IconSymbol } from '../ui/icon-symbol';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getImageSource } from '@/lib/utils';
 
-type ProfileData = {
-  firstName: string;
-  lastName: string;
-  username: string;
-  phone: string;
-  city: string;
-  avatar?: string;
-};
-
-type EditProfileSheetProps = {
-  visible: boolean;
-  onClose: () => void;
-  profileData: ProfileData;
-  onProfileDataChange: (data: ProfileData) => void;
-};
-
-export function EditProfileSheet({
-  visible,
-  onClose,
-  profileData,
-  onProfileDataChange,
-}: EditProfileSheetProps) {
+export default function EditProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { data: user } = useProfile();
   const updateProfileMutation = useUpdateProfile();
   const uploadPictureMutation = useUploadProfilePicture();
 
+  const [profileData, setProfileData] = useState({
+    firstName: '',
+    lastName: '',
+    username: '',
+    phone: '',
+    city: '',
+    avatar: '',
+  });
+
+  // Load user data
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        firstName: user.first_name || '',
+        lastName: user.last_name || '',
+        username: user.username || '',
+        phone: user.phone || '',
+        city: user.city || '',
+        avatar: user.profile_picture_url || '',
+      });
+    }
+  }, [user]);
+
   const pickImage = async () => {
     try {
-      // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
@@ -43,7 +50,6 @@ export function EditProfileSheet({
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
         allowsEditing: true,
@@ -52,7 +58,7 @@ export function EditProfileSheet({
       });
 
       if (!result.canceled && result.assets[0]) {
-        onProfileDataChange({ ...profileData, avatar: result.assets[0].uri });
+        setProfileData({ ...profileData, avatar: result.assets[0].uri });
         toast.success('Photo Selected', 'Your profile photo will be updated when you save.');
       }
     } catch (error) {
@@ -67,8 +73,8 @@ export function EditProfileSheet({
     }
 
     try {
-      // Upload profile picture first if selected
-      if (profileData.avatar) {
+      // Upload profile picture first if it's a new local image
+      if (profileData.avatar && profileData.avatar.startsWith('file://')) {
         await uploadPictureMutation.mutateAsync({ 
           uri: profileData.avatar,
           type: 'image/jpeg'
@@ -85,48 +91,51 @@ export function EditProfileSheet({
       });
       
       toast.success('Profile Updated', 'Your profile has been updated successfully!');
-      onClose();
+      router.back();
     } catch (error: any) {
       toast.error('Update Failed', error.message || 'Failed to update profile. Please try again.');
     }
   };
 
+  const isLoading = updateProfileMutation.isPending || uploadPictureMutation.isPending;
+
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      title="Edit Profile">
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{
-          paddingHorizontal: 24,
-          paddingBottom: 24,
-          flexGrow: 1,
-        }}
-        showsVerticalScrollIndicator={true}
-        bounces={true}
-        nestedScrollEnabled={true}
-        keyboardShouldPersistTaps="handled"
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
+      {/* Header */}
+      {/* <View className="flex-row items-center justify-between px-4 py-4 border-b border-gray-100">
+        <Pressable
+          onPress={() => router.back()}
+          className="w-10 h-10 items-center justify-center"
         >
+          <IconSymbol name="arrow.back" size={24} color="#000" />
+        </Pressable>
+        <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
+        <View className="w-10" />
+      </View> */}
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}
+      >
         {/* Profile Picture Section */}
-        <View className="items-center mb-6">
+        <View className="items-center my-8">
           {profileData.avatar ? (
             <Image
-              source={{ uri: profileData.avatar }}
-              className="w-24 h-24 rounded-full mb-3"
+              source={getImageSource(profileData.avatar)}
+              className="w-32 h-32 rounded-full mb-4"
               resizeMode="cover"
             />
           ) : (
-            <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center mb-3">
-              <Text className="text-white text-4xl font-bold">
+            <View className="w-32 h-32 rounded-full bg-blue-600 items-center justify-center mb-4">
+              <Text className="text-white text-5xl font-bold">
                 {profileData.firstName?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
           )}
-          <Pressable onPress={pickImage}>
-            <View className="flex-row items-center gap-2 bg-gray-100 px-4 py-2 rounded-full">
-              <IconSymbol name="camera.fill" size={16} color="#3b82f6" />
-              <Text className="text-blue-600 font-semibold text-sm">
+          <Pressable onPress={pickImage} disabled={isLoading}>
+            <View className="flex-row items-center gap-2 bg-gray-100 px-6 py-3 rounded-full">
+              <IconSymbol name="camera.fill" size={18} color="#3b82f6" />
+              <Text className="text-blue-600 font-semibold">
                 {profileData.avatar ? 'Change Photo' : 'Add Photo'}
               </Text>
             </View>
@@ -139,8 +148,9 @@ export function EditProfileSheet({
             label="First Name"
             placeholder="Enter your first name"
             value={profileData.firstName}
-            onChangeText={(text) => onProfileDataChange({ ...profileData, firstName: text })}
+            onChangeText={(text) => setProfileData({ ...profileData, firstName: text })}
             isRequired
+            editable={!isLoading}
           />
         </View>
 
@@ -149,7 +159,8 @@ export function EditProfileSheet({
             label="Last Name"
             placeholder="Enter your last name"
             value={profileData.lastName}
-            onChangeText={(text) => onProfileDataChange({ ...profileData, lastName: text })}
+            onChangeText={(text) => setProfileData({ ...profileData, lastName: text })}
+            editable={!isLoading}
           />
         </View>
 
@@ -158,9 +169,10 @@ export function EditProfileSheet({
             label="Username"
             placeholder="Enter your username"
             value={profileData.username}
-            onChangeText={(text) => onProfileDataChange({ ...profileData, username: text })}
+            onChangeText={(text) => setProfileData({ ...profileData, username: text })}
             autoCapitalize="none"
             isRequired
+            editable={!isLoading}
           />
         </View>
 
@@ -169,8 +181,9 @@ export function EditProfileSheet({
             label="Phone Number"
             placeholder="Enter your phone number"
             value={profileData.phone}
-            onChangeText={(text) => onProfileDataChange({ ...profileData, phone: text })}
+            onChangeText={(text) => setProfileData({ ...profileData, phone: text })}
             keyboardType="phone-pad"
+            editable={!isLoading}
           />
         </View>
 
@@ -179,24 +192,25 @@ export function EditProfileSheet({
             label="City"
             placeholder="Enter your city"
             value={profileData.city}
-            onChangeText={(text) => onProfileDataChange({ ...profileData, city: text })}
+            onChangeText={(text) => setProfileData({ ...profileData, city: text })}
+            editable={!isLoading}
           />
         </View>
 
         {/* Save Button */}
         <Button 
           onPress={handleSaveProfile} 
-          disabled={updateProfileMutation.isPending || uploadPictureMutation.isPending}
-          className="mb-4"
+          disabled={isLoading}
+          className="mt-4"
           size="lg"
         >
-          {(updateProfileMutation.isPending || uploadPictureMutation.isPending) ? (
+          {isLoading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text className="font-semibold">Save Changes</Text>
+            <Text className="font-semibold text-white">Save Changes</Text>
           )}
         </Button>
       </ScrollView>
-    </BottomSheet>
+    </View>
   );
 }

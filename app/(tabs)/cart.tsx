@@ -80,23 +80,20 @@ export default function CartScreen() {
 
   const confirmRemoveItem = () => {
     if (itemToRemove !== null) {
-      removeFromCartMutation.mutate(itemToRemove);
+      removeFromCartMutation.mutate(String(itemToRemove));
     }
     setRemoveDialogOpen(false);
     setItemToRemove(null);
   };
 
-  const handleUpdateQuantity = (id: number | string, quantity: number) => {
+  const handleUpdateQuantity = (id: string, quantity: number, productId?: number) => {
     if (quantity < 1) {
       handleRemoveItem(id);
       return;
     }
     
-    if (isAuthenticated && typeof id === 'number') {
-      updateCartMutation.mutate({ product_id: id, quantity });
-    } else if (!isAuthenticated && typeof id === 'string') {
-      updateCartMutation.mutate({ item_id: id, quantity });
-    }
+    // Always pass item_id for local cart, and product_id for API sync
+    updateCartMutation.mutate({ item_id: id, product_id: productId, quantity });
   };
 
   const handleCheckout = () => {
@@ -204,7 +201,9 @@ export default function CartScreen() {
 
               {/* Vendor Items */}
               {vendorGroup.items.map((item: any, index: number) => {
-                const itemId = isAuthenticated ? item.product_id : item.id;
+                // Always use local cart item.id now since we always return local cart
+                const itemId = item.id;
+                const productId = Number(item.productId);
                 return (
                   <NativeOnlyAnimatedView
                     key={itemId}
@@ -218,7 +217,7 @@ export default function CartScreen() {
                       item={item}
                       isAuthenticated={isAuthenticated}
                       onRemove={() => handleRemoveItem(itemId)}
-                      onUpdateQuantity={(quantity) => handleUpdateQuantity(itemId, quantity)}
+                      onUpdateQuantity={(quantity) => handleUpdateQuantity(itemId, quantity, productId)}
                     />
                   </NativeOnlyAnimatedView>
                 );
@@ -238,17 +237,17 @@ export default function CartScreen() {
       <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Item</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Item?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-gray-600 pt-1">
               Are you sure you want to remove this item from your cart?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Text>Cancel</Text>
+            <AlertDialogCancel className="flex-1">
+              <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmRemoveItem} className="bg-red-500">
-              <Text className="text-white">Remove</Text>
+            <AlertDialogAction onPress={confirmRemoveItem} className="flex-1 bg-red-500">
+              <Text className="text-white font-semibold">Remove</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -258,17 +257,17 @@ export default function CartScreen() {
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Cart</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Clear Cart?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-gray-600 pt-1">
               Are you sure you want to remove all items from your cart?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Text>Cancel</Text>
+            <AlertDialogCancel className="flex-1">
+              <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmClearCart} className="bg-red-500">
-              <Text className="text-white">Clear All</Text>
+            <AlertDialogAction onPress={confirmClearCart} className="flex-1 bg-red-500">
+              <Text className="text-white font-semibold">Clear All</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -278,20 +277,25 @@ export default function CartScreen() {
       <AlertDialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Login Required</AlertDialogTitle>
-            <AlertDialogDescription>
-              Please login to proceed with checkout
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">
+              🔐 Login Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-gray-600 pt-1">
+              You need to be logged in to proceed with checkout. Your cart items will be saved and synced once you login!
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Text>Cancel</Text>
+            <AlertDialogCancel className="flex-1">
+              <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={() => {
-              setLoginDialogOpen(false);
-              router.push('/login');
-            }}>
-              <Text className="text-white">Login</Text>
+            <AlertDialogAction 
+              onPress={() => {
+                setLoginDialogOpen(false);
+                router.push('/login');
+              }}
+              className="flex-1 bg-[#1E8449]"
+            >
+              <Text className="text-white font-semibold">Login</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

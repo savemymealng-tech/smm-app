@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
+import { getImageSource } from "@/lib/utils";
 import { Vendor } from "@/types/api";
 
 type VendorInfoCardProps = {
@@ -12,13 +13,13 @@ type VendorInfoCardProps = {
 
 export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
   return (
-    <View className="mx-4 -mt-12 mb-4 bg-white rounded-3xl p-5 shadow-lg border border-gray-100">
+    <View className="mx-4 -mt-24 mb-4 bg-white rounded-3xl p-5 shadow-lg border border-gray-100">
       <View className="flex-row items-start">
         <Avatar
           className="w-20 h-20 rounded-2xl border-4 border-white shadow-md"
           alt={vendor.business_name}
         >
-          <AvatarImage source={vendor.logo ? { uri: vendor.logo } : require('@/assets/images/default-profile.jpg')} />
+          <AvatarImage source={getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg')} />
           <AvatarFallback className="bg-blue-100">
             <Text className="text-blue-600 font-bold text-2xl">
               {vendor.business_name.charAt(0)}

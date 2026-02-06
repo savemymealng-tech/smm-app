@@ -3,9 +3,9 @@
  * Handles order placement and tracking per SaveMyMeal API Guide v2.0.0
  */
 
+import type { Order, PlaceOrderRequest, Review, SubmitReviewRequest } from '@/types/api';
 import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
-import type { Order, PlaceOrderRequest, Review, SubmitReviewRequest } from '@/types/api';
 
 export const ordersApi = {
   /**

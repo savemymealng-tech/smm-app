@@ -3,6 +3,7 @@ import { Image, Pressable, View } from "react-native";
 
 import { CarouselComponent } from "@/components/ui/carousel";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { getImageSource } from "@/lib/utils";
 
 interface ProductImageHeaderProps {
   images: string[];
@@ -12,11 +13,25 @@ export function ProductImageHeader({ images }: ProductImageHeaderProps) {
   const router = useRouter();
 
   const renderImage = (item: string) => (
-    <Image source={item ? { uri: item } : require('@/assets/images/default-product.jpg')} className="w-full h-64" resizeMode="cover" />
+    <Image source={getImageSource(item) || require('@/assets/images/default-product.jpg')} className="w-full h-64" resizeMode="cover" />
   );
 
   return (
-    <View className="relative bg-white">
+    <View 
+      className="bg-white"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 5,
+      }}
+    >
       <CarouselComponent
         data={images}
         renderItem={renderImage}

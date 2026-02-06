@@ -1,9 +1,11 @@
-import { View } from "react-native";
+import { Dimensions, View } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import type { Meal } from "@/types/api";
 import { ProductCard } from "./ProductCard";
 
+const { width: screenWidth } = Dimensions.get("window");
+const CARD_WIDTH = (screenWidth - 48) / 2;
 interface ProductsSectionProps {
   products: Meal[];
 }
@@ -21,7 +23,15 @@ export function ProductsSection({ products }: ProductsSectionProps) {
       </View>
       <View className="flex-row flex-wrap justify-between">
         {products.map((product) => (
-          <ProductCard key={product.id} item={product} />
+          <View 
+            key={product.id} 
+            style={{ 
+              width: CARD_WIDTH,
+              marginBottom: 16 
+            }}
+          >
+            <ProductCard item={product} />
+          </View>
         ))}
       </View>
     </View>

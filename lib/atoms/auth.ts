@@ -110,3 +110,23 @@ export const clearAuthStateAtom = atom(
   }
 )
 
+/**
+ * Update tokens only (for refresh operations)
+ */
+export const updateTokensAtom = atom(
+  null,
+  async (get, set, newAccessToken: string, newRefreshToken: string) => {
+    const currentAuth = get(authAtom)
+    
+    // Update tokens in secure storage
+    await tokenManager.setTokens(newAccessToken, newRefreshToken)
+    
+    // Update atom state
+    set(authAtom, {
+      ...currentAuth,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    })
+  }
+)
+

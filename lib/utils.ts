@@ -1,6 +1,9 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+// Re-export file URL utilities
+export { getBaseUrl, getFileUrl, getFullUrl, getImageSource, transformUrlFields } from './fileUrl'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }

@@ -1,4 +1,10 @@
 import {
+  AppInfo,
+  MenuItem,
+  SettingsHeader,
+  SettingsSection,
+} from '@/components/settings';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -10,16 +16,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
-import {
-  AppInfo,
-  EditProfileSheet,
-  MenuItem,
-  SettingsHeader,
-  SettingsSection,
-} from '@/components/settings';
 import { useProfile } from '@/lib/hooks/use-profile';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,7 +27,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { data: user, isLoading } = useProfile();
   
-  const [showEditProfile, setShowEditProfile] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -37,27 +35,6 @@ export default function SettingsScreen() {
     newVendors: false,
     recommendations: true
   });
-  
-  const [profileData, setProfileData] = useState({
-    firstName: '',
-    lastName: '',
-    username: '',
-    phone: '',
-    city: '',
-  });
-
-  // Update form when user data loads
-  useEffect(() => {
-    if (user) {
-      setProfileData({
-        firstName: user.first_name || '',
-        lastName: user.last_name || '',
-        username: user.username || '',
-        phone: user.phone || '',
-        city: user.city || '',
-      });
-    }
-  }, [user]);
 
   const handleChangePassword = () => {
     setPasswordDialogOpen(true);
@@ -85,7 +62,7 @@ export default function SettingsScreen() {
         {
           icon: 'person.fill',
           label: 'Edit Profile',
-          onPress: () => setShowEditProfile(true),
+          onPress: () => router.push('/edit-profile'),
           showArrow: true
         },
         {
@@ -147,25 +124,25 @@ export default function SettingsScreen() {
         {
           icon: 'questionmark.circle.fill',
           label: 'Help Center',
-          onPress: () => toast.info('Help Center', 'Contact support at help@foodapp.com'),
+          onPress: () => toast.info('Help Center', 'Contact support at help@savemymeal.com'),
           showArrow: true
         },
         {
           icon: 'envelope.fill',
           label: 'Contact Us',
-          onPress: () => toast.info('Contact Us', 'Email: support@foodapp.com'),
+          onPress: () => toast.info('Contact Us', 'Email: support@savemymeal.com'),
           showArrow: true
         },
         {
           icon: 'doc.text.fill',
           label: 'Terms of Service',
-          onPress: () => Linking.openURL('https://foodapp.com/terms'),
+          onPress: () => Linking.openURL('https://savemymeal.com/terms'),
           showArrow: true
         },
         {
           icon: 'hand.raised.fill',
           label: 'Privacy Policy',
-          onPress: () => Linking.openURL('https://foodapp.com/privacy'),
+          onPress: () => Linking.openURL('https://savemymeal.com/privacy'),
           showArrow: true
         }
       ]
@@ -176,7 +153,7 @@ export default function SettingsScreen() {
         {
           icon: 'info.circle.fill',
           label: 'About',
-          onPress: () => toast.info('About', 'FoodApp v1.0.0'),
+          onPress: () => toast.info('About', 'SaveMyMeal v1.0.0'),
           showArrow: true
         },
         {
@@ -188,14 +165,14 @@ export default function SettingsScreen() {
         {
           icon: 'square.and.arrow.up.fill',
           label: 'Share App',
-          onPress: () => toast.info('Share', 'Download FoodApp for the best food delivery!'),
+          onPress: () => toast.info('Share', 'Download SaveMyMeal for the best food delivery!'),
           showArrow: true
         },
         {
           icon: 'building.2.fill',
           label: 'Become a Partner',
           onPress: () => {
-            const webUrl = 'https://yourwebsite.com/vendor';
+            const webUrl = 'https://savemymeal.com/signup';
             Linking.openURL(webUrl);
           },
           showArrow: true
@@ -244,12 +221,12 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      <EditProfileSheet
+      {/* <EditProfileSheet
         visible={showEditProfile}
         onClose={() => setShowEditProfile(false)}
         profileData={profileData}
         onProfileDataChange={setProfileData}
-      />
+      /> */}
 
       {/* Change Password Dialog */}
       <AlertDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>

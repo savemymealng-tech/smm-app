@@ -4,6 +4,7 @@ import { Dimensions, Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
+import { getImageSource } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 const { width } = Dimensions.get("window");
@@ -31,7 +32,7 @@ export function ProductCard({ item }: ProductCardProps) {
     >
       <View className="relative">
         <Image
-          source={item.photo_url ? { uri: item.photo_url } : require('@/assets/images/default-product.jpg')}
+          source={getImageSource(item.photo_url) || require('@/assets/images/default-product.jpg')}
           className="w-full h-40"
           resizeMode="cover"
         />
@@ -84,9 +85,9 @@ export function ProductCard({ item }: ProductCardProps) {
           <View className="flex-1">
             {hasDiscount ? (
               <View className="flex-row items-center">
-                <Text className="font-bold text-base text-gray-900 mr-2">
+                {/* <Text className="font-bold text-base text-gray-900 mr-2">
                   ₦{price.toFixed(0)}
-                </Text>
+                </Text> */}
                 <Text className="font-bold text-base text-gray-900 mr-1">
                   ₦{price.toFixed(0)}
                 </Text>

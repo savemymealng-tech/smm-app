@@ -2,10 +2,11 @@ import { ScrollView, View } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import type { Vendor } from "../../types";
+import type { FeaturedVendor } from "../../types/api";
 import { VendorCard } from "./VendorCard";
 
 interface VendorsSectionProps {
-  vendors: Vendor[];
+  vendors: (Vendor | FeaturedVendor)[];
 }
 
 export function VendorsSection({ vendors }: VendorsSectionProps) {
@@ -23,16 +24,15 @@ export function VendorsSection({ vendors }: VendorsSectionProps) {
           </Text>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="px-4"
-        contentContainerStyle={{ paddingRight: 16 }}
+
+      <View
+        
+        className="flex-row flex-wrap justify-between px-4"
       >
-        {vendors.slice(0, 10).map((vendor) => (
+        {vendors.map((vendor) => (
           <VendorCard key={vendor.id} item={vendor} />
         ))}
-      </ScrollView>
+      </View>
     </View>
   );
 }

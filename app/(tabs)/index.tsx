@@ -17,6 +17,7 @@ import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
 import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
+import { getImageSource } from "@/lib/utils";
 import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -35,9 +36,11 @@ const adBanners = [
   {
     id: "3",
     image:
-      "https://images.unsplash.com/premium_photo-1664189213349-b02ba035e4e7?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "https://images.unsplash.com/photo-1441123285228-1448e608f3d5?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   },
 ];
+
+
 
 const SearchBar = () => (
   <View className="px-4 mb-4">
@@ -91,6 +94,7 @@ const WelcomeHeader = ({
 );
 
 const NearbyVendorCard = ({ item }: { item: Vendor }) => (
+  console.log("Logo: ",item.logo),
   <View style={{ width: 165, marginRight: 12 }}>
     <Pressable
       onPress={() => router.push(`/vendor/${item.id}`)}
@@ -105,7 +109,7 @@ const NearbyVendorCard = ({ item }: { item: Vendor }) => (
     >
       <View className="relative">
         <Image
-          source={item.logo ? { uri: item.logo } : require('@/assets/images/default-profile.jpg')}
+          source={getImageSource(item.logo) || require('@/assets/images/default-profile.jpg')}
           className="w-full h-[140px]"
           resizeMode="cover"
         />
@@ -214,7 +218,7 @@ const VendorCard = ({ item }: { item: FeaturedVendor }) => (
     >
     <View className="relative">
       <Image
-        source={item.logo ? { uri: item.logo } : require('@/assets/images/default-profile.jpg')}
+        source={getImageSource(item.logo) || require('@/assets/images/default-profile.jpg')}
         className="w-full h-[140px]"
         resizeMode="cover"
       />
@@ -266,7 +270,7 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
       >
       <View className="relative">
         <Image
-          source={item.photo_url ? { uri: item.photo_url } : require('@/assets/images/default-product.jpg')}
+          source={getImageSource(item.photo_url) || require('@/assets/images/default-product.jpg')}
           className="w-full h-[140px]"
           resizeMode="cover"
         />
@@ -407,9 +411,28 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-white">
+      {/* Fixed Header Section */}
+      <View 
+        className="bg-white border-b border-gray-100"
+        style={{ 
+          paddingTop: insets.top,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 3,
+        }}
+      >
+        <WelcomeHeader
+          address={location?.address}
+          isLoading={loadingLocation}
+          onPress={refreshLocation}
+        />
+        <SearchBar />
+      </View>
+
       <ScrollView
         className="flex-1"
-        style={{ paddingTop: insets.top }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -419,12 +442,6 @@ export default function HomeScreen() {
           />
         }
       >
-        <WelcomeHeader
-          address={location?.address}
-          isLoading={loadingLocation}
-          onPress={refreshLocation}
-        />
-        <SearchBar />
         <AdBanner />
 
         <Section title="Categories">
@@ -455,13 +472,44 @@ export default function HomeScreen() {
           )}
         </Section>
 
+        {/* Browse All Stores Button */}
+        <View className="px-4 mb-6 mt-4">
+          <Pressable
+            onPress={() => router.push("/vendors")}
+            className="bg-white rounded-2xl p-4 flex-row items-center justify-between border border-gray-200"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row items-center flex-1">
+              <View className="w-12 h-12 bg-[#1E8449]/10 rounded-full items-center justify-center mr-3">
+                <IconSymbol name="cart.fill" size={24} color={Colors.light.tint} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-bold text-gray-900">
+                  Browse All Stores
+                </Text>
+                <Text className="text-sm text-gray-500">
+                  Discover more vendors near you
+                </Text>
+              </View>
+              <IconSymbol name="chevron.right" size={20} color="#9ca3af" />
+            </View>
+            
+          </Pressable>
+        </View>
+
         {/* Nearby Vendors Section - Only show if we have location */}
         {(location || loadingNearby) && (
           <Section
             title="Nearby Stores"
             onSeeAll={
               nearbyVendors?.length
-                ? () => router.push("/explore")
+                ? () => router.push("/vendors?filter=nearby")
                 : undefined
             }
           >
@@ -498,7 +546,7 @@ export default function HomeScreen() {
           title="Featured Stores"
           onSeeAll={
             featuredVendors?.length
-              ? () => router.push("/explore?featured=true")
+              ? () => router.push("/vendors?filter=featured")
               : undefined
           }
         >
@@ -534,7 +582,7 @@ export default function HomeScreen() {
           title="Featured Products"
           onSeeAll={
             featuredProducts?.length
-              ? () => router.push("/explore?sort=rating")
+              ? () => router.push("/explore?all_products=true")
               : undefined
           }
         >

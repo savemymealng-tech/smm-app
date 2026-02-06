@@ -12,6 +12,8 @@ import { paymentsApi } from './payments';
 import { featuredApi } from './featured';
 import { profileApi } from './profile';
 import { contactApi } from './contact';
+import { addressesApi } from './addresses';
+import { locationsApi } from './locations';
 import { tokenManager } from './client';
 
 // Re-export types
@@ -32,6 +34,8 @@ export const api = {
   featured: featuredApi,
   profile: profileApi,
   contact: contactApi,
+  addresses: addressesApi,
+  locations: locationsApi,
   // Token management utilities
   tokenManager,
 };

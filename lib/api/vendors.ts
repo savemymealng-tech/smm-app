@@ -3,11 +3,28 @@
  * Handles vendor discovery and search per SaveMyMeal API Guide v2.0.0
  */
 
+import type { NearbyVendorsParams, SearchVendorsParams, Vendor } from '@/types/api';
 import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
-import type { Vendor, NearbyVendorsParams, SearchVendorsParams } from '@/types/api';
 
 export const vendorsApi = {
+  /**
+   * List All Vendors
+   * GET /vendors
+   */
+  async listVendors(params?: { limit?: number }): Promise<Vendor[]> {
+    const response = await apiClient.get<ApiResponse<Vendor[]>>(
+      API_CONFIG.ENDPOINTS.VENDORS.LIST,
+      { params }
+    );
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to fetch vendors');
+  },
+
   /**
    * Find Nearby Vendors by GPS Coordinates
    * GET /customers/vendors/nearby

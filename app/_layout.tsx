@@ -1,6 +1,7 @@
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { Provider as JotaiProvider } from "jotai";
 import { useEffect } from "react";
@@ -10,7 +11,12 @@ import "../global.css";
 
 import { ToastProvider } from "@/components/ui/toast";
 import { initAuthAtom, initCartAtom } from "@/lib/atoms";
+import { useTokenRefresh } from "@/lib/hooks";
+import { PortalHost } from "@rn-primitives/portal";
 import { useSetAtom } from "jotai";
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -54,6 +60,7 @@ function AppProviders() {
               <Stack.Screen name="modal" options={{ presentation: "modal" }} />
             </Stack>
             <StatusBar style="dark" backgroundColor="#ffffff" />
+            <PortalHost />
           </ThemeProvider>
         </ToastProvider>
       </SafeAreaProvider>
@@ -64,10 +71,24 @@ function AppProviders() {
 function InitAtoms() {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
+  
+  // Initialize automatic token refresh
+  useTokenRefresh();
 
   useEffect(() => {
-    initAuth();
-    initCart();
+    async function prepare() {
+      try {
+        await initAuth();
+        await initCart();
+      } catch (e) {
+        console.warn('Error initializing app:', e);
+      } finally {
+        // Hide the splash screen after initialization
+        await SplashScreen.hideAsync();
+      }
+    }
+
+    prepare();
   }, [initAuth, initCart]);
 
   return null;

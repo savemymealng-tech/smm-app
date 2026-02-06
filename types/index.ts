@@ -2,6 +2,7 @@ export type User = {
   id: string
   email?: string
   name?: string
+  full_name?: string
   first_name?: string
   last_name?: string
   username?: string
@@ -10,6 +11,7 @@ export type User = {
   state_id?: number
   country_id?: number
   avatar?: string
+  profile_picture_url?: string
   addresses?: Address[]
   paymentMethods?: PaymentMethod[]
   createdAt?: string
@@ -18,16 +20,27 @@ export type User = {
 
 export type Address = {
   id: string
+  user_id?: number
   type: 'home' | 'work' | 'other'
   label: string
   street: string
   city: string
-  state: string
+  stateId: number
+  state?: {
+    id: number
+    name: string
+  }
   zipCode: string
-  country: string
+  countryId: number
+  country?: {
+    id: number
+    name: string
+  }
   latitude?: number
   longitude?: number
   isDefault?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type PaymentMethod = {
@@ -143,6 +156,9 @@ export type OrderStatus =
   | 'on_the_way'
   | 'delivered'
   | 'cancelled'
+  | 'rejected'
+  | 'accepted'
+  | 'completed';
 
 export type Order = {
   id: string

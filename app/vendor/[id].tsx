@@ -69,12 +69,13 @@ export default function VendorDetailScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
+      <VendorCoverHeader coverImage={vendor.logo} />
+      
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{ paddingTop: 224, paddingBottom: 20 }}
       >
-        <VendorCoverHeader coverImage={vendor.logo} />
         <VendorInfoCard vendor={vendor} />
 
         {/* Products Section */}

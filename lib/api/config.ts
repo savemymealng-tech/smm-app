@@ -110,6 +110,8 @@ export const API_CONFIG = {
     // Locations
     LOCATIONS: {
       SEARCH: '/locations/search',
+      COUNTRIES: '/locations/countries',
+      STATES_BY_COUNTRY: (countryId: number) => `/locations/countries/${countryId}/states`,
     },
     
     // Contact

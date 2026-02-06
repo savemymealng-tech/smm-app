@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { Image, Pressable, View } from "react-native";
 
+import { getImageSource } from "@/lib/utils";
+
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
 type VendorCoverHeaderProps = {
@@ -10,29 +12,41 @@ type VendorCoverHeaderProps = {
 export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
   const router = useRouter();
 
-  if (coverImage) {
-    return (
-      <View className="relative w-full h-56">
-        <Image
-          source={coverImage ? { uri: coverImage } : require('@/assets/images/default-profile.jpg')}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-        <Pressable
-          onPress={() => router.back()}
-          className="absolute top-12 left-4 bg-white/95 rounded-full p-2.5 shadow-sm"
-        >
-          <IconSymbol name="arrow.back" size={22} color="#000" />
-        </Pressable>
-      </View>
-    );
-  }
+  const imageSource = getImageSource(coverImage) || require('@/assets/images/default-profile.jpg');
+  console.log("VendorCoverHeader coverImage:", imageSource);
 
   return (
-    <View className="relative bg-blue-500 h-48">
+    <View 
+      className="bg-gray-200 z-10"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        height: 120,
+      }}
+    >
+      <Image
+        source={imageSource}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+      />
+      {/* Gradient Overlay */}
+      <View 
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 40,
+          backgroundColor: 'transparent',
+        }}
+        className="bg-gradient-to-t from-black/20 to-transparent"
+      />
       <Pressable
         onPress={() => router.back()}
-        className="absolute top-12 left-4 bg-white/95 rounded-full p-2.5 shadow-sm z-10"
+        className="absolute top-12 left-4 bg-white/95 rounded-full p-2.5 shadow-sm"
       >
         <IconSymbol name="arrow.back" size={22} color="#000" />
       </Pressable>

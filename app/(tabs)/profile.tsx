@@ -1,14 +1,15 @@
-import { View, ScrollView, Pressable, Image } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Image, Pressable, ScrollView, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useProfile } from "@/lib/hooks/use-profile";
-import { useAtom } from "jotai";
-import { persistAuthAtom } from "@/lib/atoms";
-import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
+import { persistAuthAtom } from "@/lib/atoms";
+import { useProfile } from "@/lib/hooks/use-profile";
+import { getImageSource } from "@/lib/utils";
+import { useAtom } from "jotai";
 
 const ProfileMenuItem = ({
   icon,
@@ -42,6 +43,8 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { data: user, isLoading, isFetching } = useProfile();
   const [, setAuth] = useAtom(persistAuthAtom);
+
+  console.log("ProfileScreen user data:", user);
 
   const handleLogout = async () => {
     setAuth({
@@ -82,11 +85,19 @@ export default function ProfileScreen() {
       >
         <View className="items-center py-8">
           <View className="relative">
-            <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center shadow-lg border-4 border-white">
-              <Text className="text-white text-4xl font-bold">
-                {(user?.first_name?.charAt(0) || user?.username?.charAt(0) || "U").toUpperCase()}
-              </Text>
-            </View>
+            {user?.profile_picture_url ? (
+              <Image
+                source={getImageSource(user.profile_picture_url)}
+                className="w-24 h-24 rounded-full shadow-lg border-4 border-white"
+                resizeMode="cover"
+              />
+            ) : (
+              <View className="w-24 h-24 rounded-full bg-blue-600 items-center justify-center shadow-lg border-4 border-white">
+                <Text className="text-white text-4xl font-bold">
+                  {(user?.first_name?.charAt(0) || user?.username?.charAt(0) || "U").toUpperCase()}
+                </Text>
+              </View>
+            )}
             <Pressable className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full items-center justify-center shadow-md border border-gray-100">
               <IconSymbol name="camera" size={16} color={Colors.light.tint} />
             </Pressable>

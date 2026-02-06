@@ -1,15 +1,16 @@
 import * as Haptics from "expo-haptics";
 import { Image, Platform, Pressable, View } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
 } from "react-native-reanimated";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
 import { Text } from "@/components/ui/text";
+import { getImageSource } from "@/lib/utils";
 import type { CartItem as LocalCartItem } from "@/types";
 import type { CartItem } from "@/types/api";
 import { FadeIn } from "react-native-reanimated";
@@ -81,9 +82,9 @@ export function CartItemCard({
         <NativeOnlyAnimatedView entering={FadeIn.delay(100).duration(300)}>
           <Image
             source={
-              (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0]
-                ? { uri: (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0] } 
-                : require('@/assets/images/default-product.jpg')
+              getImageSource(
+                (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0]
+              ) || require('@/assets/images/default-product.jpg')
             }
             className="w-28 h-28 rounded-l-2xl"
             resizeMode="cover"

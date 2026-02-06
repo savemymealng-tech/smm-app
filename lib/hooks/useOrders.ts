@@ -26,11 +26,11 @@ export function useOrderHistory(page?: number, limit?: number, status?: string) 
   });
 }
 
-export function useTrackOrder(orderId: string) {
+export function useTrackOrder(orderId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['orders', orderId],
     queryFn: () => api.orders.trackOrder(Number(orderId)),
-    enabled: !!orderId,
+    enabled: options?.enabled !== undefined ? options.enabled : !!orderId,
     refetchInterval: 30000, // Refetch every 30 seconds for real-time tracking
   });
 }
@@ -69,8 +69,11 @@ export function useReorder() {
         console.log('Cart clear skipped (may be empty)');
       }
 
+      // Get items from order (handles both orderItems and items)
+      const orderItems = order.orderItems || order.items || [];
+
       // Add each item from the order to the cart
-      const addPromises = order.items.map((item) =>
+      const addPromises = orderItems.map((item) =>
         api.cart.addToCart({
           product_id: item.product_id,
           quantity: item.quantity,
