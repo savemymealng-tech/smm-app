@@ -22,7 +22,6 @@ export type Address = {
   id: string
   user_id?: number
   type: 'home' | 'work' | 'other'
-  label: string
   street: string
   city: string
   stateId: number

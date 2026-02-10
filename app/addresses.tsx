@@ -46,7 +46,6 @@ export default function AddressesScreen() {
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   
   const [formData, setFormData] = useState<{
-    label: string;
     street: string;
     city: string;
     stateId: number | null;
@@ -56,7 +55,6 @@ export default function AddressesScreen() {
     longitude?: number;
     type: 'home' | 'work' | 'other';
   }>({
-    label: '',
     street: '',
     city: '',
     stateId: null,
@@ -91,6 +89,7 @@ export default function AddressesScreen() {
   const createAddressMutation = useMutation({
     mutationFn: (data: CreateAddressRequest) => addressesApi.createAddress(data),
     onSuccess: () => {
+      console.log('Address added successfully');
       queryClient.invalidateQueries({ queryKey: ['addresses'] });
       refetchProfile();
       setDialogMessage('Address added successfully');
@@ -157,7 +156,6 @@ export default function AddressesScreen() {
 
   const resetForm = () => {
     setFormData({
-      label: '',
       street: '',
       city: '',
       stateId: null,
@@ -171,15 +169,37 @@ export default function AddressesScreen() {
   };
 
   const handleAddAddress = () => {
-    router.push('/add-address');
+    resetForm();
+    setShowAddForm(true);
   };
 
   const handleEditAddress = (address: Address) => {
-    router.push(`/add-address?addressId=${address.id}`);
+    setFormData({
+      street: address.street,
+      city: address.city,
+      stateId: address.stateId ?? null,
+      zipCode: address.zipCode ?? '',
+      countryId: address.countryId ?? null,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      type: address.type || 'home',
+    });
+    setSelectedCountry(
+      address.country
+        ? { id: address.country.id, name: address.country.name }
+        : null
+    );
+    setSelectedState(
+      address.state
+        ? { id: address.state.id, name: address.state.name, countryId: address.countryId }
+        : null
+    );
+    setEditingAddress(address);
+    setShowAddForm(true);
   };
 
   const handleSaveAddress = async () => {
-    if (!formData.label || !formData.street || !formData.city || !formData.stateId || 
+    if (!formData.street || !formData.city || !formData.stateId || 
         !formData.zipCode || !formData.countryId) {
       setDialogMessage('Please fill in all required fields including state and country.');
       setShowErrorDialog(true);
@@ -187,7 +207,6 @@ export default function AddressesScreen() {
     }
 
     const addressData = {
-      label: formData.label,
       street: formData.street,
       city: formData.city,
       stateId: formData.stateId,
@@ -227,7 +246,7 @@ export default function AddressesScreen() {
 
   const handleSelectState = (state: State) => {
     setSelectedState(state);
-    setFormData({ ...formData, stateId: state.id });
+    setFormData((prev) => ({ ...prev, stateId: state.id }));
     setShowStateSelect(false);
   };
 
@@ -290,7 +309,7 @@ export default function AddressesScreen() {
                     </View>
                     <View className="flex-1">
                       <View className="flex-row items-center flex-wrap">
-                        <Text className="font-semibold text-base text-gray-900">{address.label}</Text>
+                        <Text className="font-semibold text-base text-gray-900 capitalize">{address.type}</Text>
                         {address.isDefault && (
                           <View className="ml-2 bg-green-100 px-2 py-1 rounded-full">
                             <Text className="text-green-800 text-xs font-medium">Default</Text>
@@ -375,17 +394,6 @@ export default function AddressesScreen() {
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}>
 
-          {/* Label Input */}
-          <View className="mb-6">
-            <Input
-              label="Label"
-              placeholder="Home, Work, etc."
-              value={formData.label}
-              onChangeText={(text) => setFormData({ ...formData, label: text })}
-              editable={!saving}
-            />
-          </View>
-
           {/* Address Type Selection */}
           <View className="mb-6">
             <Text className="text-sm font-medium text-gray-900 mb-3">Address Type</Text>
@@ -393,7 +401,7 @@ export default function AddressesScreen() {
               {(['home', 'work', 'other'] as const).map((type) => (
                 <Pressable
                   key={type}
-                  onPress={() => !saving && setFormData({ ...formData, type })}
+                  onPress={() => !saving && setFormData((prev) => ({ ...prev, type }))}
                   disabled={saving}
                   className={`flex-1 p-4 rounded-xl border-2 ${formData.type === type
                     ? 'border-primary bg-primary/10'
@@ -456,7 +464,7 @@ export default function AddressesScreen() {
               label="Street Address"
               placeholder="123 Main Street"
               value={formData.street}
-              onChangeText={(text) => setFormData({ ...formData, street: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, street: text }))}
               editable={!saving}
             />
           </View>
@@ -493,7 +501,7 @@ export default function AddressesScreen() {
               label="ZIP Code"
               placeholder="94102"
               value={formData.zipCode}
-              onChangeText={(text) => setFormData({ ...formData, zipCode: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, zipCode: text }))}
               keyboardType="numeric"
               editable={!saving}
             />
@@ -513,7 +521,7 @@ export default function AddressesScreen() {
               </View>
             ) : (
               <Text className="text-white font-semibold">
-                {editingAddress ? 'Update Address' : 'Save Address'}
+                  {editingAddress ? 'Update Address' : 'Save Address'}
               </Text>
             )}
           </Button>

@@ -18,6 +18,7 @@ const getLocalhost = (): string => {
 // Default API base URL - can be overridden via environment variables
 const getApiBaseUrl = (): string => {
   // Per API Guide: Production URL or localhost for development
+  // IMPORTANT: Use your Node API server port (e.g. 3000), NOT 8081 (Expo/Metro).
   if (__DEV__) {
     const localhost = getLocalhost();
     const url = process.env.EXPO_PUBLIC_API_URL || `http://${localhost}:6001/api/v1`;
@@ -40,7 +41,7 @@ export const API_CONFIG = {
       VERIFY_CODE: '/auth/verify-code',
       FORGOT_PASSWORD: '/auth/forgot-password',
       RESET_PASSWORD: '/auth/reset-password',
-      REFRESH: '/auth/refresh-token',
+      REFRESH: '/auth/refresh',
     },
     
     // Meals/Products

@@ -117,14 +117,15 @@ export function BottomSheet({
                 opacity,
               },
             ]}
-            {...panResponder.panHandlers}
           >
             <LinearGradient
               colors={["#ffffff", "#f8fafc"]}
               style={styles.gradient}
             >
-              {/* Handle */}
-              <View style={styles.handle} />
+              {/* Handle - pan responder only here so content (e.g. ScrollView) can scroll */}
+              <View style={styles.handleContainer} {...panResponder.panHandlers}>
+                <View style={styles.handle} />
+              </View>
 
               {/* Header */}
               <View style={styles.header}>
@@ -173,14 +174,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
+  handleContainer: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginBottom: 8,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
   handle: {
     width: 40,
     height: 4,
     backgroundColor: "#d1d5db",
     borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 8,
   },
   header: {
     paddingHorizontal: 24,

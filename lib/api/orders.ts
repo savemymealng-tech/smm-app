@@ -12,16 +12,26 @@ export const ordersApi = {
    * Place New Order
    * POST /customers/orders
    */
-  async placeOrder(data: PlaceOrderRequest): Promise<Order> {
-    const response = await apiClient.post<ApiResponse<Order>>(
+  async placeOrder(data: PlaceOrderRequest): Promise<Order | { orders: Order | Order[]; payment: unknown; error?: string }> {
+    const body = data.use_cart
+      ? {
+          use_cart: true,
+          address_id: data.address_id,
+          delivery_address: data.delivery_address,
+          recipient_name: data.recipient_name,
+          special_instructions: data.special_instructions,
+          payment_method: data.payment_method,
+        }
+      : data;
+    const response = await apiClient.post<ApiResponse<Order | { orders: Order | Order[]; payment: unknown; error?: string }>>(
       API_CONFIG.ENDPOINTS.ORDERS.PLACE,
-      data
+      body
     );
-    
+
     if (response.data.success && response.data.data) {
-      return response.data.data;
+      return response.data.data as Order | { orders: Order | Order[]; payment: unknown; error?: string };
     }
-    
+
     throw new Error(response.data.error || 'Failed to place order');
   },
 

@@ -208,14 +208,15 @@ const PaystackWebViewComponent = ({
           </View>
         )}
 
+        <View style={{ flex: 1, minHeight: 600 }}>
         <WebView
           ref={webViewRef}
           source={{ uri: authorizationUrl }}
           style={{ flex: 1 }}
           cacheEnabled={false}
           incognito={true}
-          forceDarkOn={false}  
-          androidLayerType="software"           // ← Important fix for many blank/frozen cases
+            forceDarkOn={false}
+            androidLayerType="software"
           javaScriptEnabled={true}
           domStorageEnabled={true}
           originWhitelist={['*']}
@@ -230,7 +231,9 @@ const PaystackWebViewComponent = ({
           startInLoadingState={true}
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
+            scrollEnabled={true}
         />
+        </View>
 
         {/* Loading overlay */}
         {isLoading && !error && (

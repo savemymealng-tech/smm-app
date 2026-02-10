@@ -295,11 +295,19 @@ export interface Order {
 }
 
 export interface PlaceOrderRequest {
-  items: {
+  /** When true, server uses current user cart; items can be omitted. Preferred when logged in. */
+  use_cart?: boolean;
+  /** Order line items. Omit or leave empty when use_cart is true. */
+  items?: {
     product_id: number;
     quantity: number;
   }[];
-  delivery_address: DeliveryAddress;
+  /** Use a saved address by ID (preferred when user has addresses) */
+  address_id?: number;
+  /** Full delivery address (when not using address_id) */
+  delivery_address?: DeliveryAddress;
+  /** "Deliver to" name when using address_id */
+  recipient_name?: string;
   special_instructions?: string;
   payment_method?: 'card' | 'cash_on_delivery' | 'wallet';
 }

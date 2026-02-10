@@ -165,7 +165,7 @@ export const authApi = {
 
   /**
    * Refresh access token
-   * POST /auth/refresh-token
+   * POST /auth/refresh
    * Returns new access token (refresh token remains valid)
    */
   async refreshToken(refreshToken: string): Promise<string> {

@@ -49,25 +49,6 @@ interface CartItem {
   quantity: number;
 }
 
-interface OrderDeliveryAddress {
-  recipient_name: string;
-  phone: string;
-  street: string;
-  city: string;
-  state: {
-    id: number;
-    name: string;
-  };
-  country: {
-    id: number;
-    name: string;
-  };
-  postal_code?: string;
-  additional_info?: string;
-  latitude?: number;
-  longitude?: number;
-}
-
 // ────────────────────────────────────────────────
 // Sub-components
 // ────────────────────────────────────────────────
@@ -98,7 +79,7 @@ function AddressDisplay({ address }: { address: Address }) {
     <View className="bg-gray-50 rounded-lg p-3">
       <View className="flex-row items-center mb-1">
         <IconSymbol name="location.fill" size={16} color="#666" />
-        <Text className="ml-2 font-semibold capitalize">{address.label}</Text>
+        <Text className="ml-2 font-semibold capitalize">{address.type}</Text>
       </View>
       <Text className="text-gray-700">
         {address.street}, {address.city}, {address.state?.name || ''} {address.zipCode}
@@ -223,7 +204,10 @@ export default function CheckoutScreen() {
   const prepareOrderItems = (cartItems: typeof cart) => {
     return cartItems.map((item) => {
       const productId =
-        item.product_id ?? item.productId ?? item.product?.id ?? item.id;
+        (item as { product_id?: string | number; productId?: string | number; product?: { id: string | number }; id?: string | number }).product_id
+        ?? item.productId
+        ?? item.product?.id
+        ?? (item as { id?: string | number }).id;
 
       if (!productId) {
         throw new Error(`Cart item missing product ID: ${JSON.stringify(item)}`);
@@ -241,18 +225,7 @@ export default function CheckoutScreen() {
       toast.warning("Missing Information", "Please select a delivery address.");
       return;
     }
-    
-    // Validate address has required state and country data
-    if (!selectedAddress.stateId || !selectedAddress.state?.name) {
-      toast.error("Invalid Address", "Selected address is missing state information. Please update the address.");
-      return;
-    }
-    
-    if (!selectedAddress.countryId || !selectedAddress.country?.name) {
-      toast.error("Invalid Address", "Selected address is missing country information. Please update the address.");
-      return;
-    }
-    
+
     if (cart.length === 0) {
       toast.warning("Empty Cart", "Your cart is empty.");
       return;
@@ -261,45 +234,11 @@ export default function CheckoutScreen() {
     setIsProcessing(true);
 
     try {
-      const orderItems = prepareOrderItems(cart);
-
-      // Prepare delivery address with proper validation
-      const deliveryAddress: any = {
-        recipient_name: user?.full_name || user?.name || "Customer",
-        phone: user?.phone || "",
-        street: selectedAddress.street,
-        city: selectedAddress.city,
-        state: {
-          id: selectedAddress.stateId,
-          name: selectedAddress.state.name
-        },
-        country: {
-          id: selectedAddress.countryId,
-          name: selectedAddress.country.name
-        },
-      };
-
-      // Only add optional fields if they have valid values
-      if (selectedAddress.zipCode) {
-        deliveryAddress.postal_code = selectedAddress.zipCode;
-      }
-      
-      if (deliveryNotes) {
-        deliveryAddress.additional_info = deliveryNotes;
-      }
-      
-      // Only include coordinates if they are valid numbers
-      if (typeof selectedAddress.latitude === 'number' && !isNaN(selectedAddress.latitude)) {
-        deliveryAddress.latitude = selectedAddress.latitude;
-      }
-      
-      if (typeof selectedAddress.longitude === 'number' && !isNaN(selectedAddress.longitude)) {
-        deliveryAddress.longitude = selectedAddress.longitude;
-      }
-
       const orderResponse = await placeOrder.mutateAsync({
-        items: orderItems,
-        delivery_address: deliveryAddress,
+        use_cart: true,
+        items: [], // Server uses cart when use_cart is true
+        address_id: Number(selectedAddress.id),
+        recipient_name: user?.full_name || user?.name || undefined,
         special_instructions: deliveryNotes || undefined,
         payment_method: selectedPayment === "card" ? "card" : "cash_on_delivery",
       });
@@ -573,7 +512,7 @@ export default function CheckoutScreen() {
                           selectedAddress?.id === address.id ? "text-primary" : "text-gray-900"
                         }`}
                       >
-                        {address.label}
+                          {address.type}
                       </Text>
                       {address.isDefault && (
                         <View className="ml-2 bg-green-100 px-2 py-0.5 rounded-full">

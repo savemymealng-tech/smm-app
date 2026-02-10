@@ -37,7 +37,6 @@ export default function AddAddressScreen() {
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
 
   const [formData, setFormData] = useState({
-    label: '',
     street: '',
     city: '',
     stateId: null as number | null,
@@ -66,7 +65,6 @@ export default function AddAddressScreen() {
   useEffect(() => {
     if (existingAddress) {
       setFormData({
-        label: existingAddress.label || '',
         street: existingAddress.street || '',
         city: existingAddress.city || '',
         stateId: existingAddress.stateId || null,
@@ -135,14 +133,13 @@ export default function AddAddressScreen() {
   };
 
   const handleSave = () => {
-    if (!formData.label || !formData.street || !formData.city || !formData.stateId || 
+    if (!formData.street || !formData.city || !formData.stateId || 
         !formData.zipCode || !formData.countryId) {
       toast.error('Missing Fields', 'Please fill in all required fields');
       return;
     }
 
     const addressData = {
-      label: formData.label,
       street: formData.street,
       city: formData.city,
       stateId: formData.stateId,
@@ -192,19 +189,8 @@ export default function AddAddressScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}
       >
-        {/* Label Input */}
-        <View className="mb-6 mt-6">
-          <Input
-            label="Label"
-            placeholder="Home, Work, etc."
-            value={formData.label}
-            onChangeText={(text) => setFormData({ ...formData, label: text })}
-            editable={!isLoading}
-          />
-        </View>
-
         {/* Address Type Selection */}
-        <View className="mb-6">
+        <View className="mb-6 mt-6">
           <Text className="text-sm font-medium text-gray-900 mb-3">Address Type</Text>
           <View className="flex-row gap-3">
             {(['home', 'work', 'other'] as const).map((type) => (

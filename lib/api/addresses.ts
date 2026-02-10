@@ -8,7 +8,6 @@ import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
 
 export interface CreateAddressRequest {
-  label: string;
   type?: 'home' | 'work' | 'other';
   street: string;
   city: string;
@@ -21,7 +20,6 @@ export interface CreateAddressRequest {
 }
 
 export interface UpdateAddressRequest {
-  label?: string;
   type?: 'home' | 'work' | 'other';
   street?: string;
   city?: string;
