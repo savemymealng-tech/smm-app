@@ -60,6 +60,8 @@ Make sure your `eas.json` has the required profiles. Current configuration:
 }
 ```
 
+**Note**: This project uses **Yarn** as the package manager. The workflows use `yarn install --frozen-lockfile` to ensure consistent installations.
+
 ### 4. Branch Setup
 
 - **main**: Development and preview builds

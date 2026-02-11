@@ -70,6 +70,7 @@ Or trigger manually from GitHub Actions tab.
 - ✅ Internal distribution
 - ✅ Non-blocking (returns immediately)
 - ✅ Comments on PRs with build link
+- ✅ Uses Yarn for dependency installation
 
 ### Production Builds (production branch)
 - ✅ Triggers on push to `production`
@@ -78,6 +79,7 @@ Or trigger manually from GitHub Actions tab.
 - ✅ Auto-increments version
 - ✅ Waits for build completion
 - ✅ Auto-submits to stores (if configured)
+- ✅ Uses Yarn for dependency installation
 
 ## Checking Build Status
 
