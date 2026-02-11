@@ -28,12 +28,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Helpers
 // ────────────────────────────────────────────────
 
-const parseDeliveryAddress = (address: string | DeliveryAddress): DeliveryAddress => {
+const parseDeliveryAddress = (address: string | DeliveryAddress | null | undefined): DeliveryAddress | null => {
+  if (!address) {
+    return null;
+  }
   if (typeof address === 'string') {
     try {
       return JSON.parse(address);
     } catch {
-      return {} as DeliveryAddress;
+      return null;
     }
   }
   return address;
@@ -44,10 +47,8 @@ const getOrderItems = (order: Order): OrderItem[] => order.orderItems || order.i
 const STATUS_COLORS: Record<string, string> = {
   pending: 'text-yellow-600 bg-yellow-100',
   accepted: 'text-blue-600 bg-blue-100',
-  confirmed: 'text-blue-600 bg-blue-100',
   preparing: 'text-purple-600 bg-purple-100',
   ready: 'text-green-600 bg-green-100',
-  on_the_way: 'text-orange-600 bg-orange-100',
   delivered: 'text-green-600 bg-green-100',
   completed: 'text-emerald-600 bg-emerald-100',
   cancelled: 'text-red-600 bg-red-100',
@@ -57,14 +58,30 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
-  confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready for Pickup',
-  on_the_way: 'On the Way',
   delivered: 'Delivered',
   completed: 'Completed',
   cancelled: 'Cancelled',
   rejected: 'Rejected',
+};
+
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  pending: 'text-yellow-600 bg-yellow-100',
+  paid: 'text-green-600 bg-green-100',
+  success: 'text-green-600 bg-green-100',
+  failed: 'text-red-600 bg-red-100',
+  refunded: 'text-gray-600 bg-gray-100',
+  cancelled: 'text-red-600 bg-red-100',
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: 'Payment Pending',
+  paid: 'Paid',
+  success: 'Paid',
+  failed: 'Payment Failed',
+  refunded: 'Refunded',
+  cancelled: 'Payment Cancelled',
 };
 
 const formatDate = (dateString: string): string => {
@@ -82,6 +99,11 @@ const getStatusBadgeClass = (status: string): string =>
   STATUS_COLORS[status] || 'text-gray-600 bg-gray-100';
 
 const getStatusLabel = (status: string): string => STATUS_LABELS[status] || status;
+
+const getPaymentStatusBadgeClass = (status: string): string =>
+  PAYMENT_STATUS_COLORS[status] || 'text-gray-600 bg-gray-100';
+
+const getPaymentStatusLabel = (status: string): string => PAYMENT_STATUS_LABELS[status] || status;
 
 // ────────────────────────────────────────────────
 // Types
@@ -164,8 +186,15 @@ function OrderStatusCard({
         </Text>
 
         {!isGroup && (
-          <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(displayOrder.status)}`}>
-            <Text className="text-sm font-medium">{getStatusLabel(displayOrder.status)}</Text>
+          <View className="flex-row gap-2">
+            {displayOrder.payment_status && (
+              <View className={`px-3 py-1 rounded-full ${getPaymentStatusBadgeClass(displayOrder.payment_status)}`}>
+                <Text className="text-sm font-medium">{getPaymentStatusLabel(displayOrder.payment_status)}</Text>
+              </View>
+            )}
+            <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(displayOrder.status)}`}>
+              <Text className="text-sm font-medium">{getStatusLabel(displayOrder.status)}</Text>
+            </View>
           </View>
         )}
       </View>
@@ -177,6 +206,19 @@ function OrderStatusCard({
             {vendorCount !== 1 ? 's' : ''}
           </Text>
           <View className="flex-row flex-wrap gap-2">
+            {/* Show group payment status if available */}
+            {(() => {
+              const groupPayment = orders.find(o => o.payment?.order_group_id)?.payment;
+              const paymentStatus = groupPayment?.status || orders[0]?.payment_status;
+              if (paymentStatus) {
+                return (
+                  <View className={`px-3 py-1 rounded-full ${getPaymentStatusBadgeClass(paymentStatus)}`}>
+                    <Text className="text-xs font-medium">{getPaymentStatusLabel(paymentStatus)}</Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
             {uniqueStatuses.map((status) => (
               <View
                 key={status}
@@ -375,10 +417,26 @@ function SingleOrderItems({ order }: { order: Order }) {
 function DeliveryAddressCard({ address }: { address: string | DeliveryAddress }) {
   const parsed = parseDeliveryAddress(address);
 
+  if (!parsed) {
+    return (
+      <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
+        <Text className="text-lg font-semibold mb-3">Delivery Address</Text>
+        <View className="flex-row items-start">
+          <View className="mt-1">
+            <IconSymbol name="location.fill" size={20} color="#666" />
+          </View>
+          <Text className="ml-3 text-gray-700 flex-1">
+            No address provided
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const fullAddress = [
     parsed.street,
     parsed.city,
-    typeof parsed.state === 'string' ? parsed.state : parsed.state?.name,
+    typeof parsed.state === 'string' ? parsed.state : parsed.state?.name || '',
     parsed.postal_code,
   ]
     .filter(Boolean)
@@ -652,6 +710,7 @@ export default function OrderDetailScreen() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
 
   const orderData = useMemo<OrderViewData | null>(() => {
     if (!isGroupId) {
@@ -679,6 +738,44 @@ export default function OrderDetailScreen() {
     return { type: 'single', order: match as Order };
   }, [isGroupId, id, ordersList, singleOrder]);
 
+  // All useCallback hooks must be called before any conditional returns
+  const handlePaymentSuccess = useCallback(async () => {
+    if (!paymentReference) return;
+
+    try {
+      await verifyPayment.mutateAsync(paymentReference);
+      setPaymentUrl(null);
+      setPaymentReference(null);
+      setSuccessDialogOpen(true);
+      refetchSingle();
+    } catch (error: any) {
+      toast.error('Verification Failed', error.message || 'Could not verify payment');
+    }
+  }, [paymentReference, verifyPayment, refetchSingle]);
+
+  const handlePaymentCancel = useCallback(() => {
+    setPaymentUrl(null);
+    setPaymentReference(null);
+    toast.warning('Payment Cancelled', 'You can retry payment anytime');
+  }, []);
+
+  // Memoize PaystackWebView to prevent unnecessary re-renders
+  const paystackWebView = useMemo(
+    () =>
+      paymentUrl && paymentReference ? (
+        <PaystackWebView
+          visible={true}
+          authorizationUrl={paymentUrl}
+          reference={paymentReference}
+          onClose={handlePaymentCancel}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentCancel={handlePaymentCancel}
+        />
+      ) : null,
+    [paymentUrl, paymentReference, handlePaymentCancel, handlePaymentSuccess]
+  );
+
+  // Early returns after all hooks
   if (isGroupId ? ordersList.length === 0 : isLoadingSingle) {
     return (
       <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
@@ -745,6 +842,34 @@ export default function OrderDetailScreen() {
     const isGroupedPayment = (isGroup && !orderId) || (!!paymentGroupId && !orderId);
     const orderGroupId = paymentGroupId;
 
+    // First verify if payment already exists and its status
+    if (targetOrder.payment?.reference) {
+      try {
+        const verificationResult = await verifyPayment.mutateAsync(targetOrder.payment.reference);
+        
+        // If payment is successful, no need to retry
+        if (verificationResult.status === 'success') {
+          toast.success('Payment Verified', 'Your payment has been confirmed');
+          refetchSingle();
+          return;
+        }
+        
+        // If payment is abandoned, redirect to existing payment URL if available
+        if (verificationResult.status === 'abandoned' && targetOrder.payment.authorization_url) {
+          setPaymentUrl(targetOrder.payment.authorization_url);
+          setPaymentReference(targetOrder.payment.reference);
+          return;
+        }
+        
+        // If payment failed or refunded, proceed with new initialization
+        console.log('Payment verification result:', verificationResult.status, '- proceeding with new initialization');
+      } catch (error: any) {
+        console.log('Verification error:', error.message, '- proceeding with new initialization');
+        // If verification fails, proceed with new initialization
+      }
+    }
+
+    // Initialize new payment
     initializePayment.mutate(
       isGroupedPayment && orderGroupId
         ? {
@@ -773,27 +898,6 @@ export default function OrderDetailScreen() {
       }
     );
   };
-
-  const handlePaymentSuccess = useCallback(async () => {
-    if (!paymentReference) return;
-
-    try {
-      await verifyPayment.mutateAsync(paymentReference);
-      toast.success('Payment Successful', 'Your payment has been confirmed');
-      setPaymentUrl(null);
-      setPaymentReference(null);
-      refetchSingle();
-      router.push('/orders');
-    } catch (error: any) {
-      toast.error('Verification Failed', error.message || 'Could not verify payment');
-    }
-  }, [paymentReference, verifyPayment, refetchSingle, router]);
-
-  const handlePaymentCancel = useCallback(() => {
-    setPaymentUrl(null);
-    setPaymentReference(null);
-    toast.warning('Payment Cancelled', 'You can retry payment anytime');
-  }, []);
 
   return (
     <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
@@ -1017,21 +1121,28 @@ export default function OrderDetailScreen() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Success Dialog */}
+      <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Payment Successful!</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your payment has been confirmed. Your order is being processed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onPress={() => {
+              setSuccessDialogOpen(false);
+              router.push('/orders');
+            }}>
+              <Text className="text-white">View Orders</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Paystack Payment WebView */}
-      {useMemo(
-        () =>
-          paymentUrl && paymentReference ? (
-            <PaystackWebView
-              visible={true}
-              authorizationUrl={paymentUrl}
-              reference={paymentReference}
-              onClose={handlePaymentCancel}
-              onPaymentSuccess={handlePaymentSuccess}
-              onPaymentCancel={handlePaymentCancel}
-            />
-          ) : null,
-        [paymentUrl, paymentReference, handlePaymentCancel, handlePaymentSuccess]
-      )}
+      {paystackWebView}
     </View>
   );
 }

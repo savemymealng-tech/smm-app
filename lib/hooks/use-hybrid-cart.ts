@@ -28,6 +28,8 @@ function apiCartToDisplayItems(apiCart: Cart | null | undefined): LocalCartItem[
       customizations: {},
       unitPrice: price,
       totalPrice: price * item.quantity,
+      fulfillment_method: item.fulfillment_method ?? null,
+      requires_fulfillment_choice: item.requires_fulfillment_choice ?? false,
     };
   });
 }
@@ -89,11 +91,37 @@ export function useHybridCart() {
   const totalItems = displayCart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = displayCart.reduce((sum, item) => sum + item.totalPrice, 0);
 
+  // Calculate total delivery fees - only for items with fulfillment_method === 'delivery'
+  // OR items that only support delivery (available_for_delivery && !available_for_pickup)
+  const deliveryFee = useMemo(() => {
+    return displayCart.reduce((sum, item) => {
+      const product = item.product;
+      
+      // Skip if no delivery fee defined
+      if (!product?.delivery_fee || !product?.available_for_delivery) {
+        return sum;
+      }
+      
+      // Include delivery fee if:
+      // 1. Customer explicitly chose delivery, OR
+      // 2. Product only supports delivery (not available for pickup)
+      const shouldIncludeDeliveryFee = 
+        item.fulfillment_method === 'delivery' || 
+        (product.available_for_delivery && !product.available_for_pickup);
+      
+      if (shouldIncludeDeliveryFee) {
+        return sum + parseFloat(product.delivery_fee);
+      }
+      
+      return sum;
+    }, 0);
+  }, [displayCart]);
+
   return {
     cart: displayCart,
     totalItems,
     subtotal,
-    deliveryFee: 0,
+    deliveryFee,
     serviceFee: 0,
     tax: 0,
     isLoading: authState.isAuthenticated ? apiLoading : false,
@@ -121,10 +149,24 @@ export function useHybridAddToCart() {
     },
   });
 
-  const addToLocalCart = (product: Meal, quantity: number) => {
+  const addToLocalCart = (product: Meal, quantity: number, fulfillmentMethod?: 'pickup' | 'delivery') => {
     setLocalCart((prev) => {
       const existingIndex = prev.findIndex((item) => Number(item.productId) === product.id);
       const price = parseFloat(product.price);
+      
+      // Determine if fulfillment choice is required
+      const requiresChoice = product.available_for_pickup && product.available_for_delivery;
+      
+      // Auto-select fulfillment method if only one option available
+      let finalFulfillmentMethod = fulfillmentMethod;
+      if (!finalFulfillmentMethod) {
+        if (product.available_for_delivery && !product.available_for_pickup) {
+          finalFulfillmentMethod = 'delivery';
+        } else if (product.available_for_pickup && !product.available_for_delivery) {
+          finalFulfillmentMethod = 'pickup';
+        }
+      }
+      
       if (existingIndex !== -1) {
         return prev.map((item, i) =>
           i === existingIndex
@@ -132,6 +174,8 @@ export function useHybridAddToCart() {
                 ...item,
                 quantity: item.quantity + quantity,
                 totalPrice: item.unitPrice * (item.quantity + quantity),
+                fulfillment_method: finalFulfillmentMethod ?? item.fulfillment_method,
+                requires_fulfillment_choice: requiresChoice && !finalFulfillmentMethod,
               }
             : item
         );
@@ -145,6 +189,8 @@ export function useHybridAddToCart() {
         customizations: {},
         unitPrice: price,
         totalPrice: price * quantity,
+        fulfillment_method: finalFulfillmentMethod ?? null,
+        requires_fulfillment_choice: requiresChoice && !finalFulfillmentMethod,
       };
       return [...prev, newItem];
     });
@@ -155,11 +201,15 @@ export function useHybridAddToCart() {
     mutate: (data: AddToCartRequest & { product?: Meal }) => {
       if (data.product) {
         if (authState.isAuthenticated) {
-          apiMutation.mutate({ product_id: data.product_id, quantity: data.quantity }, {
+          apiMutation.mutate({ 
+            product_id: data.product_id, 
+            quantity: data.quantity,
+            fulfillment_method: data.fulfillment_method 
+          }, {
             onSuccess: () => toast.success('Added to Cart', 'Item added to cart'),
           });
         } else {
-          addToLocalCart(data.product, data.quantity);
+          addToLocalCart(data.product, data.quantity, data.fulfillment_method);
         }
       }
     },
@@ -189,20 +239,29 @@ export function useHybridUpdateCart() {
   });
 
   return {
-    mutate: (data: { product_id?: number; item_id?: string; quantity: number }) => {
+    mutate: (data: { product_id?: number; item_id?: string; quantity: number; fulfillment_method?: 'pickup' | 'delivery' }) => {
       if (data.quantity <= 0) {
         // Handled as remove by caller
         return;
       }
       if (authState.isAuthenticated && data.product_id) {
-        apiMutation.mutate({ product_id: data.product_id, quantity: data.quantity });
+        apiMutation.mutate({ 
+          product_id: data.product_id, 
+          quantity: data.quantity,
+          fulfillment_method: data.fulfillment_method 
+        });
       } else {
         const itemId = data.item_id ?? `${data.product_id}-`;
         setLocalCart((prev) =>
           prev.map((item) => {
             const match = item.id === itemId || (data.product_id && Number(item.productId) === data.product_id);
             if (match) {
-              return { ...item, quantity: data.quantity, totalPrice: item.unitPrice * data.quantity };
+              return { 
+                ...item, 
+                quantity: data.quantity, 
+                totalPrice: item.unitPrice * data.quantity,
+                fulfillment_method: data.fulfillment_method ?? item.fulfillment_method,
+              };
             }
             return item;
           })
@@ -233,9 +292,7 @@ export function useHybridRemoveFromCart() {
   });
 
   return {
-    mutate: (id: string) => {
-      const item = localCart.find((i) => i.id === id);
-      const productId = item ? Number(item.productId) : null;
+    mutate: (id: string, productId?: number) => {
       if (authState.isAuthenticated && productId != null) {
         apiMutation.mutate(productId, { onSuccess: () => toast.success('Item Removed', 'Item removed from cart') });
       } else {

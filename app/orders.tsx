@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Image,
-  Pressable,
-  ScrollView,
-  View
+    Image,
+    Pressable,
+    ScrollView,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,7 +23,7 @@ import type { Order } from '@/types/api';
 // Types (aligned with your backend response)
 // ────────────────────────────────────────────────
 
-type OrderStatus = Order['status'];
+type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
 
 interface OrderGroup {
   order_group_id: string;
@@ -38,26 +38,42 @@ interface OrderGroup {
 type DisplayGroup = OrderGroup;
 
 // Status mappings
+type FilterStatus = 'all' | 'active' | OrderStatus;
+
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
-  confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
-  on_the_way: 'On the Way',
   delivered: 'Delivered',
   completed: 'Completed',
   cancelled: 'Cancelled',
   rejected: 'Rejected',
 };
 
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  pending: 'text-yellow-700 bg-yellow-50 border-yellow-200',
+  paid: 'text-green-700 bg-green-50 border-green-200',
+  success: 'text-green-700 bg-green-50 border-green-200',
+  failed: 'text-red-700 bg-red-50 border-red-200',
+  refunded: 'text-gray-700 bg-gray-50 border-gray-200',
+  cancelled: 'text-red-700 bg-red-50 border-red-200',
+};
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: 'Payment Pending',
+  paid: 'Paid',
+  success: 'Paid',
+  failed: 'Payment Failed',
+  refunded: 'Refunded',
+  cancelled: 'Payment Cancelled',
+};
+
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: 'text-yellow-600 bg-yellow-100',
   accepted: 'text-blue-600 bg-blue-100',
-  confirmed: 'text-blue-600 bg-blue-100',
   preparing: 'text-orange-600 bg-orange-100',
   ready: 'text-purple-600 bg-purple-100',
-  on_the_way: 'text-indigo-600 bg-indigo-100',
   delivered: 'text-green-600 bg-green-100',
   completed: 'text-emerald-600 bg-emerald-100',
   cancelled: 'text-red-600 bg-red-100',
@@ -75,7 +91,7 @@ export default function OrdersScreen() {
   const { data: rawItems = [], isLoading } = useOrders();
   const { mutate: reorder, isPending: isReordering } = useReorder();
 
-  const [selectedFilter, setSelectedFilter] = useState<'all' | OrderStatus>('all');
+  const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('all');
 
   // ────────────────────────────────────────────────
   // Normalize API response → unified groups
@@ -106,18 +122,17 @@ export default function OrdersScreen() {
   // ────────────────────────────────────────────────
 
   const filterCounts = useMemo(() => {
-    const counts: Record<'all' | OrderStatus, number> = {
+    const counts: Record<'all' | OrderStatus | 'active', number> = {
       all: displayGroups.length,
       pending: 0,
       accepted: 0,
-      confirmed: 0,
       preparing: 0,
       ready: 0,
-      on_the_way: 0,
       delivered: 0,
       completed: 0,
       cancelled: 0,
       rejected: 0,
+      active: 0,
     };
 
     displayGroups.forEach((group) => {
@@ -128,9 +143,9 @@ export default function OrdersScreen() {
       });
     });
 
-    // For "on_the_way" we treat preparing/ready/on_the_way as active
-    counts.on_the_way = displayGroups.filter((g) =>
-      g.all_statuses.some((s) => ['preparing', 'ready', 'on_the_way'].includes(s))
+    // "active" represents orders that are being prepared or ready
+    counts.active = displayGroups.filter((g) =>
+      g.all_statuses.some((s) => ['accepted', 'preparing', 'ready'].includes(s))
     ).length;
 
     return counts;
@@ -139,9 +154,9 @@ export default function OrdersScreen() {
   const visibleGroups = useMemo(() => {
     if (selectedFilter === 'all') return displayGroups;
 
-    if (selectedFilter === 'on_the_way') {
+    if (selectedFilter === 'active') {
       return displayGroups.filter((g) =>
-        g.all_statuses.some((s) => ['preparing', 'ready', 'on_the_way'].includes(s))
+        g.all_statuses.some((s) => ['accepted', 'preparing', 'ready'].includes(s))
       );
     }
 
@@ -157,6 +172,12 @@ export default function OrdersScreen() {
 
   const getStatusLabel = (status: OrderStatus) =>
     STATUS_LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+
+  const getPaymentStatusBadgeClass = (status: string) =>
+    PAYMENT_STATUS_COLORS[status] || 'text-gray-700 bg-gray-50 border-gray-200';
+
+  const getPaymentStatusLabel = (status: string) =>
+    PAYMENT_STATUS_LABELS[status] || status;
 
   const formatOrderDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
@@ -226,7 +247,7 @@ export default function OrdersScreen() {
           <View className="flex-row gap-2.5 py-1">
             {[
               { key: 'all' as const, label: 'All' },
-              { key: 'on_the_way' as const, label: 'Active' },
+              { key: 'active' as const, label: 'Active' },
               { key: 'delivered' as const, label: 'Delivered' },
               { key: 'cancelled' as const, label: 'Cancelled' },
             ].map(({ key, label }) => {
@@ -326,6 +347,36 @@ export default function OrdersScreen() {
 
                   {/* Status Badges */}
                   <View className="flex-row flex-wrap gap-1.5 mb-4">
+                    {/* Show payment status for both single and group orders */}
+                    {(() => {
+                      if (isSingle && firstOrder.payment_status) {
+                        return (
+                          <View
+                            className={`px-3 py-1 rounded-full border ${getPaymentStatusBadgeClass(firstOrder.payment_status)}`}
+                          >
+                            <Text className="text-xs font-medium">
+                              {getPaymentStatusLabel(firstOrder.payment_status)}
+                            </Text>
+                          </View>
+                        );
+                      } else if (!isSingle) {
+                        // For grouped orders, check for group payment status
+                        const groupPayment = group.orders.find((o: any) => o.payment?.order_group_id)?.payment;
+                        const paymentStatus = groupPayment?.status || group.orders[0]?.payment_status;
+                        if (paymentStatus) {
+                          return (
+                            <View
+                              className={`px-3 py-1 rounded-full border ${getPaymentStatusBadgeClass(paymentStatus)}`}
+                            >
+                              <Text className="text-xs font-medium">
+                                {getPaymentStatusLabel(paymentStatus)}
+                              </Text>
+                            </View>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                     {uniqueStatuses.map((status) => (
                       <View
                         key={status}

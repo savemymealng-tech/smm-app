@@ -3,10 +3,8 @@
  * Handles customer authentication endpoints (per SaveMyMeal API Guide v2.0.0)
  */
 
-import apiClient, { extractData, ApiResponse } from './client';
+import apiClient, { ApiResponse, extractData, tokenManager } from './client';
 import { API_CONFIG } from './config';
-import { tokenManager } from './client';
-import type { User } from '../../types';
 
 // Request types (matching API guide)
 export interface SignupRequest {
@@ -169,15 +167,39 @@ export const authApi = {
    * Returns new access token (refresh token remains valid)
    */
   async refreshToken(refreshToken: string): Promise<string> {
+    console.log('🔄 [AuthAPI] refreshToken called with token:', {
+      exists: !!refreshToken,
+      length: refreshToken?.length || 0,
+      preview: refreshToken ? `${refreshToken.substring(0, 20)}...` : 'null'
+    });
+    
+    if (!refreshToken) {
+      console.error('❌ [AuthAPI] Refresh token is null or undefined');
+      throw new Error('Refresh token is required');
+    }
+
+    console.log('🔄 [AuthAPI] Sending refresh request:', {
+      endpoint: API_CONFIG.ENDPOINTS.AUTH.REFRESH,
+      body: { refreshToken: `${refreshToken.substring(0, 20)}...` }
+    });
+
     const response = await apiClient.post<ApiResponse<{ token: string }>>(
       API_CONFIG.ENDPOINTS.AUTH.REFRESH,
       { refreshToken }
     );
+    
+    console.log('✅ [AuthAPI] Refresh response:', {
+      status: response.status,
+      success: response.data.success,
+      hasData: !!response.data.data
+    });
+    
     const result = extractData(response);
     
     // Store new token (keep existing refresh token)
     if (result.token) {
       await tokenManager.setTokens(result.token, refreshToken);
+      console.log('✅ [AuthAPI] Tokens updated successfully');
     }
     
     return result.token;

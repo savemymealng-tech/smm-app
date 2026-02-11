@@ -123,33 +123,39 @@ function AlertDialogDescription({
 
 function AlertDialogAction({
   className,
+  children,
   ...props
 }: AlertDialogPrimitive.ActionProps &
   React.RefAttributes<AlertDialogPrimitive.ActionRef>) {
   return (
-    <TextClassContext.Provider value={buttonTextVariants({ className })}>
-      <AlertDialogPrimitive.Action
-        className={cn(buttonVariants(), className)}
-        {...props}
-      />
-    </TextClassContext.Provider>
+    <AlertDialogPrimitive.Action
+      className={cn(buttonVariants(), className)}
+      {...props}
+    >
+      <TextClassContext.Provider value={buttonTextVariants({ className })}>
+        {children as React.ReactNode}
+      </TextClassContext.Provider>
+    </AlertDialogPrimitive.Action>
   );
 }
 
 function AlertDialogCancel({
   className,
+  children,
   ...props
 }: AlertDialogPrimitive.CancelProps &
   React.RefAttributes<AlertDialogPrimitive.CancelRef>) {
   return (
-    <TextClassContext.Provider
-      value={buttonTextVariants({ className, variant: "outline" })}
+    <AlertDialogPrimitive.Cancel
+      className={cn(buttonVariants({ variant: "outline" }), className)}
+      {...props}
     >
-      <AlertDialogPrimitive.Cancel
-        className={cn(buttonVariants({ variant: "outline" }), className)}
-        {...props}
-      />
-    </TextClassContext.Provider>
+      <TextClassContext.Provider
+        value={buttonTextVariants({ className, variant: "outline" })}
+      >
+        {children as React.ReactNode}
+      </TextClassContext.Provider>
+    </AlertDialogPrimitive.Cancel>
   );
 }
 

@@ -82,6 +82,11 @@ export interface Meal {
   categories: Category[];
   vendor: Vendor;
   distance?: string;
+  delivery_fee?: string;
+  available_for_pickup?: boolean;
+  available_for_delivery?: boolean;
+  pickup_time_minutes?: number;
+  delivery_time_minutes?: number;
 }
 
 export interface BrowseMealsParams {
@@ -146,9 +151,12 @@ export interface CartProduct {
 }
 
 export interface CartItem {
+  id?: number;
   product_id: number;
   quantity: number;
   product: CartProduct;
+  fulfillment_method?: 'pickup' | 'delivery' | null;
+  requires_fulfillment_choice?: boolean;
 }
 
 export interface Cart {
@@ -163,11 +171,13 @@ export interface Cart {
 export interface AddToCartRequest {
   product_id: number;
   quantity: number;
+  fulfillment_method?: 'pickup' | 'delivery';
 }
 
 export interface UpdateCartRequest {
   product_id: number;
   quantity: number;
+  fulfillment_method?: 'pickup' | 'delivery';
 }
 
 export interface RemoveFromCartRequest {
@@ -238,9 +248,9 @@ export interface Order {
   delivery_fee: string;
   service_fee: string;
   delivery_address: DeliveryAddress | string;
-  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected' | 'on_the_way' | 'confirmed';
+  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
   payment_method: 'card' | 'cash_on_delivery' | 'wallet' | 'cash' | 'transfer';
-  payment_status?: 'pending' | 'paid' | 'failed' | 'refunded';
+  payment_status?: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
   payment?: {
     id: number;
     reference: string;
@@ -332,7 +342,7 @@ export interface InitializePaymentResponse {
 export interface PaymentVerification {
   reference: string;
   amount: string;
-  status: 'success' | 'failed' | 'abandoned';
+  status: 'success' | 'failed' | 'abandoned' | 'refunded';
   paid_at: string;
   channel: 'card' | 'bank' | 'ussd' | 'qr' | 'mobile_money';
   order: {

@@ -53,15 +53,6 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
         )}
       </View>
 
-      {product.weight && (
-        <View className="flex-row items-center mb-3 pb-3 border-b border-gray-100">
-          <IconSymbol name="scalemass.fill" size={14} color="#666" />
-          <Text className="text-sm text-gray-600 ml-1.5">
-            Weight: {product.weight}
-          </Text>
-        </View>
-      )}
-
       <Text className="text-gray-700 leading-6 text-base">
         {product.description}
       </Text>

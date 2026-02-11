@@ -20,6 +20,7 @@ interface CartItemCardProps {
   isAuthenticated?: boolean;
   onRemove: () => void;
   onUpdateQuantity: (quantity: number) => void;
+  onUpdateFulfillmentMethod?: (method: 'pickup' | 'delivery') => void;
 }
 
 export function CartItemCard({
@@ -27,6 +28,7 @@ export function CartItemCard({
   isAuthenticated = true,
   onRemove,
   onUpdateQuantity,
+  onUpdateFulfillmentMethod,
 }: CartItemCardProps) {
   const scale = useSharedValue(1);
   const quantityScale = useSharedValue(1);
@@ -105,6 +107,77 @@ export function CartItemCard({
                 <Text className="text-gray-500 text-xs" numberOfLines={1}>
                   {(product as any).vendor.business_name || (product as any).vendor.name}
                 </Text>
+              )}
+              
+              {/* Fulfillment Method Selector - show when both options available */}
+              {(product as any).available_for_delivery && (product as any).available_for_pickup ? (
+                <View className="mt-2">
+                  {(item as LocalCartItem).requires_fulfillment_choice && (
+                    <Text className="text-amber-600 text-xs mb-1 font-semibold">
+                      Please select pickup or delivery
+                    </Text>
+                  )}
+                  <View className="flex-row gap-2">
+                    <Pressable
+                      onPress={() => onUpdateFulfillmentMethod?.('pickup')}
+                      className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                        (item as LocalCartItem).fulfillment_method === 'pickup'
+                          ? 'bg-[#1E8449]'
+                          : 'bg-gray-100'
+                      }`}
+                    >
+                      <IconSymbol 
+                        name="bag.fill" 
+                        size={12} 
+                        color={(item as LocalCartItem).fulfillment_method === 'pickup' ? '#fff' : '#666'} 
+                      />
+                      <Text className={`text-xs ml-1 ${
+                        (item as LocalCartItem).fulfillment_method === 'pickup'
+                          ? 'text-white font-semibold'
+                          : 'text-gray-600'
+                      }`}>
+                        Pickup
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onUpdateFulfillmentMethod?.('delivery')}
+                      className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                        (item as LocalCartItem).fulfillment_method === 'delivery'
+                          ? 'bg-[#1E8449]'
+                          : 'bg-gray-100'
+                      }`}
+                    >
+                      <IconSymbol 
+                        name="shippingbox.fill" 
+                        size={12} 
+                        color={(item as LocalCartItem).fulfillment_method === 'delivery' ? '#fff' : '#666'} 
+                      />
+                      <Text className={`text-xs ml-1 ${
+                        (item as LocalCartItem).fulfillment_method === 'delivery'
+                          ? 'text-white font-semibold'
+                          : 'text-gray-600'
+                      }`}>
+                        Delivery
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                /* Show simple indicator when only one option available */
+                <View className="flex-row items-center mt-1">
+                  {(product as any).available_for_delivery && (
+                    <View className="flex-row items-center mr-3">
+                      <IconSymbol name="shippingbox.fill" size={12} color="#1E8449" />
+                      <Text className="text-[#1E8449] text-xs ml-1">Delivery</Text>
+                    </View>
+                  )}
+                  {(product as any).available_for_pickup && (
+                    <View className="flex-row items-center">
+                      <IconSymbol name="bag.fill" size={12} color="#1E8449" />
+                      <Text className="text-[#1E8449] text-xs ml-1">Pickup</Text>
+                    </View>
+                  )}
+                </View>
               )}
             </View>
             <Pressable

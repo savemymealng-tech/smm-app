@@ -57,7 +57,7 @@ export default function CartScreen() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const [itemToRemove, setItemToRemove] = useState<number | string | null>(null);
+  const [itemToRemove, setItemToRemove] = useState<{ id: string; productId: number } | null>(null);
 
   // Calculate total from values (server provides fees, or they're 0)
   const total = subtotal + deliveryFee + serviceFee + tax;
@@ -70,17 +70,17 @@ export default function CartScreen() {
     total,
   };
 
-  const handleRemoveItem = (id: number | string) => {
+  const handleRemoveItem = (id: string, productId: number) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    setItemToRemove(id);
+    setItemToRemove({ id, productId });
     setRemoveDialogOpen(true);
   };
 
   const confirmRemoveItem = () => {
     if (itemToRemove !== null) {
-      removeFromCartMutation.mutate(String(itemToRemove));
+      removeFromCartMutation.mutate(itemToRemove.id, itemToRemove.productId);
     }
     setRemoveDialogOpen(false);
     setItemToRemove(null);
@@ -88,12 +88,29 @@ export default function CartScreen() {
 
   const handleUpdateQuantity = (id: string, quantity: number, productId?: number) => {
     if (quantity < 1) {
-      handleRemoveItem(id);
+      handleRemoveItem(id, productId || 0);
       return;
     }
     
     // Always pass item_id for local cart, and product_id for API sync
     updateCartMutation.mutate({ item_id: id, product_id: productId, quantity });
+  };
+
+  const handleUpdateFulfillmentMethod = (id: string, method: 'pickup' | 'delivery', productId?: number) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    // Find the current item to get its quantity
+    const currentItem = cart.find(item => item.id === id);
+    if (currentItem) {
+      updateCartMutation.mutate({ 
+        item_id: id, 
+        product_id: productId, 
+        quantity: currentItem.quantity,
+        fulfillment_method: method 
+      });
+    }
   };
 
   const handleCheckout = () => {
@@ -216,8 +233,9 @@ export default function CartScreen() {
                     <CartItemCard
                       item={item}
                       isAuthenticated={isAuthenticated}
-                      onRemove={() => handleRemoveItem(itemId)}
+                      onRemove={() => handleRemoveItem(itemId, productId)}
                       onUpdateQuantity={(quantity) => handleUpdateQuantity(itemId, quantity, productId)}
+                      onUpdateFulfillmentMethod={(method) => handleUpdateFulfillmentMethod(itemId, method, productId)}
                     />
                   </NativeOnlyAnimatedView>
                 );

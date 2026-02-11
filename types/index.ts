@@ -98,6 +98,11 @@ export type Product = {
   reviewCount: number
   preparationTime?: number
   calories?: number
+  delivery_fee?: string
+  available_for_pickup?: boolean
+  available_for_delivery?: boolean
+  pickup_time_minutes?: number
+  delivery_time_minutes?: number
   ingredients?: string[]
   allergens?: string[]
   customizations?: Customization[]
@@ -127,6 +132,8 @@ export type CartItem = {
   notes?: string
   unitPrice: number
   totalPrice: number
+  fulfillment_method?: 'pickup' | 'delivery' | null
+  requires_fulfillment_choice?: boolean
 }
 
 export type Cart = {

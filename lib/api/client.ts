@@ -37,39 +37,62 @@ export interface PaginatedResponse<T = any> extends ApiResponse<T[]> {
 export const tokenManager = {
   async getAccessToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      console.log('🔑 [TokenManager] getAccessToken:', {
+        exists: !!token,
+        length: token?.length || 0
+      });
+      return token;
     } catch (error) {
-      console.error('Error getting access token:', error);
+      console.error('❌ [TokenManager] Error getting access token:', error);
       return null;
     }
   },
 
   async getRefreshToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      console.log('🔑 [TokenManager] getRefreshToken:', {
+        exists: !!token,
+        length: token?.length || 0,
+        preview: token ? `${token.substring(0, 20)}...` : 'null'
+      });
+      return token;
     } catch (error) {
-      console.error('Error getting refresh token:', error);
+      console.error('❌ [TokenManager] Error getting refresh token:', error);
       return null;
     }
   },
 
   async setTokens(accessToken: string, refreshToken?: string): Promise<void> {
     try {
+      console.log('🔑 [TokenManager] setTokens called:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        accessTokenLength: accessToken?.length || 0,
+        refreshTokenLength: refreshToken?.length || 0
+      });
+      
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
       if (refreshToken) {
         await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+        console.log('✅ [TokenManager] Both tokens stored successfully');
+      } else {
+        console.log('✅ [TokenManager] Access token stored (no refresh token provided)');
       }
     } catch (error) {
-      console.error('Error setting tokens:', error);
+      console.error('❌ [TokenManager] Error setting tokens:', error);
     }
   },
 
   async clearTokens(): Promise<void> {
     try {
+      console.log('🗑️ [TokenManager] Clearing all tokens');
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      console.log('✅ [TokenManager] Tokens cleared successfully');
     } catch (error) {
-      console.error('Error clearing tokens:', error);
+      console.error('❌ [TokenManager] Error clearing tokens:', error);
     }
   },
 };
@@ -104,22 +127,46 @@ const processQueue = (error: any = null, token: string | null = null) => {
 // Helper function to refresh the access token
 const refreshAccessToken = async (): Promise<string> => {
   const refreshToken = await tokenManager.getRefreshToken();
+  
+  console.log('🔄 [RefreshToken] Retrieved refresh token:', {
+    exists: !!refreshToken,
+    length: refreshToken?.length || 0,
+    preview: refreshToken ? `${refreshToken.substring(0, 20)}...` : 'null'
+  });
+  
   if (!refreshToken) {
+    console.error('❌ [RefreshToken] No refresh token available in secure store');
     throw new Error('No refresh token available');
   }
 
+  console.log('🔄 [RefreshToken] Sending refresh request to:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`);
+  console.log('🔄 [RefreshToken] Request body:', { refreshToken: `${refreshToken.substring(0, 20)}...` });
+
   const response = await axios.post<ApiResponse<{ token: string; refreshToken?: string }>>(
     `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
-    { refreshToken }
+    { refreshToken },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
   );
+
+  console.log('✅ [RefreshToken] Response received:', {
+    status: response.status,
+    success: response.data.success,
+    hasToken: !!response.data.data?.token
+  });
 
   if (response.data.success && response.data.data) {
     const { token, refreshToken: newRefreshToken } = response.data.data;
     // Store new tokens
     await tokenManager.setTokens(token, newRefreshToken || refreshToken);
+    console.log('✅ [RefreshToken] New tokens stored successfully');
     return token;
   }
 
+  console.error('❌ [RefreshToken] Invalid response format');
   throw new Error('Token refresh failed');
 };
 

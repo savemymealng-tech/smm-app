@@ -2,22 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,8 @@ import { toast } from "@/components/ui/toast";
 
 import { addressesApi } from "@/lib/api/addresses";
 import {
-    usePlaceOrder,
-    useVerifyPayment,
+  usePlaceOrder,
+  useVerifyPayment,
 } from "@/lib/hooks";
 import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
 import { useProfile } from "@/lib/hooks/use-profile";
@@ -91,7 +91,7 @@ function AddressDisplay({ address }: { address: Address }) {
 function PaymentMethodDisplay({
   method,
 }: {
-  method: "card" | "cash" | null;
+  method: "card" | null;
 }) {
   if (!method) return null;
 
@@ -99,13 +99,9 @@ function PaymentMethodDisplay({
     <View className="bg-gray-50 rounded-lg p-3">
       <View className="flex-row items-center">
         <IconSymbol name="creditcard.fill" size={16} color="#666" />
-        <Text className="ml-2 font-semibold">
-          {method === "card" ? "Card Payment" : "Cash on Delivery"}
-        </Text>
+        <Text className="ml-2 font-semibold">Card Payment</Text>
       </View>
-      {method === "card" && (
-        <Text className="text-xs text-gray-500 mt-1">Pay via Paystack</Text>
-      )}
+      <Text className="text-xs text-gray-500 mt-1">Pay via Paystack</Text>
     </View>
   );
 }
@@ -129,14 +125,18 @@ function TotalsDisplay({
         <Text className="text-gray-600">Subtotal</Text>
         <Text className="text-gray-900 font-medium">{formatCurrency(subtotal)}</Text>
       </View>
-      <View className="flex-row justify-between mb-2">
-        <Text className="text-gray-600">Delivery Fee</Text>
-        <Text className="text-gray-900 font-medium">{formatCurrency(deliveryFee)}</Text>
-      </View>
-      <View className="flex-row justify-between mb-2">
-        <Text className="text-gray-600">Service Fee</Text>
-        <Text className="text-gray-900 font-medium">{formatCurrency(serviceFee)}</Text>
-      </View>
+      {deliveryFee > 0 && (
+        <View className="flex-row justify-between mb-2">
+          <Text className="text-gray-600">Delivery Fee</Text>
+          <Text className="text-gray-900 font-medium">{formatCurrency(deliveryFee)}</Text>
+        </View>
+      )}
+      {serviceFee > 0 && (
+        <View className="flex-row justify-between mb-2">
+          <Text className="text-gray-600">Service Fee</Text>
+          <Text className="text-gray-900 font-medium">{formatCurrency(serviceFee)}</Text>
+        </View>
+      )}
       <View className="border-t border-gray-200 my-3" />
       <View className="flex-row justify-between">
         <Text className="text-lg font-bold text-gray-900">Total</Text>
@@ -158,6 +158,50 @@ export default function CheckoutScreen() {
   const { data: user } = useProfile();
   const clearCart = useHybridClearCart();
 
+  // Check if cart has delivery or pickup items based on selected fulfillment method
+  const hasDeliveryItems = useMemo(() => {
+    return cart.some(item => 
+      (item as any).fulfillment_method === 'delivery' || 
+      (item.product?.available_for_delivery && !item.product?.available_for_pickup)
+    );
+  }, [cart]);
+
+  const hasPickupItems = useMemo(() => {
+    return cart.some(item => 
+      (item as any).fulfillment_method === 'pickup' || 
+      (item.product?.available_for_pickup && !item.product?.available_for_delivery)
+    );
+  }, [cart]);
+
+  // Calculate estimated delivery/pickup times from cart
+  const estimatedTimes = useMemo(() => {
+    const deliveryItems = cart.filter(item => 
+      (item as any).fulfillment_method === 'delivery' || 
+      (item.product?.available_for_delivery && !item.product?.available_for_pickup)
+    );
+    const pickupItems = cart.filter(item => 
+      (item as any).fulfillment_method === 'pickup' || 
+      (item.product?.available_for_pickup && !item.product?.available_for_delivery)
+    );
+
+    const maxDeliveryTime = deliveryItems.reduce((max, item) => {
+      const time = item.product?.delivery_time_minutes || 0;
+      return time > max ? time : max;
+    }, 0);
+
+    const maxPickupTime = pickupItems.reduce((max, item) => {
+      const time = item.product?.pickup_time_minutes || 0;
+      return time > max ? time : max;
+    }, 0);
+
+    return { 
+      delivery: maxDeliveryTime, 
+      pickup: maxPickupTime,
+      hasDelivery: deliveryItems.length > 0,
+      hasPickup: pickupItems.length > 0
+    };
+  }, [cart]);
+
   // Fetch addresses from API
   const { data: addresses = [], isLoading: loadingAddresses } = useQuery({
     queryKey: ['addresses'],
@@ -169,10 +213,9 @@ export default function CheckoutScreen() {
   const verifyPayment = useVerifyPayment();
 
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<"card" | "cash">("card");
+  const [selectedPayment, setSelectedPayment] = useState<"card">("card");
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [showAddressSelector, setShowAddressSelector] = useState(false);
-  const [showPaymentSelector, setShowPaymentSelector] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPaymentWebView, setShowPaymentWebView] = useState(false);
@@ -197,8 +240,17 @@ export default function CheckoutScreen() {
     [subtotal, deliveryFee, serviceFee, tax]
   );
 
+  // Check if any items require fulfillment choice
+  const hasItemsRequiringChoice = useMemo(() => {
+    return cart.some(item => (item as any).requires_fulfillment_choice);
+  }, [cart]);
+
   const canPlaceOrder = Boolean(
-    selectedAddress && selectedPayment && cart.length > 0 && !isProcessing
+    ((hasDeliveryItems && selectedAddress) || !hasDeliveryItems) &&
+    selectedPayment && 
+    cart.length > 0 && 
+    !isProcessing &&
+    !hasItemsRequiringChoice
   );
 
   const prepareOrderItems = (cartItems: typeof cart) => {
@@ -221,8 +273,9 @@ export default function CheckoutScreen() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!selectedAddress) {
-      toast.warning("Missing Information", "Please select a delivery address.");
+    // Validate delivery items have a selected address
+    if (hasDeliveryItems && !selectedAddress) {
+      toast.warning("Missing Information", "Please select a delivery address for your delivery items.");
       return;
     }
 
@@ -231,17 +284,33 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (hasItemsRequiringChoice) {
+      toast.warning("Fulfillment Method Required", "Please select pickup or delivery for all items in your cart.");
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      const orderResponse = await placeOrder.mutateAsync({
+      // Prepare order payload - ensure address_id is sent when there are delivery items
+      const orderPayload = {
         use_cart: true,
         items: [], // Server uses cart when use_cart is true
-        address_id: Number(selectedAddress.id),
+        address_id: hasDeliveryItems && selectedAddress ? Number(selectedAddress.id) : undefined,
         recipient_name: user?.full_name || user?.name || undefined,
         special_instructions: deliveryNotes || undefined,
-        payment_method: selectedPayment === "card" ? "card" : "cash_on_delivery",
+        payment_method: "card" as const,
+      };
+
+      // Log for debugging - ensure address is included for delivery orders
+      console.log('🛒 Placing order:', {
+        hasDeliveryItems,
+        hasPickupItems,
+        address_id: orderPayload.address_id,
+        cart_items: cart.length,
       });
+
+      const orderResponse = await placeOrder.mutateAsync(orderPayload);
 
       // New backend returns { orders, payment, error } structure
       const { orders, payment, error } = orderResponse as any;
@@ -250,41 +319,28 @@ export default function CheckoutScreen() {
       const ordersList = Array.isArray(orders) ? orders : [orders];
       const firstOrder = ordersList[0];
       
-      if (selectedPayment === "card") {
-        // For card payment, check if payment was automatically initialized
-        if (payment && payment.authorization_url) {
-          // Payment was successfully initialized
-          setPaymentReference(payment.reference);
-          setPaymentUrl(payment.authorization_url);
-          setShowPaymentWebView(true);
-          
-          // Store order info for success handling
-          if (ordersList.length > 1) {
-            setSuccessOrderId(firstOrder.order_group_id as any);
-          } else {
-            setSuccessOrderId(firstOrder.id);
-          }
-        } else {
-          // Payment initialization failed but order was created
-          clearCart.mutate();
-          toast.warning(
-            "Payment Initialization Failed",
-            error || "Order created but payment could not be initialized. You can pay later from your orders."
-          );
-          // Navigate to orders page
-          router.replace("/orders");
-        }
-      } else {
-        // Cash on delivery - no payment needed
-        clearCart.mutate();
+      // For card payment, check if payment was automatically initialized
+      if (payment && payment.authorization_url) {
+        // Payment was successfully initialized
+        setPaymentReference(payment.reference);
+        setPaymentUrl(payment.authorization_url);
+        setShowPaymentWebView(true);
+        
+        // Store order info for success handling
         if (ordersList.length > 1) {
           setSuccessOrderId(firstOrder.order_group_id as any);
-          setSuccessMessage(`Your orders have been confirmed across ${ordersList.length} vendors. Pay on delivery.`);
         } else {
           setSuccessOrderId(firstOrder.id);
-          setSuccessMessage("Your order has been confirmed. Pay on delivery.");
         }
-        setSuccessDialogOpen(true);
+      } else {
+        // Payment initialization failed but order was created
+        clearCart.mutate();
+        toast.warning(
+          "Payment Initialization Failed",
+          error || "Order created but payment could not be initialized. You can pay later from your orders."
+        );
+        // Navigate to orders page
+        router.replace("/orders");
       }
     } catch (err: any) {
       const msg =
@@ -362,55 +418,93 @@ export default function CheckoutScreen() {
           />
         </View>
 
+        {/* Fulfillment Choice Warning */}
+        {hasItemsRequiringChoice && (
+          <View className="bg-amber-50 border border-amber-200 rounded-lg p-4 mx-4 mb-4">
+            <View className="flex-row items-start">
+              <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#f59e0b" />
+              <View className="flex-1 ml-3">
+                <Text className="text-amber-900 font-semibold mb-1">
+                  Action Required
+                </Text>
+                <Text className="text-amber-800 text-sm">
+                  Some items in your cart need you to select pickup or delivery. 
+                  Please go back to your cart and make your selection.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Delivery Address */}
-        <View className="bg-white p-4 mb-4">
-          <SectionHeader
-            title="Delivery Address"
-            actionText={addresses?.length ? "Change" : "Add"}
-            onAction={() => {
-              if (addresses?.length) {
-                setShowAddressSelector(true);
-              } else {
-                router.push("/addresses");
-              }
-            }}
-          />
-          {selectedAddress ? (
-            <AddressDisplay address={selectedAddress} />
-          ) : (
-            <Pressable
-              onPress={() => {
+        {hasDeliveryItems && (
+          <View className="bg-white p-4 mb-4">
+            <SectionHeader
+              title="Delivery Address"
+              actionText={addresses?.length ? "Change" : "Add"}
+              onAction={() => {
                 if (addresses?.length) {
                   setShowAddressSelector(true);
                 } else {
                   router.push("/addresses");
                 }
               }}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-6 items-center"
-            >
-              <IconSymbol name="plus" size={32} color="#888" />
-              <Text className="text-gray-600 mt-3 font-medium">
-                {addresses?.length ? "Select delivery address" : "Add delivery address"}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+            />
+            {selectedAddress ? (
+              <AddressDisplay address={selectedAddress} />
+            ) : (
+              <Pressable
+                onPress={() => {
+                  if (addresses?.length) {
+                    setShowAddressSelector(true);
+                  } else {
+                    router.push("/addresses");
+                  }
+                }}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 items-center"
+              >
+                <IconSymbol name="plus" size={32} color="#888" />
+                <Text className="text-gray-600 mt-3 font-medium">
+                  {addresses?.length ? "Select delivery address" : "Add delivery address"}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* Pickup Information */}
+        {hasPickupItems && (
+          <View className="bg-white p-4 mb-4">
+            <SectionHeader title="Pickup Information" />
+            <View className="flex-row items-start mt-2">
+              <IconSymbol name="bag.fill" size={20} color="#1E8449" />
+              <View className="flex-1 ml-3">
+                <Text className="text-gray-900 font-semibold mb-1">
+                  {hasDeliveryItems ? 'Some items will be ready for pickup' : 'Items will be ready for pickup'}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Please collect these items directly from the vendor after placing your order.
+                  You will receive pickup details in your order confirmation.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Payment Method */}
         <View className="bg-white p-4 mb-4">
           <SectionHeader
             title="Payment Method"
-            actionText="Change"
-            onAction={() => setShowPaymentSelector(true)}
           />
           <PaymentMethodDisplay method={selectedPayment} />
+          <Text className="text-xs text-gray-500 mt-2">Only card payment is available at checkout</Text>
         </View>
 
-        {/* Delivery Notes */}
+        {/* Special Instructions */}
         <View className="bg-white p-4 mb-4">
-          <SectionHeader title="Delivery Notes" />
+          <SectionHeader title="Special Instructions" />
           <TextInput
-            placeholder="Special instructions for delivery (optional)..."
+            placeholder="Special instructions for your order (optional)..."
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
             multiline
@@ -421,16 +515,29 @@ export default function CheckoutScreen() {
           />
         </View>
 
-        {/* Estimated Delivery */}
-        <View className="bg-white p-4 mb-6">
-          <View className="flex-row items-center">
-            <IconSymbol name="clock.fill" size={20} color="#15785B" />
-            <View className="ml-3">
-              <Text className="font-semibold">Estimated Delivery</Text>
-              <Text className="text-gray-600">25–40 minutes</Text>
-            </View>
+        {/* Estimated Times */}
+        {(estimatedTimes.hasDelivery || estimatedTimes.hasPickup) && (
+          <View className="bg-white p-4 mb-6">
+            {estimatedTimes.hasDelivery  && (
+              <View className="flex-row items-center mb-3">
+                <IconSymbol name="shippingbox.fill" size={20} color="#1E8449" />
+                <View className="ml-3">
+                  <Text className="font-semibold">Estimated Delivery</Text>
+                  <Text className="text-gray-600">{estimatedTimes.delivery} minutes</Text>
+                </View>
+              </View>
+            )}
+            {estimatedTimes.hasPickup && estimatedTimes.pickup > 0 && (
+              <View className="flex-row items-center">
+                <IconSymbol name="bag.fill" size={20} color="#1E8449" />
+                <View className="ml-3">
+                  <Text className="font-semibold">Ready for Pickup</Text>
+                  <Text className="text-gray-600">{estimatedTimes.pickup} minutes</Text>
+                </View>
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
         {/* Extra space at bottom (helps when keyboard opens) */}
         <View className="h-20" />
@@ -551,104 +658,7 @@ export default function CheckoutScreen() {
         </View>
       </BottomSheet>
 
-      {/* Payment Method Selector Bottom Sheet */}
-      <BottomSheet
-        visible={showPaymentSelector}
-        onClose={() => setShowPaymentSelector(false)}
-        title="Select Payment Method"
-      >
-        <View className="flex-1 px-6 pb-6">
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            {/* Card Payment Option */}
-            <Pressable
-              onPress={() => {
-                setSelectedPayment("card");
-                setShowPaymentSelector(false);
-              }}
-              className="mb-3"
-            >
-              <View
-                className={`rounded-xl p-4 border-2 ${
-                  selectedPayment === "card"
-                    ? "border-primary bg-primary/5"
-                    : "border-gray-200 bg-white"
-                }`}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <View className={`w-12 h-12 rounded-full items-center justify-center ${
-                      selectedPayment === "card" ? "bg-primary/10" : "bg-gray-100"
-                    }`}>
-                      <IconSymbol
-                        name="creditcard.fill"
-                        size={24}
-                        color={selectedPayment === "card" ? "#15785B" : "#666"}
-                      />
-                    </View>
-                    <View className="ml-3 flex-1">
-                      <Text
-                        className={`font-semibold text-base ${
-                          selectedPayment === "card" ? "text-primary" : "text-gray-900"
-                        }`}
-                      >
-                        Card Payment
-                      </Text>
-                      <Text className="text-gray-500 text-sm">Pay securely via Paystack</Text>
-                    </View>
-                  </View>
-                  {selectedPayment === "card" && (
-                    <IconSymbol name="checkmark.circle.fill" size={24} color="#15785B" />
-                  )}
-                </View>
-              </View>
-            </Pressable>
 
-            {/* Cash on Delivery Option */}
-            <Pressable
-              onPress={() => {
-                setSelectedPayment("cash");
-                setShowPaymentSelector(false);
-              }}
-              className="mb-3"
-            >
-              <View
-                className={`rounded-xl p-4 border-2 ${
-                  selectedPayment === "cash"
-                    ? "border-primary bg-primary/5"
-                    : "border-gray-200 bg-white"
-                }`}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <View className={`w-12 h-12 rounded-full items-center justify-center ${
-                      selectedPayment === "cash" ? "bg-primary/10" : "bg-gray-100"
-                    }`}>
-                      <IconSymbol
-                        name="banknote"
-                        size={24}
-                        color={selectedPayment === "cash" ? "#15785B" : "#666"}
-                      />
-                    </View>
-                    <View className="ml-3 flex-1">
-                      <Text
-                        className={`font-semibold text-base ${
-                          selectedPayment === "cash" ? "text-primary" : "text-gray-900"
-                        }`}
-                      >
-                        Cash on Delivery
-                      </Text>
-                      <Text className="text-gray-500 text-sm">Pay when you receive your order</Text>
-                    </View>
-                  </View>
-                  {selectedPayment === "cash" && (
-                    <IconSymbol name="checkmark.circle.fill" size={24} color="#15785B" />
-                  )}
-                </View>
-              </View>
-            </Pressable>
-          </ScrollView>
-        </View>
-      </BottomSheet>
 
       {/* Success Dialog */}
       <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
@@ -675,7 +685,7 @@ export default function CheckoutScreen() {
                 }
               }}
             >
-              View Order
+              <Text>View Order</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

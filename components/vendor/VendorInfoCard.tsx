@@ -1,4 +1,5 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Dimensions, Image, Modal, Pressable, View } from "react-native";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,21 +12,29 @@ type VendorInfoCardProps = {
   vendor: Vendor;
 };
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const imageSource = getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg');
+
   return (
-    <View className="mx-4 -mt-24 mb-4 bg-white rounded-3xl p-5 shadow-lg border border-gray-100">
-      <View className="flex-row items-start">
-        <Avatar
-          className="w-20 h-20 rounded-2xl border-4 border-white shadow-md"
-          alt={vendor.business_name}
-        >
-          <AvatarImage source={getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg')} />
-          <AvatarFallback className="bg-blue-100">
-            <Text className="text-blue-600 font-bold text-2xl">
-              {vendor.business_name.charAt(0)}
-            </Text>
-          </AvatarFallback>
-        </Avatar>
+    <>
+      <View className="mx-4 -mt-24 mb-4 bg-white rounded-3xl p-5 shadow-lg border border-gray-100">
+        <View className="flex-row items-start">
+          <Pressable onPress={() => setPreviewVisible(true)}>
+            <Avatar
+              className="w-20 h-20 rounded-2xl border-4 border-white shadow-md"
+              alt={vendor.business_name}
+            >
+              <AvatarImage source={imageSource} />
+              <AvatarFallback className="bg-blue-100">
+                <Text className="text-blue-600 font-bold text-2xl">
+                  {vendor.business_name.charAt(0)}
+                </Text>
+              </AvatarFallback>
+            </Avatar>
+          </Pressable>
 
         <View className="flex-1 ml-4">
           <View className="flex-row items-center mb-2">
@@ -91,6 +100,30 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
         </View>
       </View>
     </View>
+
+    {/* Image Preview Modal */}
+    <Modal
+      visible={previewVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setPreviewVisible(false)}
+    >
+      <View className="flex-1 bg-black">
+        <Image
+          source={imageSource}
+          style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+          resizeMode="contain"
+        />
+        
+        <Pressable
+          onPress={() => setPreviewVisible(false)}
+          className="absolute top-12 right-4 bg-white/20 rounded-full p-3"
+        >
+          <IconSymbol name="xmark" size={24} color="#fff" />
+        </Pressable>
+      </View>
+    </Modal>
+  </>
   );
 }
 
