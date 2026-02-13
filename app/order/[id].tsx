@@ -1,3 +1,4 @@
+import { ReviewForm } from '@/components/reviews';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { PaystackWebView } from '@/components/ui/paystack-webview';
@@ -16,6 +18,7 @@ import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { useCancelOrder, useReorder, useTrackOrder } from '@/lib/hooks';
 import { useOrders } from '@/lib/hooks/use-orders';
+import { useReviews } from '@/lib/hooks/use-reviews';
 import { useInitializePayment, useVerifyPayment } from '@/lib/hooks/usePayments';
 import { getImageSource } from '@/lib/utils';
 import type { DeliveryAddress, Order, OrderItem } from '@/types/api';
@@ -321,8 +324,16 @@ function OrderStatusCard({
   );
 }
 
-function VendorSection({ order }: { order: Order }) {
+function VendorSection({ 
+  order,
+  onReviewPress,
+}: { 
+  order: Order;
+  onReviewPress?: (item: OrderItem) => void;
+}) {
   const router = useRouter();
+  const canReview = order.status === 'completed' || order.status === 'delivered';
+  const isPaid = order.payment_status === 'paid';
   
   return (
     <View className="bg-white p-5 mb-4 rounded-xl shadow-sm">
@@ -353,26 +364,40 @@ function VendorSection({ order }: { order: Order }) {
         </Text>
 
         {getOrderItems(order).map((item, idx) => (
-          <Pressable
-            key={item.id}
-            onPress={() => router.push(`/product/${item.product_id}` as any)}
-            className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-50' : ''}`}
-          >
-            <Image
-              source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
-              className="w-14 h-14 rounded-lg mr-3"
-              resizeMode="cover"
-            />
-            <View className="flex-1">
-              <View className="flex-row justify-between items-start mb-1">
-                <Text className="font-medium flex-1 text-sm pr-2" numberOfLines={2}>
-                  {item.product.name}
-                </Text>
-                <Text className="font-semibold text-sm">₦{Number(item.price).toFixed(0)}</Text>
+          <View key={item.id}>
+            <Pressable
+              onPress={() => router.push(`/product/${item.product_id}` as any)}
+              className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-50' : ''}`}
+            >
+              <Image
+                source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
+                className="w-14 h-14 rounded-lg mr-3"
+                resizeMode="cover"
+              />
+              <View className="flex-1">
+                <View className="flex-row justify-between items-start mb-1">
+                  <Text className="font-medium flex-1 text-sm pr-2" numberOfLines={2}>
+                    {item.product.name}
+                  </Text>
+                  <Text className="font-semibold text-sm">₦{Number(item.price).toFixed(0)}</Text>
+                </View>
+                <Text className="text-gray-500 text-xs">Qty: {item.quantity}</Text>
               </View>
-              <Text className="text-gray-500 text-xs">Qty: {item.quantity}</Text>
-            </View>
-          </Pressable>
+            </Pressable>
+            
+            {/* Review Button */}
+            {canReview && isPaid && onReviewPress && (
+              <Pressable
+                onPress={() => onReviewPress(item)}
+                className="ml-17 mb-2 flex-row items-center"
+              >
+                <IconSymbol name="star" size={14} color="#F39C12" />
+                <Text className="text-sm text-green-600 font-medium ml-1">
+                  Write a Review
+                </Text>
+              </Pressable>
+            )}
+          </View>
         ))}
 
         <View className="flex-row justify-between mt-4 pt-3 border-t border-gray-100">
@@ -384,29 +409,52 @@ function VendorSection({ order }: { order: Order }) {
   );
 }
 
-function SingleOrderItems({ order }: { order: Order }) {
+function SingleOrderItems({ 
+  order,
+  onReviewPress,
+}: { 
+  order: Order;
+  onReviewPress?: (item: OrderItem) => void;
+}) {
+  const canReview = order.status === 'completed' || order.status === 'delivered';
+  const isPaid = order.payment_status === 'paid';
+
   return (
     <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
       <Text className="text-lg font-semibold mb-4">Items ({getOrderItems(order).length})</Text>
 
       {getOrderItems(order).map((item, idx) => (
-        <View
-          key={item.id}
-          className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-100' : ''}`}
-        >
-          <Image
-            source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
-            className="w-16 h-16 rounded-lg mr-3"
-            resizeMode="cover"
-          />
-          <View className="flex-1">
-            <View className="flex-row justify-between items-start mb-1">
-              <Text className="font-semibold flex-1 pr-2" numberOfLines={2}>
-                {item.product.name}
-              </Text>
-              <Text className="font-bold">₦{Number(item.price).toFixed(0)}</Text>
+        <View key={item.id}>
+          <View
+            className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-100' : ''}`}
+          >
+            <Image
+              source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
+              className="w-16 h-16 rounded-lg mr-3"
+              resizeMode="cover"
+            />
+            <View className="flex-1">
+              <View className="flex-row justify-between items-start mb-1">
+                <Text className="font-semibold flex-1 pr-2" numberOfLines={2}>
+                  {item.product.name}
+                </Text>
+                <Text className="font-bold">₦{Number(item.price).toFixed(0)}</Text>
+              </View>
+              <Text className="text-gray-600 text-sm">Qty: {item.quantity}</Text>
+              
+              {/* Review Button */}
+              {canReview && isPaid && onReviewPress && (
+                <Pressable
+                  onPress={() => onReviewPress(item)}
+                  className="mt-2 flex-row items-center"
+                >
+                  <IconSymbol name="star" size={14} color="#F39C12" />
+                  <Text className="text-sm text-green-600 font-medium ml-1">
+                    Write a Review
+                  </Text>
+                </Pressable>
+              )}
             </View>
-            <Text className="text-gray-600 text-sm">Qty: {item.quantity}</Text>
           </View>
         </View>
       ))}
@@ -570,26 +618,17 @@ function ActionSection({
         {deliveredOrders.map((order) => (
           <View key={order.id} className="bg-white rounded-xl p-5 mb-4 shadow-sm">
             <Text className="text-base font-semibold mb-4">{order.vendor?.business_name}</Text>
-            <View className="flex-row gap-3">
-              <Button
-                variant="outline"
-                onPress={() => onReorder(order)}
-                disabled={isReordering}
-                className="flex-1"
-              >
-                {isReordering ? (
-                  <ActivityIndicator size="small" color="#15785B" />
-                ) : (
-                  <Text className="text-primary text-sm">Reorder</Text>
-                )}
-              </Button>
-              <Button
-                onPress={() => router.push(`/order/${order.id}/review` as any)}
-                className="flex-1"
-              >
-                <Text className="text-white text-sm">Review</Text>
-              </Button>
-            </View>
+            <Button
+              variant="outline"
+              onPress={() => onReorder(order)}
+              disabled={isReordering}
+            >
+              {isReordering ? (
+                <ActivityIndicator size="small" color="#15785B" />
+              ) : (
+                <Text className="text-primary text-sm">Reorder</Text>
+              )}
+            </Button>
           </View>
         ))}
       </View>
@@ -601,7 +640,7 @@ function ActionSection({
 
   return (
     <View className="px-4 pb-10">
-      <View className="bg-white rounded-xl p-6 mb-4 shadow-sm">
+      <View className="bg-white rounded-xl p-6 shadow-sm">
         <Text className="text-lg font-semibold mb-2 text-center">Order Again?</Text>
         <Text className="text-gray-600 text-center mb-5">Add the same items to your cart</Text>
 
@@ -617,14 +656,6 @@ function ActionSection({
               <Text className="ml-2 text-primary">Reorder</Text>
             </View>
           )}
-        </Button>
-      </View>
-
-      <View className="bg-white rounded-xl p-6 shadow-sm">
-        <Text className="text-lg font-semibold mb-2 text-center">Rate Your Order</Text>
-        <Text className="text-gray-600 text-center mb-5">Help others by sharing your experience</Text>
-        <Button onPress={() => router.push(`/order/${order.id}/review` as any)}>
-          <Text className="text-white">Leave Review</Text>
         </Button>
       </View>
     </View>
@@ -690,38 +721,98 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const isGroupId = id?.startsWith('OG') || id?.startsWith('single-');
+  console.log('OrderDetailScreen - Order ID:', id);
+
+  // If the ID is not a pure number, treat it as a group ID or order_group_id
+  const isGroupId = id ? isNaN(Number(id)) : false;
 
   const { data: ordersList = [] } = useOrders();
 
   const {
     data: singleOrder,
     isLoading: isLoadingSingle,
+    error: singleOrderError,
     refetch: refetchSingle,
   } = useTrackOrder(id || '', {
     enabled: !isGroupId && !!id,
+  });
+
+  console.log('OrderDetailScreen - Single Order:', { 
+    singleOrder, 
+    isLoadingSingle, 
+    error: singleOrderError,
+    isGroupId 
   });
 
   const cancelOrder = useCancelOrder();
   const reorder = useReorder();
   const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
+  const { submitReview, submitting } = useReviews();
 
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [reviewSheetOpen, setReviewSheetOpen] = useState(false);
+  const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
   const orderData = useMemo<OrderViewData | null>(() => {
+    console.log('orderData memo - Computing with:', { isGroupId, id, singleOrder, ordersListLength: ordersList.length });
+    
     if (!isGroupId) {
+      // For non-group IDs, try to get from ordersList first as fallback
+      if (!singleOrder && ordersList.length > 0) {
+        const orderId = Number(id);
+        if (!isNaN(orderId)) {
+          const orderFromList = ordersList.find((item: any) => {
+            if ('orders' in item && Array.isArray(item.orders)) {
+              return item.orders.some((o: Order) => o.id === orderId);
+            }
+            return item.id === orderId;
+          });
+          
+          if (orderFromList) {
+            console.log('orderData memo - Found order in list:', orderFromList);
+            if ('orders' in orderFromList && Array.isArray(orderFromList.orders)) {
+              const foundOrder = orderFromList.orders.find((o: Order) => o.id === orderId);
+              if (foundOrder) {
+                return { type: 'single', order: foundOrder };
+              }
+            } else {
+              return { type: 'single', order: orderFromList as Order };
+            }
+          }
+        }
+      }
       return singleOrder ? { type: 'single', order: singleOrder } : null;
     }
 
+    // For group IDs, search by order_group_id or single-<id> format
+    console.log('Searching for group ID in orders list...');
     const match = ordersList.find((item: any) => {
-      return item.order_group_id === id || `single-${item.id}` === id;
+      const matchesGroupId = item.order_group_id === id;
+      const matchesSingleFormat = `single-${item.id}` === id;
+      if (matchesGroupId || matchesSingleFormat) {
+        console.log('Found match:', { 
+          order_group_id: item.order_group_id, 
+          id: item.id, 
+          matchesGroupId, 
+          matchesSingleFormat 
+        });
+      }
+      return matchesGroupId || matchesSingleFormat;
     }) as any;
 
-    if (!match) return null;
+    if (!match) {
+      console.log('No match found. First few items:', ordersList.slice(0, 3).map((item: any) => ({
+        order_group_id: item.order_group_id,
+        id: item.id,
+        hasOrders: 'orders' in item
+      })));
+      return null;
+    }
 
     // Check if it's a grouped order (has orders array)
     if ('orders' in match && Array.isArray(match.orders)) {
@@ -742,22 +833,61 @@ export default function OrderDetailScreen() {
   const handlePaymentSuccess = useCallback(async () => {
     if (!paymentReference) return;
 
+    console.log('[Order Detail] Payment success - verifying:', paymentReference);
     try {
-      await verifyPayment.mutateAsync(paymentReference);
+      const verificationResult = await verifyPayment.mutateAsync(paymentReference);
+      console.log('[Order Detail] Verification result:', verificationResult);
+      
+      if (verificationResult.status === 'success') {
+        setPaymentUrl(null);
+        setPaymentReference(null);
+        setSuccessDialogOpen(true);
+        refetchSingle();
+        toast.success('Payment Verified', 'Your payment has been confirmed');
+      } else {
+        toast.warning('Payment Status', `Payment status: ${verificationResult.status}`);
+        setPaymentUrl(null);
+        setPaymentReference(null);
+        refetchSingle();
+      }
+    } catch (error: any) {
+      console.error('[Order Detail] Verification error:', error);
+      toast.error('Verification Failed', error.error || error.message || 'Could not verify payment');
+      // Still close the payment view even on verification error
       setPaymentUrl(null);
       setPaymentReference(null);
-      setSuccessDialogOpen(true);
       refetchSingle();
-    } catch (error: any) {
-      toast.error('Verification Failed', error.message || 'Could not verify payment');
     }
   }, [paymentReference, verifyPayment, refetchSingle]);
 
-  const handlePaymentCancel = useCallback(() => {
+  const handlePaymentCancel = useCallback(async () => {
+    console.log('[Order Detail] Payment cancelled/failed - verifying:', paymentReference);
+    
+    // Even when cancelled, verify the payment status to ensure accuracy
+    if (paymentReference) {
+      try {
+        const verificationResult = await verifyPayment.mutateAsync(paymentReference);
+        console.log('[Order Detail] Verification after cancel:', verificationResult);
+        
+        if (verificationResult.status === 'success') {
+          // Payment actually succeeded despite cancel
+          setSuccessDialogOpen(true);
+          toast.success('Payment Verified', 'Your payment has been confirmed');
+        } else {
+          toast.warning('Payment Cancelled', `You can retry payment anytime. Status: ${verificationResult.status}`);
+        }
+      } catch (error: any) {
+        console.error('[Order Detail] Verification error on cancel:', error);
+        toast.warning('Payment Cancelled', 'You can retry payment anytime');
+      }
+    } else {
+      toast.warning('Payment Cancelled', 'You can retry payment anytime');
+    }
+    
     setPaymentUrl(null);
     setPaymentReference(null);
-    toast.warning('Payment Cancelled', 'You can retry payment anytime');
-  }, []);
+    refetchSingle();
+  }, [paymentReference, verifyPayment, refetchSingle]);
 
   // Memoize PaystackWebView to prevent unnecessary re-renders
   const paystackWebView = useMemo(
@@ -791,15 +921,41 @@ export default function OrderDetailScreen() {
   }
 
   if (!orderData) {
+    const errorMessage = singleOrderError 
+      ? (singleOrderError as any)?.response?.data?.error || (singleOrderError as any)?.message || 'Failed to load order'
+      : 'Order not found';
+    
+    const errorDetails = singleOrderError 
+      ? `Unable to fetch order details from the server`
+      : 'This order does not exist or you do not have permission to view it';
+    
     return (
       <View
-        className="flex-1 items-center justify-center bg-gray-50"
+        className="flex-1 items-center justify-center bg-gray-50 px-6"
         style={{ paddingTop: insets.top }}
       >
-        <Text className="text-xl font-semibold mb-4">Order not found</Text>
-        <Button onPress={() => router.back()}>
-          <Text className="text-white">Go Back</Text>
-        </Button>
+        <IconSymbol name="exclamationmark.triangle" size={48} color="#9CA3AF" />
+        <Text className="text-xl font-semibold mb-2 mt-4">{errorMessage}</Text>
+        <Text className="text-gray-500 text-center mb-2">
+          {errorDetails}
+        </Text>
+        {id && (
+          <Text className="text-gray-400 text-sm text-center mb-4">
+            Order ID: {id}
+          </Text>
+        )}
+        <View className="flex-row gap-3">
+          <Button variant="outline" onPress={() => router.back()}>
+            <IconSymbol name="arrow.left" size={16} color="#000" />
+            <Text className="font-semibold ml-1">Go Back</Text>
+          </Button>
+          {singleOrderError && (
+            <Button onPress={() => refetchSingle()}>
+              <IconSymbol name="arrow.clockwise" size={16} color="#fff" />
+              <Text className="text-white font-semibold ml-1">Retry</Text>
+            </Button>
+          )}
+        </View>
       </View>
     );
   }
@@ -826,7 +982,44 @@ export default function OrderDetailScreen() {
     setCancelDialogOpen(false);
   };
 
+  const handleReviewPress = (item: OrderItem, order: Order) => {
+    setReviewingItem(item);
+    setCurrentOrder(order);
+    setReviewSheetOpen(true);
+  };
+
+  const handleReviewSubmit = async (data: { rating: number; comment: string }) => {
+    if (!reviewingItem || !currentOrder) return;
+
+    try {
+      await submitReview({
+        order_id: currentOrder.id,
+        product_id: reviewingItem.product_id,
+        rating: data.rating,
+        comment: data.comment,
+      });
+
+      toast.success('Review Submitted', 'Thank you for your feedback!');
+      setReviewSheetOpen(false);
+      setReviewingItem(null);
+      setCurrentOrder(null);
+    } catch (error: any) {
+      console.error('Review submission error:', error);
+      // Handle both API error format (error.error) and standard Error (error.message)
+      const errorMessage = error.error || error.message || 'Failed to submit review';
+      toast.error('Error', errorMessage);
+    }
+  };
+
+  const handleReviewCancel = () => {
+    setReviewSheetOpen(false);
+    setReviewingItem(null);
+    setCurrentOrder(null);
+  };
+
   const handleRetryPayment = async (orderId?: number) => {
+    console.log('[Order Detail] Retry payment initiated for order:', orderId);
+    
     // For grouped orders, use orderGroupId; for single orders, use orderId
     const targetOrder = orderId ? orders.find(o => o.id === orderId) : displayOrder;
     
@@ -842,32 +1035,68 @@ export default function OrderDetailScreen() {
     const isGroupedPayment = (isGroup && !orderId) || (!!paymentGroupId && !orderId);
     const orderGroupId = paymentGroupId;
 
-    // First verify if payment already exists and its status
+    // STEP 1: ALWAYS verify payment status FIRST before any initialization
+    let shouldInitializePayment = true;
+    
     if (targetOrder.payment?.reference) {
+      console.log('[Order Detail] Found existing payment reference, verifying before retry:', targetOrder.payment.reference);
+      toast.info('Checking...', 'Verifying payment status');
+      
       try {
         const verificationResult = await verifyPayment.mutateAsync(targetOrder.payment.reference);
+        console.log('[Order Detail] Pre-retry verification result:', verificationResult);
         
         // If payment is successful, no need to retry
         if (verificationResult.status === 'success') {
-          toast.success('Payment Verified', 'Your payment has been confirmed');
+          toast.success('Payment Already Verified', 'Your payment has already been confirmed');
+          setSuccessDialogOpen(true);
           refetchSingle();
-          return;
+          return; // Exit completely
         }
         
-        // If payment is abandoned, redirect to existing payment URL if available
+        // If payment is abandoned, check URL availability and reuse
         if (verificationResult.status === 'abandoned' && targetOrder.payment.authorization_url) {
+          console.log('[Order Detail] Payment abandoned, reusing existing URL');
           setPaymentUrl(targetOrder.payment.authorization_url);
           setPaymentReference(targetOrder.payment.reference);
-          return;
+          toast.info('Resuming Payment', 'Continue with your payment');
+          return; // Exit completely
         }
         
-        // If payment failed or refunded, proceed with new initialization
-        console.log('Payment verification result:', verificationResult.status, '- proceeding with new initialization');
+        // If payment failed or refunded, we can proceed with new initialization
+        console.log('[Order Detail] Payment status:', verificationResult.status, '- will initialize new payment');
+        shouldInitializePayment = true;
       } catch (error: any) {
-        console.log('Verification error:', error.message, '- proceeding with new initialization');
-        // If verification fails, proceed with new initialization
+        console.error('[Order Detail] Verification error:', error);
+        const errorMessage = error?.error || error?.message || 'Unknown error';
+        
+        // Check if error indicates payment is already completed
+        if (errorMessage.toLowerCase().includes('already been paid') || 
+            errorMessage.toLowerCase().includes('already paid')) {
+          console.log('[Order Detail] Payment already completed based on error message');
+          toast.success('Payment Already Completed', 'This order has already been paid');
+          refetchSingle();
+          return; // Exit completely
+        }
+        
+        // For other verification errors, still allow retry
+        console.log('[Order Detail] Verification failed, but allowing payment retry');
+        toast.warning('Verification Issue', 'Proceeding with payment');
+        shouldInitializePayment = true;
       }
+    } else {
+      console.log('[Order Detail] No existing payment reference found, proceeding with initialization');
+      shouldInitializePayment = true;
     }
+
+    // STEP 2: Only initialize payment if verification indicates it's needed
+    if (!shouldInitializePayment) {
+      console.log('[Order Detail] Skipping payment initialization based on verification result');
+      return;
+    }
+
+    console.log('[Order Detail] Initializing payment...', { isGroupedPayment, orderGroupId, orderId: targetOrder.id });
+    toast.info('Initializing', 'Creating payment session');
 
     // Initialize new payment
     initializePayment.mutate(
@@ -884,7 +1113,7 @@ export default function OrderDetailScreen() {
           },
       {
         onSuccess: (data) => {
-          console.log('Payment initialization success:', {
+          console.log('[Order Detail] Payment initialization success:', {
             authorization_url: data.authorization_url,
             reference: data.reference,
           });
@@ -892,8 +1121,9 @@ export default function OrderDetailScreen() {
           setPaymentReference(data.reference);
         },
         onError: (error: any) => {
-          console.error('Payment initialization error:', error);
-          toast.error('Payment Failed', error.message || 'Failed to initialize payment');
+          console.error('[Order Detail] Payment initialization error:', error);
+          const errorMsg = error?.error || error?.message || 'Failed to initialize payment';
+          toast.error('Payment Failed', errorMsg);
         },
       }
     );
@@ -928,7 +1158,11 @@ export default function OrderDetailScreen() {
         {isGroup ? (
           <View className="px-4">
             {orders.map((order) => (
-              <VendorSection key={order.id} order={order} />
+              <VendorSection 
+                key={order.id} 
+                order={order} 
+                onReviewPress={(item) => handleReviewPress(item, order)}
+              />
             ))}
           </View>
         ) : (
@@ -958,7 +1192,10 @@ export default function OrderDetailScreen() {
               </View>
             </View>
 
-            <SingleOrderItems order={displayOrder} />
+            <SingleOrderItems 
+              order={displayOrder} 
+              onReviewPress={(item) => handleReviewPress(item, displayOrder)}
+            />
           </>
         )}
 
@@ -1140,6 +1377,22 @@ export default function OrderDetailScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Review Bottom Sheet */}
+      <BottomSheet
+        visible={reviewSheetOpen}
+        onClose={handleReviewCancel}
+        title="Write a Review"
+      >
+        <ReviewForm
+          productName={reviewingItem?.product?.name}
+          orderId={currentOrder?.id}
+          productId={reviewingItem?.product_id}
+          onSubmit={handleReviewSubmit}
+          onCancel={handleReviewCancel}
+          loading={submitting}
+        />
+      </BottomSheet>
 
       {/* Paystack Payment WebView */}
       {paystackWebView}

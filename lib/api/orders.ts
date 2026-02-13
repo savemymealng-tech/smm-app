@@ -56,15 +56,32 @@ export const ordersApi = {
    * GET /customers/orders/:id
    */
   async trackOrder(id: number): Promise<Order> {
-    const response = await apiClient.get<ApiResponse<Order>>(
-      API_CONFIG.ENDPOINTS.ORDERS.BY_ID(id)
-    );
+    console.log('trackOrder - Fetching order ID:', id);
     
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+    try {
+      const response = await apiClient.get<ApiResponse<Order>>(
+        API_CONFIG.ENDPOINTS.ORDERS.BY_ID(id)
+      );
+      
+      console.log('trackOrder - Response:', { 
+        success: response.data.success, 
+        hasData: !!response.data.data,
+        error: response.data.error 
+      });
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      throw new Error(response.data.error || 'Failed to fetch order details');
+    } catch (error: any) {
+      console.error('trackOrder - Error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      throw error;
     }
-    
-    throw new Error(response.data.error || 'Failed to fetch order details');
   },
 
   /**

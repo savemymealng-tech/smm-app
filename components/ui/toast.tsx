@@ -8,15 +8,16 @@
  */
 
 import { cn } from '@/lib/utils';
+import { Portal } from '@rn-primitives/portal';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
-  FadeInUp,
-  FadeOutUp,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    FadeInUp,
+    FadeOutUp,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from './icon-symbol';
@@ -226,20 +227,25 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       
-      {/* Toast container */}
-      <View
-        pointerEvents="box-none"
-        className="absolute left-0 right-0 z-50"
-        style={{ top: insets.top + 8 }}
-      >
-        {toasts.map((t) => (
-          <ToastItem
-            key={t.id}
-            toast={t}
-            onDismiss={() => dismiss(t.id)}
-          />
-        ))}
-      </View>
+      {/* Toast container - render in Portal to overlay navigation */}
+      <Portal>
+        <View
+          pointerEvents="box-none"
+          className="absolute left-0 right-0"
+          style={{ 
+            top: insets.top + 8,
+            zIndex: 9999,
+          }}
+        >
+          {toasts.map((t) => (
+            <ToastItem
+              key={t.id}
+              toast={t}
+              onDismiss={() => dismiss(t.id)}
+            />
+          ))}
+        </View>
+      </Portal>
     </ToastContext.Provider>
   );
 }

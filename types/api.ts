@@ -87,6 +87,8 @@ export interface Meal {
   available_for_delivery?: boolean;
   pickup_time_minutes?: number;
   delivery_time_minutes?: number;
+  average_rating?: string;
+  total_reviews?: number;
 }
 
 export interface BrowseMealsParams {
@@ -369,31 +371,63 @@ export interface PaymentHistory {
 
 export interface SubmitReviewRequest {
   order_id: number;
+  product_id: number;
   rating: number; // 1-5 star rating
-  review?: string; // Optional text review
-  food_quality_rating?: number; // 1-5
-  delivery_rating?: number; // 1-5
-  packaging_rating?: number; // 1-5
+  comment?: string; // Optional review comment (max 1000 characters)
+}
+
+export interface UpdateReviewRequest {
+  rating?: number;
+  comment?: string;
 }
 
 export interface Review {
   id: number;
   order_id: number;
+  product_id: number;
   customer_id: number;
   vendor_id: number;
   rating: number;
-  review?: string;
-  food_quality_rating?: number;
-  delivery_rating?: number;
-  packaging_rating?: number;
+  comment?: string;
   createdAt: string;
   updatedAt: string;
   customer?: {
     id: number;
     first_name: string;
     last_name: string;
-    avatar?: string;
+    email?: string;
   };
+  product?: {
+    id: number;
+    name: string;
+    photo_url: string;
+  };
+  vendor?: {
+    id: number;
+    business_name: string;
+  };
+}
+
+export interface ProductReviewsResponse {
+  total: number;
+  pages: number;
+  average_rating: string;
+  total_reviews: number;
+  data: Review[];
+}
+
+export interface VendorReviewsResponse {
+  total: number;
+  pages: number;
+  average_rating: string;
+  total_reviews: number;
+  data: Review[];
+}
+
+export interface CustomerReviewsResponse {
+  total: number;
+  pages: number;
+  data: Review[];
 }
 
 // ============================================

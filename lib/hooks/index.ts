@@ -7,3 +7,4 @@ export * from './useOrders';
 export * from './usePayments';
 export * from './useTokenRefresh';
 export * from './useVendors';
+export * from './use-reviews';

@@ -3,12 +3,12 @@
  * Checkout uses server cart (use_cart: true) when authenticated.
  */
 
-import { toast } from '@/components/ui/toast';
 import type { CartItem as LocalCartItem } from '@/types';
 import type { AddToCartRequest, Cart, Meal, UpdateCartRequest } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAtom, useAtomValue } from 'jotai';
 import { useEffect, useMemo, useRef } from 'react';
+import { Alert } from 'react-native';
 import { api } from '../api';
 import { authAtom } from '../atoms/auth';
 import { persistCartAtom } from '../atoms/cart';
@@ -145,7 +145,7 @@ export function useHybridAddToCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to add to cart');
+      Alert.alert('Error', error.error || error.message || 'Failed to add to cart');
     },
   });
 
@@ -194,7 +194,7 @@ export function useHybridAddToCart() {
       };
       return [...prev, newItem];
     });
-    toast.success('Added to Cart', 'Item added to cart');
+    // toast.success('Added to Cart', 'Item added to cart'); // Removed per user request
   };
 
   return {
@@ -206,7 +206,7 @@ export function useHybridAddToCart() {
             quantity: data.quantity,
             fulfillment_method: data.fulfillment_method 
           }, {
-            onSuccess: () => toast.success('Added to Cart', 'Item added to cart'),
+            // onSuccess: () => toast.success('Added to Cart', 'Item added to cart'), // Removed per user request
           });
         } else {
           addToLocalCart(data.product, data.quantity, data.fulfillment_method);
@@ -234,7 +234,7 @@ export function useHybridUpdateCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to update cart');
+      Alert.alert('Error', error.error || error.message || 'Failed to update cart');
     },
   });
 
@@ -287,17 +287,16 @@ export function useHybridRemoveFromCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to remove item');
+      Alert.alert('Error', error.error || error.message || 'Failed to remove item');
     },
   });
 
   return {
     mutate: (id: string, productId?: number) => {
       if (authState.isAuthenticated && productId != null) {
-        apiMutation.mutate(productId, { onSuccess: () => toast.success('Item Removed', 'Item removed from cart') });
+        apiMutation.mutate(productId);
       } else {
-        setLocalCart((prev) => prev.filter((i) => i.id !== id));
-        toast.success('Item Removed', 'Item removed from cart');
+        setLocalCart((prev) => prev.filter((item) => item.id !== id));
       }
     },
     isPending: apiMutation.isPending,
@@ -319,17 +318,16 @@ export function useHybridClearCart() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to clear cart');
+      Alert.alert('Error', error.error || error.message || 'Failed to clear cart');
     },
   });
 
   return {
     mutate: () => {
       if (authState.isAuthenticated) {
-        apiMutation.mutate(undefined, { onSuccess: () => toast.success('Cart Cleared', 'Your cart has been cleared') });
+        apiMutation.mutate();
       } else {
         setLocalCart([]);
-        toast.success('Cart Cleared', 'Your cart has been cleared');
       }
     },
     isPending: apiMutation.isPending,

@@ -102,7 +102,7 @@ export default function AddAddressScreen() {
       router.back();
     },
     onError: (error: any) => {
-      toast.error('Error', error?.message || 'Failed to save address');
+      toast.error('Error', error?.error || error?.message || 'Failed to save address');
     },
   });
 
@@ -115,7 +115,7 @@ export default function AddAddressScreen() {
       router.back();
     },
     onError: (error: any) => {
-      toast.error('Error', error?.message || 'Failed to update address');
+      toast.error('Error', error?.error || error?.message || 'Failed to update address');
     },
   });
 

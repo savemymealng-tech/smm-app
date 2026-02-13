@@ -34,8 +34,12 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
+      # iOS builds require Apple Developer credentials to be set up
+      # Run 'eas build --platform ios --profile production' locally once to configure
+      # See IOS_CREDENTIALS_SETUP.md for detailed instructions
       - name: 🚀 Build Production (iOS)
         run: eas build --platform ios --profile production --non-interactive --auto-submit
+        continue-on-error: true
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 

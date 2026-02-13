@@ -87,7 +87,7 @@ export function EditProfileSheet({
       toast.success('Profile Updated', 'Your profile has been updated successfully!');
       onClose();
     } catch (error: any) {
-      toast.error('Update Failed', error.message || 'Failed to update profile. Please try again.');
+      toast.error('Update Failed', error.error || error.message || 'Failed to update profile. Please try again.');
     }
   };
 

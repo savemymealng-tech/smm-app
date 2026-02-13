@@ -3,22 +3,23 @@
  * Unified export of all API services per SaveMyMeal API Guide v2.0.0
  */
 
+import { addressesApi } from './addresses';
 import { authApi } from './auth';
-import { mealsApi } from './meals';
-import { vendorsApi } from './vendors';
 import { cartApi } from './cart';
+import { tokenManager } from './client';
+import { contactApi } from './contact';
+import { featuredApi } from './featured';
+import { locationsApi } from './locations';
+import { mealsApi } from './meals';
 import { ordersApi } from './orders';
 import { paymentsApi } from './payments';
-import { featuredApi } from './featured';
 import { profileApi } from './profile';
-import { contactApi } from './contact';
-import { addressesApi } from './addresses';
-import { locationsApi } from './locations';
-import { tokenManager } from './client';
+import { reviewsApi } from './reviews';
+import { vendorsApi } from './vendors';
 
 // Re-export types
-export type { ApiResponse, PaginatedResponse } from './client';
 export * from '@/types/api';
+export type { ApiResponse, PaginatedResponse } from './client';
 
 /**
  * Unified API client
@@ -36,6 +37,7 @@ export const api = {
   contact: contactApi,
   addresses: addressesApi,
   locations: locationsApi,
+  reviews: reviewsApi,
   // Token management utilities
   tokenManager,
 };

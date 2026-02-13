@@ -57,6 +57,9 @@ function AppProviders() {
                 options={{ headerShown: false }}
               />
               <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="add-address" options={{ headerShown: false }} />
+              <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+              <Stack.Screen name="my-reviews" options={{ headerShown: false }} />
               <Stack.Screen name="modal" options={{ presentation: "modal" }} />
             </Stack>
             <StatusBar style="dark" backgroundColor="#ffffff" />

@@ -2,6 +2,13 @@
 
 ## Quick Setup Guide
 
+### Current Status
+
+✅ **Android**: Fully configured and working  
+⚠️ **iOS**: Needs credential setup (see [IOS_CREDENTIALS_SETUP.md](IOS_CREDENTIALS_SETUP.md))
+
+The workflows are configured to continue even if iOS builds fail, so your CI/CD will work for Android immediately.
+
 ### 1. Get Your Expo Token
 
 ```bash
@@ -154,6 +161,21 @@ eas build:cancel [BUILD_ID]
 2. ✅ Create `production` branch
 3. ✅ Test preview build by pushing to `main`
 4. ✅ Test production build by pushing to `production`
-5. 🔧 Configure app store submission (optional)
-6. 🔧 Add additional notifications (Slack/Discord)
-7. 🔧 Set up environment-specific configurations
+5. ⚠️ **Set up iOS credentials** (see [IOS_CREDENTIALS_SETUP.md](IOS_CREDENTIALS_SETUP.md))
+6. 🔧 Configure app store submission (optional)
+7. 🔧 Add additional notifications (Slack/Discord)
+8. 🔧 Set up environment-specific configurations
+
+## iOS Credentials
+
+Currently, **Android builds work perfectly** but **iOS builds require setup**.
+
+👉 **See [IOS_CREDENTIALS_SETUP.md](IOS_CREDENTIALS_SETUP.md) for detailed instructions**
+
+Quick setup:
+```bash
+# Run this once interactively to set up iOS credentials
+eas build --platform ios --profile preview
+```
+
+After this one-time setup, iOS builds will work automatically in CI/CD!

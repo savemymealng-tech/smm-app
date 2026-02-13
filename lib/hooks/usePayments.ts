@@ -1,14 +1,14 @@
-import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import type { InitializePaymentRequest } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
 
 export function useInitializePayment() {
   return useMutation({
     mutationFn: (paymentData: InitializePaymentRequest) => 
       api.payments.initializePayment(paymentData),
     onError: (error: any) => {
-      toast.error('Payment Error', error.message || 'Failed to initialize payment');
+      Alert.alert('Payment Error', error.error || error.message || 'Failed to initialize payment');
     },
   });
 }
@@ -23,7 +23,7 @@ export function useVerifyPayment() {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
     },
     onError: (error: any) => {
-      toast.error('Verification Failed', error.message || 'Failed to verify payment');
+      Alert.alert('Verification Failed', error.error || error.message || 'Failed to verify payment');
     },
   });
 }

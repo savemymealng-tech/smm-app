@@ -133,6 +133,12 @@ export default function ProfileScreen() {
             color="#1a73e8"
           />
           <ProfileMenuItem
+            icon="star.fill"
+            label="My Reviews"
+            onPress={() => router.push("/my-reviews")}
+            color="#fbbc04"
+          />
+          <ProfileMenuItem
             icon="heart.fill"
             label="Favorite Restaurants"
             onPress={() => { }}

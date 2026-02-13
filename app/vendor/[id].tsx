@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { RatingDisplay, ReviewList } from "@/components/reviews";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import {
@@ -14,6 +15,7 @@ import {
   VendorProductsSection,
 } from "@/components/vendor";
 import { useProducts } from "@/lib/hooks/use-products";
+import { useVendorReviews } from "@/lib/hooks/use-reviews";
 import { useVendor } from "@/lib/hooks/use-vendors";
 
 export default function VendorDetailScreen() {
@@ -25,6 +27,19 @@ export default function VendorDetailScreen() {
     id || ""
   );
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // Fetch vendor reviews
+  const {
+    reviews,
+    totalReviews,
+    averageRating,
+    loading: reviewsLoading,
+    refreshing,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useVendorReviews(id ? parseInt(id) : 0);
 
   if (isLoadingVendor) {
     return <VendorLoadingState />;
@@ -77,6 +92,103 @@ export default function VendorDetailScreen() {
         contentContainerStyle={{ paddingTop: 224, paddingBottom: 20 }}
       >
         <VendorInfoCard vendor={vendor} />
+
+        {/* Reviews Section */}
+        <View className="px-4 mb-6">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-xl font-bold">Customer Reviews</Text>
+            {vendor.rating && totalReviews > 0 && (
+              <RatingDisplay
+                rating={vendor.rating}
+                reviewCount={totalReviews}
+                size={16}
+              />
+            )}
+          </View>
+
+          {showAllReviews ? (
+            <View style={{ height: 500 }}>
+              <ReviewList
+                reviews={reviews}
+                totalReviews={totalReviews}
+                averageRating={averageRating}
+                loading={reviewsLoading}
+                refreshing={refreshing}
+                onRefresh={refresh}
+                onLoadMore={loadMore}
+                hasMore={hasMore}
+                showProduct={true}
+                emptyMessage="No reviews yet for this vendor"
+              />
+            </View>
+          ) : (
+            <>
+              {reviews.length > 0 ? (
+                <>
+                  <View className="mb-4">
+                    {reviews.slice(0, 3).map((review) => (
+                      <View
+                        key={review.id}
+                        className="bg-white p-4 rounded-lg mb-3 shadow-sm"
+                      >
+                        <View className="flex-row items-center mb-2">
+                          <View className="bg-green-600 w-8 h-8 rounded-full items-center justify-center mr-2">
+                            <Text className="text-white font-bold">
+                              {review.customer?.first_name?.charAt(0) || '?'}
+                            </Text>
+                          </View>
+                          <View className="flex-1">
+                            <Text className="font-semibold">
+                              {review.customer?.first_name || 'Anonymous'}
+                            </Text>
+                          </View>
+                          <RatingDisplay
+                            rating={review.rating}
+                            showCount={false}
+                            size={14}
+                          />
+                        </View>
+                        {review.comment && (
+                          <Text className="text-gray-700 text-sm" numberOfLines={3}>
+                            {review.comment}
+                          </Text>
+                        )}
+                        {review.product && (
+                          <Text className="text-gray-500 text-xs mt-2">
+                            {review.product.name}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  {totalReviews > 3 && (
+                    <Pressable
+                      onPress={() => setShowAllReviews(true)}
+                      className="bg-gray-100 py-3 rounded-lg items-center"
+                    >
+                      <Text className="text-green-600 font-semibold">
+                        View All {totalReviews} Reviews
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              ) : (
+                <View className="bg-white p-6 rounded-lg items-center">
+                  <Text className="text-gray-500">No reviews yet</Text>
+                </View>
+              )}
+            </>
+          )}
+
+          {showAllReviews && (
+            <Pressable
+              onPress={() => setShowAllReviews(false)}
+              className="mt-4 bg-gray-100 py-3 rounded-lg items-center"
+            >
+              <Text className="text-green-600 font-semibold">Show Less</Text>
+            </Pressable>
+          )}
+        </View>
 
         {/* Products Section */}
         {isLoadingProducts ? (

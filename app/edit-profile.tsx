@@ -4,12 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { useProfile, useUpdateProfile, useUploadProfilePicture } from '@/lib/hooks/use-profile';
+import { getImageSource } from '@/lib/utils';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getImageSource } from '@/lib/utils';
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -93,7 +93,7 @@ export default function EditProfileScreen() {
       toast.success('Profile Updated', 'Your profile has been updated successfully!');
       router.back();
     } catch (error: any) {
-      toast.error('Update Failed', error.message || 'Failed to update profile. Please try again.');
+      toast.error('Update Failed', error.error || error.message || 'Failed to update profile. Please try again.');
     }
   };
 

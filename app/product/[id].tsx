@@ -10,12 +10,14 @@ import {
   ProductInfoCard,
   VendorInfoCard
 } from "@/components/product";
+import { RatingDisplay, ReviewList } from "@/components/reviews";
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useMeal } from "@/lib/hooks";
 import { useHybridAddToCart, useHybridCart } from "@/lib/hooks/use-hybrid-cart";
+import { useProductReviews } from "@/lib/hooks/use-reviews";
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -27,9 +29,22 @@ export default function ProductDetailScreen() {
     Record<string, string[]>
   >({});
   const [showCartButton, setShowCartButton] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   
   const addToCartMutation = useHybridAddToCart();
   const { totalItems } = useHybridCart();
+
+  // Fetch product reviews
+  const {
+    reviews,
+    totalReviews,
+    averageRating,
+    loading: reviewsLoading,
+    refreshing,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useProductReviews(id ? parseInt(id) : 0);
 
   if (isLoading) {
     return (
@@ -75,6 +90,98 @@ export default function ProductDetailScreen() {
         <ProductInfoCard product={product} />
 
         <ProductAdditionalInfo product={product} />
+
+        {/* Reviews Section */}
+        <View className="mt-4 px-4">
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text className="text-xl font-bold">Customer Reviews</Text>
+            {product.average_rating && product.total_reviews && (
+              <RatingDisplay
+                rating={product.average_rating}
+                reviewCount={product.total_reviews}
+                size={16}
+              />
+            )}
+          </View>
+          
+          {/* Show compact preview or full list */}
+          {!showAllReviews ? (
+            <View>
+              {/* Show first 3 reviews in compact format */}
+              {reviews.slice(0, 3).map((review) => (
+                <View
+                  key={review.id}
+                  className="mb-3 p-4 bg-white rounded-2xl border border-gray-100"
+                >
+                  <View className="flex-row items-start mb-2">
+                    <View className="w-10 h-10 rounded-full bg-blue-600 items-center justify-center mr-3">
+                      <Text className="text-white font-bold text-sm">
+                        {review.customer?.first_name?.charAt(0)?.toUpperCase() || "U"}
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="font-semibold text-base">
+                        {review.customer?.first_name && review.customer?.last_name
+                          ? `${review.customer.first_name} ${review.customer.last_name}`
+                          : "Anonymous"}
+                      </Text>
+                      <RatingDisplay rating={review.rating} size={14} />
+                    </View>
+                  </View>
+                  <Text className="text-gray-700 leading-5" numberOfLines={3}>
+                    {review.comment}
+                  </Text>
+                </View>
+              ))}
+              
+              {/* View All button */}
+              {reviews.length > 3 && (
+                <Button
+                  variant="outline"
+                  onPress={() => setShowAllReviews(true)}
+                  className="w-full mt-2"
+                >
+                  <Text className="font-semibold">
+                    View All {totalReviews} Reviews
+                  </Text>
+                </Button>
+              )}
+              
+              {/* Show message if no reviews */}
+              {reviews.length === 0 && (
+                <Text className="text-gray-500 text-center py-8">
+                  No reviews yet for this product
+                </Text>
+              )}
+            </View>
+          ) : (
+            <View>
+              {/* Show Less button */}
+              <Button
+                variant="outline"
+                onPress={() => setShowAllReviews(false)}
+                className="w-full mb-3"
+              >
+                <Text className="font-semibold">Show Less</Text>
+              </Button>
+              
+              {/* Full review list in scrollable container */}
+              <View style={{ height: 500 }}>
+                <ReviewList
+                  reviews={reviews}
+                  totalReviews={totalReviews}
+                  averageRating={averageRating}
+                  loading={reviewsLoading}
+                  refreshing={refreshing}
+                  onRefresh={refresh}
+                  onLoadMore={loadMore}
+                  hasMore={hasMore}
+                  emptyMessage="No reviews yet for this product"
+                />
+              </View>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* Floating Go to Cart Button - Shows when cart has items */}

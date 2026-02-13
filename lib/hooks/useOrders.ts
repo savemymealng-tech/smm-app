@@ -1,8 +1,8 @@
-import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import type { Order, PlaceOrderRequest, SubmitReviewRequest } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { Alert } from 'react-native';
 
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
@@ -14,7 +14,7 @@ export function usePlaceOrder() {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
-      toast.error('Order Failed', error.message || 'Failed to place order');
+      Alert.alert('Order Failed', error.error || error.message || 'Failed to place order');
     },
   });
 }
@@ -27,11 +27,24 @@ export function useOrderHistory(page?: number, limit?: number, status?: string) 
 }
 
 export function useTrackOrder(orderId: string, options?: { enabled?: boolean }) {
+  // Validate that orderId can be converted to a valid number
+  const isValidOrderId = Boolean(orderId && !isNaN(Number(orderId)));
+  
   return useQuery({
     queryKey: ['orders', orderId],
-    queryFn: () => api.orders.trackOrder(Number(orderId)),
-    enabled: options?.enabled !== undefined ? options.enabled : !!orderId,
+    queryFn: () => {
+      const orderNumber = Number(orderId);
+      if (isNaN(orderNumber)) {
+        throw new Error(`Invalid order ID: ${orderId}`);
+      }
+      return api.orders.trackOrder(orderNumber);
+    },
+    enabled: options?.enabled !== undefined 
+      ? options.enabled && isValidOrderId 
+      : isValidOrderId,
+    retry: 2, // Retry failed requests twice
     refetchInterval: 30000, // Refetch every 30 seconds for real-time tracking
+    staleTime: 5000, // Consider data fresh for 5 seconds
   });
 }
 
@@ -39,14 +52,19 @@ export function useCancelOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (orderId: string) => api.orders.cancelOrder(Number(orderId)),
+    mutationFn: (orderId: string) => {
+      const orderNumber = Number(orderId);
+      if (isNaN(orderNumber)) {
+        throw new Error(`Invalid order ID: ${orderId}`);
+      }
+      return api.orders.cancelOrder(orderNumber);
+    },
     onSuccess: (_, orderId) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders', orderId] });
-      toast.success('Order Cancelled', 'Your order has been cancelled');
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to cancel order');
+      Alert.alert('Error', error.error || error.message || 'Failed to cancel order');
     },
   });
 }
@@ -89,11 +107,10 @@ export function useReorder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      toast.success('Items Added', 'Order items have been added to your cart');
       router.push('/(tabs)/cart');
     },
     onError: (error: any) => {
-      toast.error('Reorder Failed', error.message || 'Failed to add items to cart. Some items may be unavailable.');
+      Alert.alert('Reorder Failed', error.error || error.message || 'Failed to add items to cart. Some items may be unavailable.');
     },
   });
 }
@@ -110,11 +127,10 @@ export function useSubmitReview() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders', String(variables.order_id)] });
-      toast.success('Review Submitted', 'Thank you for your feedback!');
       router.back();
     },
     onError: (error: any) => {
-      toast.error('Error', error.message || 'Failed to submit review. Please try again.');
+      Alert.alert('Error', error.error || error.message || 'Failed to submit review. Please try again.');
     },
   });
 }

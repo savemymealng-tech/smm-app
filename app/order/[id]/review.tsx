@@ -6,14 +6,14 @@ import { useSubmitReview, useTrackOrder } from '@/lib/hooks';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -64,19 +64,22 @@ export default function ReviewScreen() {
   const [deliveryRating, setDeliveryRating] = useState(0);
   const [packagingRating, setPackagingRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
+  const [productId, setProductId] = useState<number>(0);
 
   const handleSubmit = () => {
     if (overallRating === 0) {
       return;
     }
 
+    if (!productId) {
+      return;
+    }
+
     submitReviewMutation.mutate({
       order_id: Number(id),
+      product_id: productId,
       rating: overallRating,
-      review: reviewText.trim() || undefined,
-      food_quality_rating: foodQualityRating || undefined,
-      delivery_rating: deliveryRating || undefined,
-      packaging_rating: packagingRating || undefined,
+      comment: reviewText.trim() || undefined,
     });
   };
 
@@ -136,7 +139,7 @@ export default function ReviewScreen() {
           <Text className="text-xl font-bold">Rate Your Order</Text>
         </View>
 
-        <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardShouldPersistTaps="handled">
           {/* Order Info */}
           <View className="bg-white p-4 mb-4">
             <View className="flex-row items-center">

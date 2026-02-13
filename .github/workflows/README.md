@@ -2,6 +2,13 @@
 
 This directory contains GitHub Actions workflows for building the Savemymeal app.
 
+## Current Status
+
+✅ **Android**: Fully configured and working  
+⚠️ **iOS**: Requires credential setup (see [../IOS_CREDENTIALS_SETUP.md](../IOS_CREDENTIALS_SETUP.md))
+
+> **Note**: iOS builds use `continue-on-error: true`, so workflows won't fail if iOS credentials aren't set up yet. Android builds will always succeed.
+
 ## Workflows
 
 ### 1. Preview Build (`preview.yml`)
