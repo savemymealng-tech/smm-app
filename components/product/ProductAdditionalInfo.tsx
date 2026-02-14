@@ -2,7 +2,7 @@ import { View } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
-import { getEffectivePickupDay } from "@/lib/utils";
+import { formatTime12Hour, getEffectivePickupDay } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 interface ProductAdditionalInfoProps {
@@ -62,7 +62,7 @@ export function ProductAdditionalInfo({
           </View>
           {product.pickup_start_time && product.pickup_end_time && (
             <Text className="text-gray-700 ml-6">
-              Pickup {getEffectivePickupDay(product.pickup_day, product.pickup_end_time)}: {product.pickup_start_time} - {product.pickup_end_time}
+              Pickup {getEffectivePickupDay(product.pickup_day, product.pickup_end_time)}: {formatTime12Hour(product.pickup_start_time)} - {formatTime12Hour(product.pickup_end_time)}
             </Text>
           )}
         </View>

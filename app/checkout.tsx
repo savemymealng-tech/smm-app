@@ -33,7 +33,7 @@ import {
 } from "@/lib/hooks";
 import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
 import { useProfile } from "@/lib/hooks/use-profile";
-import { formatCurrency, getEffectivePickupDay } from "@/lib/utils";
+import { formatCurrency, formatTime12Hour, getEffectivePickupDay } from "@/lib/utils";
 
 import type { Address } from "../types";
 
@@ -538,7 +538,7 @@ export default function CheckoutScreen() {
                   <Text className="font-semibold mb-1">Pickup Times</Text>
                   {estimatedTimes.pickupTimeRanges.map((range, index) => (
                     <Text key={index} className="text-gray-600">
-                      {getEffectivePickupDay(range.day, range.end)}: {range.start} - {range.end}
+                      {getEffectivePickupDay(range.day, range.end)}: {formatTime12Hour(range.start)} - {formatTime12Hour(range.end)}
                     </Text>
                   ))}
                 </View>

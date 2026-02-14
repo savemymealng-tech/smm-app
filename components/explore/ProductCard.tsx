@@ -4,7 +4,7 @@ import { Dimensions, Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { getEffectivePickupDay, getImageSource } from "@/lib/utils";
+import { formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 const { width } = Dimensions.get("window");
@@ -89,7 +89,7 @@ export function ProductCard({ item }: ProductCardProps) {
               color={Colors.light.tint}
             />
             <Text className="text-xs text-gray-600 ml-1">
-              Pickup {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}: {item.pickup_start_time} - {item.pickup_end_time}
+              Pickup {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}: {formatTime12Hour(item.pickup_start_time)} - {formatTime12Hour(item.pickup_end_time)}
             </Text>
           </View>
         )}
