@@ -282,7 +282,7 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
         <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
           <IconSymbol name="star.fill" size={11} color="#fbbf24" />
           <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
-            {parseFloat(item.vendor?.rating || '4.5').toFixed(1)}
+            {parseFloat(item.average_rating || '0').toFixed(1)}
           </Text>
         </View>
         {!item.is_available && (

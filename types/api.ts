@@ -85,7 +85,9 @@ export interface Meal {
   delivery_fee?: string;
   available_for_pickup?: boolean;
   available_for_delivery?: boolean;
-  pickup_time_minutes?: number;
+  pickup_start_time?: string;
+  pickup_end_time?: string;
+  pickup_day?: 'today' | 'tomorrow';
   delivery_time_minutes?: number;
   average_rating?: string;
   total_reviews?: number;
@@ -150,6 +152,12 @@ export interface CartProduct {
     id: number;
     business_name: string;
   };
+  available_for_pickup?: boolean;
+  available_for_delivery?: boolean;
+  pickup_start_time?: string;
+  pickup_end_time?: string;
+  pickup_day?: 'today' | 'tomorrow';
+  delivery_time_minutes?: number;
 }
 
 export interface CartItem {

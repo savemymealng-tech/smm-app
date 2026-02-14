@@ -29,7 +29,8 @@ export function useTokenRefresh() {
         const refreshToken = await tokenManager.getRefreshToken();
         
         if (!refreshToken) {
-          console.log('🔄 No refresh token found, skipping refresh');
+          console.log('🔄 No refresh token found, logging out silently');
+          await tokenManager.clearTokens();
           return;
         }
 

@@ -2,6 +2,7 @@ import { View } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
+import { getEffectivePickupDay } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 interface ProductAdditionalInfoProps {
@@ -11,7 +12,7 @@ interface ProductAdditionalInfoProps {
 export function ProductAdditionalInfo({
   product,
 }: ProductAdditionalInfoProps) {
-  // Meal type has expiry_date, quantity_available, weight, delivery_fee, available_for_pickup, available_for_delivery, pickup_time_minutes, delivery_time_minutes
+  // Meal type has expiry_date, quantity_available, weight, delivery_fee, available_for_pickup, available_for_delivery, pickup_start_time, pickup_end_time, pickup_day, delivery_time_minutes
   const hasAdditionalInfo =
     product.quantity_available > 0 ||
     product.available_for_delivery ||
@@ -59,9 +60,9 @@ export function ProductAdditionalInfo({
               Available for Pickup
             </Text>
           </View>
-          {product.pickup_time_minutes && (
+          {product.pickup_start_time && product.pickup_end_time && (
             <Text className="text-gray-700 ml-6">
-              Ready for pickup in {product.pickup_time_minutes} minutes
+              Pickup {getEffectivePickupDay(product.pickup_day, product.pickup_end_time)}: {product.pickup_start_time} - {product.pickup_end_time}
             </Text>
           )}
         </View>

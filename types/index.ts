@@ -101,7 +101,9 @@ export type Product = {
   delivery_fee?: string
   available_for_pickup?: boolean
   available_for_delivery?: boolean
-  pickup_time_minutes?: number
+  pickup_start_time?: string
+  pickup_end_time?: string
+  pickup_day?: 'today' | 'tomorrow'
   delivery_time_minutes?: number
   ingredients?: string[]
   allergens?: string[]

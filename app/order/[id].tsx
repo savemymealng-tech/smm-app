@@ -63,7 +63,7 @@ const STATUS_LABELS: Record<string, string> = {
   accepted: 'Accepted',
   preparing: 'Preparing',
   ready: 'Ready for Pickup',
-  delivered: 'Delivered',
+  delivered: 'Received',
   completed: 'Completed',
   cancelled: 'Cancelled',
   rejected: 'Rejected',
@@ -242,7 +242,7 @@ function OrderStatusCard({
       {displayOrder.status === 'delivered' && (
         <View className="flex-row items-center mt-1">
           <IconSymbol name="checkmark.circle.fill" size={16} color="#10b981" />
-          <Text className="ml-2 text-gray-600">Delivered</Text>
+          <Text className="ml-2 text-gray-600">Received</Text>
         </View>
       )}
 

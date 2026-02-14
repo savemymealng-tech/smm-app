@@ -21,11 +21,11 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
           <Text className="text-2xl font-bold text-gray-900 mb-2">
             {product.name}
           </Text>
-          {product.vendor && (
+          {product.average_rating      && (
             <View className="flex-row items-center">
               <IconSymbol name="star.fill" size={16} color="#fbbf24" />
               <Text className="ml-1.5 font-semibold text-gray-900">
-                {parseFloat(product.vendor.rating).toFixed(1)}
+                {parseFloat(product.average_rating).toFixed(1)}
               </Text>
             </View>
           )}

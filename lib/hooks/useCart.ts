@@ -17,7 +17,7 @@ export function useAddToCart() {
       api.cart.addToCart(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      toast.success('Added to Cart', 'Item added to cart');
+      // Silent success - no notification
     },
     onError: (error: any) => {
       toast.error('Error', error.message || 'Failed to add item to cart');

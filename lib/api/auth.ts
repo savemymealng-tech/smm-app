@@ -175,6 +175,8 @@ export const authApi = {
     
     if (!refreshToken) {
       console.error('❌ [AuthAPI] Refresh token is null or undefined');
+      // Clear all tokens silently
+      await tokenManager.clearTokens();
       throw new Error('Refresh token is required');
     }
 

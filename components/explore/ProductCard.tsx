@@ -4,7 +4,7 @@ import { Dimensions, Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { getImageSource } from "@/lib/utils";
+import { getEffectivePickupDay, getImageSource } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 const { width } = Dimensions.get("window");
@@ -67,7 +67,7 @@ export function ProductCard({ item }: ProductCardProps) {
         )}
         <View className="flex-row items-center justify-between mb-2">
           <View className="flex-row items-center">
-            {item.vendor?.rating && (
+            {item.average_rating && (
               <>
                 <IconSymbol
                   name="star.fill"
@@ -75,12 +75,24 @@ export function ProductCard({ item }: ProductCardProps) {
                   color={Colors.light.tint}
                 />
                 <Text className="text-xs text-gray-600 ml-1">
-                  {parseFloat(item.vendor.rating).toFixed(1)}
+                  {parseFloat(item.average_rating).toFixed(1)}
                 </Text>
               </>
             )}
           </View>
         </View>
+        {item.available_for_pickup && item.pickup_start_time && item.pickup_end_time && (
+          <View className="flex-row items-center mb-2">
+            <IconSymbol
+              name="clock"
+              size={12}
+              color={Colors.light.tint}
+            />
+            <Text className="text-xs text-gray-600 ml-1">
+              Pickup {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}: {item.pickup_start_time} - {item.pickup_end_time}
+            </Text>
+          </View>
+        )}
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
             {hasDiscount ? (

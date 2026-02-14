@@ -45,7 +45,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   accepted: 'Accepted',
   preparing: 'Preparing',
   ready: 'Ready',
-  delivered: 'Delivered',
+  delivered: 'Received',
   completed: 'Completed',
   cancelled: 'Cancelled',
   rejected: 'Rejected',
@@ -248,7 +248,7 @@ export default function OrdersScreen() {
             {[
               { key: 'all' as const, label: 'All' },
               { key: 'active' as const, label: 'Active' },
-              { key: 'delivered' as const, label: 'Delivered' },
+              { key: 'delivered' as const, label: 'Received' },
               { key: 'cancelled' as const, label: 'Cancelled' },
             ].map(({ key, label }) => {
               const isActive = selectedFilter === key;

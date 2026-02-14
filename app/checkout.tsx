@@ -33,7 +33,7 @@ import {
 } from "@/lib/hooks";
 import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
 import { useProfile } from "@/lib/hooks/use-profile";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getEffectivePickupDay } from "@/lib/utils";
 
 import type { Address } from "../types";
 
@@ -189,14 +189,18 @@ export default function CheckoutScreen() {
       return time > max ? time : max;
     }, 0);
 
-    const maxPickupTime = pickupItems.reduce((max, item) => {
-      const time = item.product?.pickup_time_minutes || 0;
-      return time > max ? time : max;
-    }, 0);
+    // Get pickup time ranges from products
+    const pickupTimeRanges = pickupItems
+      .map(item => ({
+        start: item.product?.pickup_start_time,
+        end: item.product?.pickup_end_time,
+        day: item.product?.pickup_day
+      }))
+      .filter(range => range.start && range.end);
 
     return { 
       delivery: maxDeliveryTime, 
-      pickup: maxPickupTime,
+      pickupTimeRanges,
       hasDelivery: deliveryItems.length > 0,
       hasPickup: pickupItems.length > 0
     };
@@ -527,12 +531,16 @@ export default function CheckoutScreen() {
                 </View>
               </View>
             )}
-            {estimatedTimes.hasPickup && estimatedTimes.pickup > 0 && (
-              <View className="flex-row items-center">
+            {estimatedTimes.hasPickup && estimatedTimes.pickupTimeRanges.length > 0 && (
+              <View className="flex-row items-start">
                 <IconSymbol name="bag.fill" size={20} color="#1E8449" />
-                <View className="ml-3">
-                  <Text className="font-semibold">Ready for Pickup</Text>
-                  <Text className="text-gray-600">{estimatedTimes.pickup} minutes</Text>
+                <View className="ml-3 flex-1">
+                  <Text className="font-semibold mb-1">Pickup Times</Text>
+                  {estimatedTimes.pickupTimeRanges.map((range, index) => (
+                    <Text key={index} className="text-gray-600">
+                      {getEffectivePickupDay(range.day, range.end)}: {range.start} - {range.end}
+                    </Text>
+                  ))}
                 </View>
               </View>
             )}

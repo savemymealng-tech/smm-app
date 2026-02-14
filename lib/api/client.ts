@@ -136,6 +136,8 @@ const refreshAccessToken = async (): Promise<string> => {
   
   if (!refreshToken) {
     console.error('❌ [RefreshToken] No refresh token available in secure store');
+    // Clear tokens and let the app handle the logout state
+    await tokenManager.clearTokens();
     throw new Error('No refresh token available');
   }
 

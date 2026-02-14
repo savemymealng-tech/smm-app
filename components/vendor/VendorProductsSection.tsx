@@ -1,8 +1,11 @@
-import { FlatList, View } from "react-native";
+import { Dimensions, FlatList, View } from "react-native";
 
 import { ProductCard } from "@/components/explore/ProductCard";
 import { Text } from "@/components/ui/text";
 import { Meal } from "@/types/api";
+
+const { width: screenWidth } = Dimensions.get("window");
+const CARD_WIDTH = (screenWidth - 48) / 2; // 2 columns with padding (16px on each side + 16px gap)
 
 type VendorProductsSectionProps = {
   products: Meal[];
@@ -32,7 +35,11 @@ export function VendorProductsSection({
           data={filteredProducts}
           renderItem={({ item }) => {
             if (!item || !item.id) return <View />;
-            return <ProductCard item={item} />;
+            return (
+              <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
+                <ProductCard item={item} />
+              </View>
+            );
           }}
           keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
           numColumns={2}
@@ -65,7 +72,11 @@ export function VendorProductsSection({
                 data={categoryProducts}
                 renderItem={({ item }) => {
                   if (!item || !item.id) return <View />;
-                  return <ProductCard item={item} />;
+                  return (
+                    <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
+                      <ProductCard item={item} />
+                    </View>
+                  );
                 }}
                 keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
                 numColumns={2}
@@ -88,7 +99,11 @@ export function VendorProductsSection({
         data={products.filter((p) => p && p.id)}
         renderItem={({ item }) => {
           if (!item || !item.id) return <View />;
-          return <ProductCard item={item} />;
+          return (
+            <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
+              <ProductCard item={item} />
+            </View>
+          );
         }}
         keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
         numColumns={2}
