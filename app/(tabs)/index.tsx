@@ -17,7 +17,7 @@ import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
 import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
-import { getImageSource } from "@/lib/utils";
+import { formatCurrency, getImageSource } from "@/lib/utils";
 import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -279,12 +279,14 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
             <Text className="text-[10px] font-bold text-white">{discountPercent}% OFF</Text>
           </View>
         )}
-        <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
-          <IconSymbol name="star.fill" size={11} color="#fbbf24" />
-          <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
-            {parseFloat(item.average_rating || '0').toFixed(1)}
-          </Text>
-        </View>
+        {item.average_rating && parseFloat(item.average_rating) > 0 && (
+          <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
+            <IconSymbol name="star.fill" size={11} color="#fbbf24" />
+            <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
+              {parseFloat(item.average_rating).toFixed(1)}
+            </Text>
+          </View>
+        )}
         {!item.is_available && (
           <View className="absolute inset-0 bg-black/50 items-center justify-center">
             <Text className="text-white font-semibold text-xs">Sold Out</Text>
@@ -298,11 +300,11 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
         <View className="flex-row items-center justify-between">
           <View>
               <Text className="text-sm font-bold text-[#1E8449]">
-              ₦{price.toFixed(0)}
+              {formatCurrency(price)}
             </Text>
             {hasDiscount && (
               <Text className="text-[11px] text-gray-400 line-through">
-                ₦{originalPrice?.toFixed(0)}
+                {formatCurrency(originalPrice!)}
               </Text>
             )}
           </View>

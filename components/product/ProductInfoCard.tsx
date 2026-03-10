@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Badge } from "@/components/ui/badge";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
+import { formatCurrency } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 interface ProductInfoCardProps {
@@ -34,12 +35,12 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
 
       <View className="flex-row items-baseline mb-3">
         <Text className="text-3xl font-bold text-[#1E8449]">
-          ₦{price.toFixed(0)}
+          {formatCurrency(price)}
         </Text>
         {hasDiscount && (
           <>
             <Text className="text-gray-500 line-through text-lg ml-2">
-              ₦{originalPrice?.toFixed(0)}
+              {formatCurrency(originalPrice!)}
             </Text>
             <Badge
               variant="destructive"

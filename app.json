@@ -21,9 +21,32 @@
         "NSFaceIDUsageDescription": "Allow Face ID to quickly and securely log into your account.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.Savemymeal.app"
+      "bundleIdentifier": "com.Savemymeal.app",
+      "associatedDomains": [
+        "applinks:savemymeal.com",
+        "applinks:www.savemymeal.com"
+      ]
     },
     "android": {
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/app"
+            },
+            {
+              "scheme": "https",
+              "host": "www.savemymeal.com",
+              "pathPrefix": "/app"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#1f7a5a",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

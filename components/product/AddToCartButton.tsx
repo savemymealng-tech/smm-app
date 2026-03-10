@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
+import { formatCurrency } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 interface AddToCartButtonProps {
@@ -140,7 +141,7 @@ export function AddToCartButton({
           <>
             <IconSymbol name="cart.fill" size={20} color="white" />
             <Text className="text-white font-bold text-base ml-2">
-              Add to Cart • ₦{totalPrice.toFixed(0)}
+              Add to Cart • {formatCurrency(totalPrice)}
             </Text>
           </>
         )}

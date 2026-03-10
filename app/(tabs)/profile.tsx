@@ -146,20 +146,6 @@ export default function ProfileScreen() {
           />
         </View>
 
-        <View className="h-px bg-gray-100 mx-6" />
-
-        <View className="px-6 py-4">
-          <Text className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-            Delivery
-          </Text>
-          <ProfileMenuItem
-            icon="location.fill"
-            label="Saved Addresses"
-            onPress={() => router.push("/addresses")}
-            color="#34a853"
-          />
-        </View>
-
         <View className="h-2 bg-gray-50" />
 
         <View className="px-6 py-6 gap-3">

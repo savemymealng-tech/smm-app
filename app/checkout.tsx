@@ -422,59 +422,7 @@ export default function CheckoutScreen() {
           />
         </View>
 
-        {/* Fulfillment Choice Warning */}
-        {hasItemsRequiringChoice && (
-          <View className="bg-amber-50 border border-amber-200 rounded-lg p-4 mx-4 mb-4">
-            <View className="flex-row items-start">
-              <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#f59e0b" />
-              <View className="flex-1 ml-3">
-                <Text className="text-amber-900 font-semibold mb-1">
-                  Action Required
-                </Text>
-                <Text className="text-amber-800 text-sm">
-                  Some items in your cart need you to select pickup or delivery. 
-                  Please go back to your cart and make your selection.
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
 
-        {/* Delivery Address */}
-        {hasDeliveryItems && (
-          <View className="bg-white p-4 mb-4">
-            <SectionHeader
-              title="Delivery Address"
-              actionText={addresses?.length ? "Change" : "Add"}
-              onAction={() => {
-                if (addresses?.length) {
-                  setShowAddressSelector(true);
-                } else {
-                  router.push("/addresses");
-                }
-              }}
-            />
-            {selectedAddress ? (
-              <AddressDisplay address={selectedAddress} />
-            ) : (
-              <Pressable
-                onPress={() => {
-                  if (addresses?.length) {
-                    setShowAddressSelector(true);
-                  } else {
-                    router.push("/addresses");
-                  }
-                }}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 items-center"
-              >
-                <IconSymbol name="plus" size={32} color="#888" />
-                <Text className="text-gray-600 mt-3 font-medium">
-                  {addresses?.length ? "Select delivery address" : "Add delivery address"}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        )}
 
         {/* Pickup Information */}
         {hasPickupItems && (
@@ -519,31 +467,20 @@ export default function CheckoutScreen() {
           />
         </View>
 
-        {/* Estimated Times */}
-        {(estimatedTimes.hasDelivery || estimatedTimes.hasPickup) && (
+        {/* Estimated Pickup Times */}
+        {estimatedTimes.hasPickup && estimatedTimes.pickupTimeRanges.length > 0 && (
           <View className="bg-white p-4 mb-6">
-            {estimatedTimes.hasDelivery  && (
-              <View className="flex-row items-center mb-3">
-                <IconSymbol name="shippingbox.fill" size={20} color="#1E8449" />
-                <View className="ml-3">
-                  <Text className="font-semibold">Estimated Delivery</Text>
-                  <Text className="text-gray-600">{estimatedTimes.delivery} minutes</Text>
-                </View>
+            <View className="flex-row items-start">
+              <IconSymbol name="bag.fill" size={20} color="#1E8449" />
+              <View className="ml-3 flex-1">
+                <Text className="font-semibold mb-1">Pickup Times</Text>
+                {estimatedTimes.pickupTimeRanges.map((range, index) => (
+                  <Text key={index} className="text-gray-600">
+                    {getEffectivePickupDay(range.day, range.end)}: {formatTime12Hour(range.start)} - {formatTime12Hour(range.end)}
+                  </Text>
+                ))}
               </View>
-            )}
-            {estimatedTimes.hasPickup && estimatedTimes.pickupTimeRanges.length > 0 && (
-              <View className="flex-row items-start">
-                <IconSymbol name="bag.fill" size={20} color="#1E8449" />
-                <View className="ml-3 flex-1">
-                  <Text className="font-semibold mb-1">Pickup Times</Text>
-                  {estimatedTimes.pickupTimeRanges.map((range, index) => (
-                    <Text key={index} className="text-gray-600">
-                      {getEffectivePickupDay(range.day, range.end)}: {formatTime12Hour(range.start)} - {formatTime12Hour(range.end)}
-                    </Text>
-                  ))}
-                </View>
-              </View>
-            )}
+            </View>
           </View>
         )}
 
@@ -556,11 +493,6 @@ export default function CheckoutScreen() {
         className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg"
         style={{ paddingBottom: Math.max(insets.bottom, 16) }}
       >
-        {!selectedAddress && (
-          <Text className="text-red-600 text-sm mb-3 text-center">
-            Please select a delivery address
-          </Text>
-        )}
         {cart.length === 0 && (
           <Text className="text-red-600 text-sm mb-3 text-center">
             Cart is empty

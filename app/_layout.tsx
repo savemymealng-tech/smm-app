@@ -1,5 +1,6 @@
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Linking from "expo-linking";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -20,6 +21,47 @@ SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
+};
+
+// Deep linking configuration — /app prefix differentiates mobile from web routes
+const linking = {
+  prefixes: [
+    Linking.createURL("/"),
+    "savemymeal://",
+    "https://savemymeal.com/app",
+    "https://www.savemymeal.com/app",
+  ],
+  config: {
+    screens: {
+      "(tabs)": {
+        screens: {
+          index: "",
+          explore: "explore",
+          cart: "cart",
+          profile: "profile",
+        },
+      },
+      login: "login",
+      signup: "signup",
+      checkout: "checkout",
+      addresses: "addresses",
+      "add-address": "add-address",
+      "edit-profile": "edit-profile",
+      payments: "payments",
+      orders: "orders",
+      settings: "settings",
+      vendors: "vendors",
+      "my-reviews": "my-reviews",
+      redirect: "redirect",
+      "verify-otp": "verify-otp",
+      "reset-password": "reset-password",
+      "vendor/[id]": "vendor/:id",
+      "product/[id]": "product/:id",
+      "category/[id]": "category/:id",
+      "order/[id]": "order/:id",
+      "order/[id]/review": "order/:id/review",
+    },
+  },
 };
 
 const queryClient = new QueryClient({
@@ -46,20 +88,19 @@ function AppProviders() {
               <Stack.Screen name="addresses" options={{ headerShown: false }} />
               <Stack.Screen name="payments" options={{ headerShown: false }} />
               <Stack.Screen name="orders" options={{ headerShown: false }} />
+              <Stack.Screen name="vendors" options={{ headerShown: false }} />
               <Stack.Screen name="settings" options={{ headerShown: false }} />
               <Stack.Screen name="vendor/[id]" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="product/[id]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="category/[id]"
-                options={{ headerShown: false }}
-              />
+              <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="category/[id]" options={{ headerShown: false }} />
               <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="order/[id]/review" options={{ headerShown: false }} />
               <Stack.Screen name="add-address" options={{ headerShown: false }} />
               <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
               <Stack.Screen name="my-reviews" options={{ headerShown: false }} />
+              <Stack.Screen name="redirect" options={{ headerShown: false }} />
+              <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
+              <Stack.Screen name="reset-password" options={{ headerShown: false }} />
               <Stack.Screen name="modal" options={{ presentation: "modal" }} />
             </Stack>
             <StatusBar style="dark" backgroundColor="#ffffff" />

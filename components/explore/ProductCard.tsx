@@ -4,7 +4,7 @@ import { Dimensions, Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
+import { formatCurrency, formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 const { width } = Dimensions.get("window");
@@ -97,19 +97,16 @@ export function ProductCard({ item }: ProductCardProps) {
           <View className="flex-1">
             {hasDiscount ? (
               <View className="flex-row items-center">
-                {/* <Text className="font-bold text-base text-gray-900 mr-2">
-                  ₦{price.toFixed(0)}
-                </Text> */}
                 <Text className="font-bold text-base text-gray-900 mr-1">
-                  ₦{price.toFixed(0)}
+                  {formatCurrency(price)}
                 </Text>
                 <Text className="text-xs text-gray-400 line-through">
-                  ₦{originalPrice?.toFixed(0)}
+                  {formatCurrency(originalPrice!)}
                 </Text>
               </View>
             ) : (
               <Text className="font-bold text-base text-gray-900">
-                ₦{price.toFixed(0)}
+                {formatCurrency(price)}
               </Text>
             )}
           </View>

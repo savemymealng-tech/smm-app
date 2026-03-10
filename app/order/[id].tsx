@@ -20,7 +20,7 @@ import { useCancelOrder, useReorder, useTrackOrder } from '@/lib/hooks';
 import { useOrders } from '@/lib/hooks/use-orders';
 import { useReviews } from '@/lib/hooks/use-reviews';
 import { useInitializePayment, useVerifyPayment } from '@/lib/hooks/usePayments';
-import { getImageSource } from '@/lib/utils';
+import { formatCurrency, getImageSource } from '@/lib/utils';
 import type { DeliveryAddress, Order, OrderItem } from '@/types/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -63,7 +63,7 @@ const STATUS_LABELS: Record<string, string> = {
   accepted: 'Accepted',
   preparing: 'Preparing',
   ready: 'Ready for Pickup',
-  delivered: 'Received',
+  delivered: 'Picked Up',
   completed: 'Completed',
   cancelled: 'Cancelled',
   rejected: 'Rejected',
@@ -242,16 +242,7 @@ function OrderStatusCard({
       {displayOrder.status === 'delivered' && (
         <View className="flex-row items-center mt-1">
           <IconSymbol name="checkmark.circle.fill" size={16} color="#10b981" />
-          <Text className="ml-2 text-gray-600">Received</Text>
-        </View>
-      )}
-
-      {displayOrder.estimated_delivery_time && displayOrder.status !== 'delivered' && (
-        <View className="flex-row items-center mt-2">
-          <IconSymbol name="clock" size={16} color="#F39C12" />
-          <Text className="ml-2 text-gray-600">
-            Est. delivery: {formatDate(displayOrder.estimated_delivery_time)}
-          </Text>
+          <Text className="ml-2 text-gray-600">Picked Up</Text>
         </View>
       )}
       
@@ -379,7 +370,7 @@ function VendorSection({
                   <Text className="font-medium flex-1 text-sm pr-2" numberOfLines={2}>
                     {item.product.name}
                   </Text>
-                  <Text className="font-semibold text-sm">₦{Number(item.price).toFixed(0)}</Text>
+                  <Text className="font-semibold text-sm">{formatCurrency(Number(item.price))}</Text>
                 </View>
                 <Text className="text-gray-500 text-xs">Qty: {item.quantity}</Text>
               </View>
@@ -402,7 +393,7 @@ function VendorSection({
 
         <View className="flex-row justify-between mt-4 pt-3 border-t border-gray-100">
           <Text className="text-sm text-gray-600">Order Total</Text>
-          <Text className="font-semibold">₦{Number(order.total_amount).toFixed(0)}</Text>
+          <Text className="font-semibold">{formatCurrency(Number(order.total_amount))}</Text>
         </View>
       </View>
     </View>
@@ -438,7 +429,7 @@ function SingleOrderItems({
                 <Text className="font-semibold flex-1 pr-2" numberOfLines={2}>
                   {item.product.name}
                 </Text>
-                <Text className="font-bold">₦{Number(item.price).toFixed(0)}</Text>
+                <Text className="font-bold">{formatCurrency(Number(item.price))}</Text>
               </View>
               <Text className="text-gray-600 text-sm">Qty: {item.quantity}</Text>
               
@@ -531,15 +522,11 @@ function PaymentSummary({
               <Text className="text-xs text-gray-500 mb-2">{order.vendor?.business_name}</Text>
               <View className="flex-row justify-between mb-1.5">
                 <Text className="text-gray-600 text-sm">Subtotal</Text>
-                <Text className="text-sm">₦{calculateSubtotal(order).toFixed(0)}</Text>
-              </View>
-              <View className="flex-row justify-between mb-1.5">
-                <Text className="text-gray-600 text-sm">Delivery Fee</Text>
-                <Text className="text-sm">₦{Number(order.delivery_fee || 0).toFixed(0)}</Text>
+                <Text className="text-sm">{formatCurrency(calculateSubtotal(order))}</Text>
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-gray-600 text-sm">Service Fee</Text>
-                <Text className="text-sm">₦{Number(order.service_fee || 0).toFixed(0)}</Text>
+                <Text className="text-sm">{formatCurrency(Number(order.service_fee || 0))}</Text>
               </View>
             </View>
           ))}
@@ -547,7 +534,7 @@ function PaymentSummary({
           <View className="pt-3">
             <View className="flex-row justify-between mb-4">
               <Text className="text-lg font-bold">Grand Total</Text>
-              <Text className="text-lg font-bold">₦{Number(groupTotal).toFixed(0)}</Text>
+              <Text className="text-lg font-bold">{formatCurrency(Number(groupTotal))}</Text>
             </View>
             <View className="flex-row items-center">
               <IconSymbol name="creditcard.fill" size={16} color="#666" />
@@ -571,21 +558,17 @@ function SinglePaymentSummary({ order }: { order: Order }) {
     <>
       <View className="flex-row justify-between mb-2">
         <Text className="text-gray-600">Subtotal</Text>
-        <Text className="font-medium">₦{subtotal.toFixed(0)}</Text>
-      </View>
-      <View className="flex-row justify-between mb-2">
-        <Text className="text-gray-600">Delivery Fee</Text>
-        <Text className="font-medium">₦{Number(order.delivery_fee || 0).toFixed(0)}</Text>
+        <Text className="font-medium">{formatCurrency(subtotal)}</Text>
       </View>
       <View className="flex-row justify-between mb-4">
         <Text className="text-gray-600">Service Fee</Text>
-        <Text className="font-medium">₦{Number(order.service_fee || 0).toFixed(0)}</Text>
+        <Text className="font-medium">{formatCurrency(Number(order.service_fee || 0))}</Text>
       </View>
 
       <View className="border-t border-gray-200 pt-4">
         <View className="flex-row justify-between mb-4">
           <Text className="text-lg font-bold">Total</Text>
-          <Text className="text-lg font-bold">₦{Number(order.total_amount).toFixed(0)}</Text>
+          <Text className="text-lg font-bold">{formatCurrency(Number(order.total_amount))}</Text>
         </View>
         <View className="flex-row items-center">
           <IconSymbol name="creditcard.fill" size={16} color="#666" />
@@ -1199,8 +1182,6 @@ export default function OrderDetailScreen() {
           </>
         )}
 
-        <DeliveryAddressCard address={displayOrder.delivery_address} />
-
         <PaymentSummary isGroup={isGroup} orders={orders} groupTotal={groupTotal} />
 
         {/* Retry Payment Section - For failed card payments */}
@@ -1255,7 +1236,7 @@ export default function OrderDetailScreen() {
                       ) : (
                         <View className="flex-row items-center justify-center">
                           <IconSymbol name="creditcard.fill" size={18} color="white" />
-                          <Text className="ml-2 text-white font-semibold">Retry Payment (₦{Number(groupTotal).toFixed(0)})</Text>
+                          <Text className="ml-2 text-white font-semibold">Retry Payment ({formatCurrency(Number(groupTotal))})</Text>
                         </View>
                       )}
                     </Button>
@@ -1300,7 +1281,7 @@ export default function OrderDetailScreen() {
                       ) : (
                         <View className="flex-row items-center justify-center">
                           <IconSymbol name="creditcard.fill" size={18} color="white" />
-                          <Text className="ml-2 text-white font-semibold">Pay All Orders (₦{Number(groupTotal).toFixed(0)})</Text>
+                          <Text className="ml-2 text-white font-semibold">Pay All Orders ({formatCurrency(Number(groupTotal))})</Text>
                         </View>
                       )}
                     </Button>
