@@ -99,7 +99,7 @@ function PaymentMethodDisplay({
     <View className="bg-gray-50 rounded-lg p-3">
       <View className="flex-row items-center">
         <IconSymbol name="creditcard.fill" size={16} color="#666" />
-        <Text className="ml-2 font-semibold">Card Payment</Text>
+        <Text className="ml-2 font-semibold">Online Payment</Text>
       </View>
       <Text className="text-xs text-gray-500 mt-1">Pay via Paystack</Text>
     </View>
@@ -278,10 +278,10 @@ export default function CheckoutScreen() {
 
   const handlePlaceOrder = async () => {
     // Validate delivery items have a selected address
-    if (hasDeliveryItems && !selectedAddress) {
-      toast.warning("Missing Information", "Please select a delivery address for your delivery items.");
-      return;
-    }
+    // if (hasDeliveryItems && !selectedAddress) {
+    //   toast.warning("Missing Information", "Please select a delivery address for your delivery items.");
+    //   return;
+    // }
 
     if (cart.length === 0) {
       toast.warning("Empty Cart", "Your cart is empty.");
@@ -449,7 +449,7 @@ export default function CheckoutScreen() {
             title="Payment Method"
           />
           <PaymentMethodDisplay method={selectedPayment} />
-          <Text className="text-xs text-gray-500 mt-2">Only card payment is available at checkout</Text>
+          <Text className="text-xs text-gray-500 mt-2">Choose from the payment methods available at checkout</Text>
         </View>
 
         {/* Special Instructions */}

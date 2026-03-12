@@ -28,17 +28,16 @@ export function useTokenRefresh() {
       try {
         const refreshToken = await tokenManager.getRefreshToken();
         
+        // No refresh token means user is not logged in — skip silently.
         if (!refreshToken) {
-          console.log('🔄 No refresh token found, logging out silently');
-          await tokenManager.clearTokens();
           return;
         }
 
         console.log('🔄 Refreshing access token...');
-        const newAccessToken = await authApi.refreshToken(refreshToken);
+        const { token: newAccessToken, refreshToken: newRefreshToken } = await authApi.refreshToken(refreshToken);
         
-        // Update tokens in atom
-        updateTokens(newAccessToken, refreshToken);
+        // Update tokens in atom (use the new refresh token in case backend rotates them)
+        updateTokens(newAccessToken, newRefreshToken);
         
         console.log('✅ Token refreshed successfully');
       } catch (error) {
@@ -56,6 +55,10 @@ export function useTokenRefresh() {
 
     // Check token immediately on mount
     const checkInitialToken = async () => {
+      // Only attempt refresh if user is actually logged in (has a refresh token).
+      const refreshToken = await tokenManager.getRefreshToken();
+      if (!refreshToken) return;
+
       const currentToken = await tokenManager.getAccessToken();
       if (isTokenExpired(currentToken)) {
         console.log('⚠️ Token expired on mount, refreshing immediately');
@@ -86,6 +89,10 @@ export function useTokenRefresh() {
     // Handle app state change (user returns to app)
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
+        // Only check if user is logged in.
+        const refreshToken = await tokenManager.getRefreshToken();
+        if (!refreshToken) return;
+
         console.log('👀 App became active, checking token...');
         const currentToken = await tokenManager.getAccessToken();
         if (isTokenExpired(currentToken)) {

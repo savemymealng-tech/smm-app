@@ -29,7 +29,7 @@ export function ProductAdditionalInfo({
       </Text>
 
       {/* Delivery/Pickup Information */}
-      {product.available_for_delivery && (
+      {/* {product.available_for_delivery && (
         <View className="mb-4 pb-4 border-b border-gray-100">
           <View className="flex-row items-center mb-2">
             <IconSymbol name="shippingbox.fill" size={16} color="#1E8449" />
@@ -50,7 +50,7 @@ export function ProductAdditionalInfo({
             )}
           </View>
         </View>
-      )}
+      )} */}
 
       {product.available_for_pickup && (
         <View className="mb-4 pb-4 border-b border-gray-100">

@@ -3,6 +3,7 @@
  * Handles customer authentication endpoints (per SaveMyMeal API Guide v2.0.0)
  */
 
+import axios from 'axios';
 import apiClient, { ApiResponse, extractData, tokenManager } from './client';
 import { API_CONFIG } from './config';
 
@@ -164,30 +165,33 @@ export const authApi = {
   /**
    * Refresh access token
    * POST /auth/refresh
-   * Returns new access token (refresh token remains valid)
+   * Uses plain axios (bypasses apiClient interceptors) to avoid double-refresh race condition.
+   * Returns both the new access token and the new refresh token (supports token rotation).
    */
-  async refreshToken(refreshToken: string): Promise<string> {
+  async refreshToken(currentRefreshToken: string): Promise<{ token: string; refreshToken: string }> {
     console.log('🔄 [AuthAPI] refreshToken called with token:', {
-      exists: !!refreshToken,
-      length: refreshToken?.length || 0,
-      preview: refreshToken ? `${refreshToken.substring(0, 20)}...` : 'null'
+      exists: !!currentRefreshToken,
+      length: currentRefreshToken?.length || 0,
+      preview: currentRefreshToken ? `${currentRefreshToken.substring(0, 20)}...` : 'null'
     });
     
-    if (!refreshToken) {
+    if (!currentRefreshToken) {
       console.error('❌ [AuthAPI] Refresh token is null or undefined');
-      // Clear all tokens silently
       await tokenManager.clearTokens();
       throw new Error('Refresh token is required');
     }
 
     console.log('🔄 [AuthAPI] Sending refresh request:', {
       endpoint: API_CONFIG.ENDPOINTS.AUTH.REFRESH,
-      body: { refreshToken: `${refreshToken.substring(0, 20)}...` }
+      body: { refreshToken: `${currentRefreshToken.substring(0, 20)}...` }
     });
 
-    const response = await apiClient.post<ApiResponse<{ token: string }>>(
-      API_CONFIG.ENDPOINTS.AUTH.REFRESH,
-      { refreshToken }
+    // Use plain axios (NOT apiClient) to bypass request interceptors and
+    // prevent a double-refresh race when the access token is already expired.
+    const response = await axios.post<ApiResponse<{ token: string; refreshToken?: string }>>(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
+      { refreshToken: currentRefreshToken },
+      { headers: { 'Content-Type': 'application/json' } }
     );
     
     console.log('✅ [AuthAPI] Refresh response:', {
@@ -195,16 +199,19 @@ export const authApi = {
       success: response.data.success,
       hasData: !!response.data.data
     });
-    
-    const result = extractData(response);
-    
-    // Store new token (keep existing refresh token)
-    if (result.token) {
-      await tokenManager.setTokens(result.token, refreshToken);
-      console.log('✅ [AuthAPI] Tokens updated successfully');
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Token refresh failed');
     }
+
+    const { token, refreshToken: newRefreshToken } = response.data.data;
+    // Prefer the new refresh token if backend rotates them; fall back to current.
+    const refreshTokenToStore = newRefreshToken || currentRefreshToken;
+
+    await tokenManager.setTokens(token, refreshTokenToStore);
+    console.log('✅ [AuthAPI] Tokens updated successfully');
     
-    return result.token;
+    return { token, refreshToken: refreshTokenToStore };
   },
 
   /**
