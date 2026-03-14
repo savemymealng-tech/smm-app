@@ -36,12 +36,15 @@
             {
               "scheme": "https",
               "host": "savemymeal.com",
-              "pathPrefix": "/app"
+              "pathPrefix": "/app/redirect"
             },
             {
               "scheme": "https",
               "host": "www.savemymeal.com",
-              "pathPrefix": "/app"
+              "pathPrefix": "/app/redirect"
+            },
+            {
+              "scheme": "savemymeal"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]

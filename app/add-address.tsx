@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { addressesApi, type CreateAddressRequest } from '@/lib/api/addresses';
 import { locationsApi, type Country, type State } from '@/lib/api/locations';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ const getAddressIcon = (type: string) => {
 export default function AddAddressScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ addressId?: string }>();
   const isEditing = !!params.addressId;
@@ -46,6 +48,8 @@ export default function AddAddressScreen() {
     longitude: undefined as number | undefined,
     type: 'home' as 'home' | 'work' | 'other',
   });
+
+  if (authLoading || !isAuthenticated) return null;
 
   // Fetch countries
   const { data: countries = [], isLoading: loadingCountries } = useQuery({

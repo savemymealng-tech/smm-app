@@ -1,6 +1,8 @@
 import { atom } from 'jotai'
 import type { User } from '../../types'
+import { authApi } from '../api/auth'
 import { tokenManager } from '../api/client'
+import { isTokenExpired } from '../utils/jwt'
 
 export type AuthState = {
   user: User | null
@@ -40,28 +42,54 @@ export const persistAuthAtom = atom(
 
 export const initAuthAtom = atom(null, async (get, set) => {
   try {
-    // Check for stored tokens
     const accessToken = await tokenManager.getAccessToken()
     const refreshToken = await tokenManager.getRefreshToken()
 
-    if (accessToken) {
-      // If we have a token, try to fetch user profile
-      // For now, we'll just set authenticated state
-      // The actual user data will be fetched when needed
-      set(authAtom, {
-        user: null, // Will be fetched via profile API
-        isAuthenticated: true,
-        isLoading: false,
-        accessToken,
-        refreshToken,
-      })
-    } else {
+    // No refresh token → definitively not logged in
+    if (!refreshToken) {
       set(authAtom, {
         user: null,
         isAuthenticated: false,
         isLoading: false,
         accessToken: null,
         refreshToken: null,
+      })
+      return
+    }
+
+    // Has refresh token → user is (or was) logged in.
+    // If the access token is missing or expired, refresh it now so the
+    // correct auth state is ready before the splash screen hides.
+    if (!accessToken || isTokenExpired(accessToken)) {
+      try {
+        const { token: newToken, refreshToken: newRefreshToken } =
+          await authApi.refreshToken(refreshToken)
+        set(authAtom, {
+          user: null, // fetched lazily via useProfile
+          isAuthenticated: true,
+          isLoading: false,
+          accessToken: newToken,
+          refreshToken: newRefreshToken,
+        })
+      } catch {
+        // Refresh token itself expired or revoked → user must log in again
+        await tokenManager.clearTokens()
+        set(authAtom, {
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          accessToken: null,
+          refreshToken: null,
+        })
+      }
+    } else {
+      // Both tokens present and access token still valid
+      set(authAtom, {
+        user: null,
+        isAuthenticated: true,
+        isLoading: false,
+        accessToken,
+        refreshToken,
       })
     }
   } catch (error) {

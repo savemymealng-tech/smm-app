@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { useProfile, useUpdateProfile, useUploadProfilePicture } from '@/lib/hooks/use-profile';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { getImageSource } from '@/lib/utils';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { data: user } = useProfile();
   const updateProfileMutation = useUpdateProfile();
   const uploadPictureMutation = useUploadProfilePicture();
@@ -26,6 +28,8 @@ export default function EditProfileScreen() {
     city: '',
     avatar: '',
   });
+
+  if (authLoading || !isAuthenticated) return null;
 
   // Load user data
   useEffect(() => {

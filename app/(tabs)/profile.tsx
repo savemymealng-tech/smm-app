@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
 import { persistAuthAtom } from "@/lib/atoms";
 import { useProfile } from "@/lib/hooks/use-profile";
+import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import { getImageSource } from "@/lib/utils";
 import { useAtom } from "jotai";
 
@@ -41,8 +42,11 @@ const ProfileMenuItem = ({
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { data: user, isLoading, isFetching } = useProfile();
   const [, setAuth] = useAtom(persistAuthAtom);
+
+  if (authLoading || !isAuthenticated) return null;
 
   console.log("ProfileScreen user data:", user);
 

@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 
 import { useOrders } from '@/lib/hooks/use-orders';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useReorder } from '@/lib/hooks/useOrders';
 import { formatCurrency } from '@/lib/utils';
 
@@ -87,11 +88,14 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
 
   const { data: rawItems = [], isLoading } = useOrders();
   const { mutate: reorder, isPending: isReordering } = useReorder();
 
   const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('all');
+
+  if (authLoading || !isAuthenticated) return null;
 
   // ────────────────────────────────────────────────
   // Normalize API response → unified groups

@@ -1,12 +1,12 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { useProfile } from '@/lib/hooks/use-profile';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -24,6 +25,7 @@ import type { PaymentMethod } from '../types';
 export default function PaymentsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { data: user } = useProfile();
   
   const [showAddForm, setShowAddForm] = useState(false);
@@ -37,6 +39,8 @@ export default function PaymentsScreen() {
     cvv: '',
     name: ''
   });
+
+  if (authLoading || !isAuthenticated) return null;
 
   // Mock payment methods for demo
   const mockPaymentMethods: PaymentMethod[] = user?.paymentMethods || [

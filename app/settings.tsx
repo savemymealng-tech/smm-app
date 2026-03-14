@@ -1,22 +1,23 @@
 import {
-  AppInfo,
-  MenuItem,
-  SettingsHeader,
-  SettingsSection,
+    AppInfo,
+    MenuItem,
+    SettingsHeader,
+    SettingsSection,
 } from '@/components/settings';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { useProfile } from '@/lib/hooks/use-profile';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, View } from 'react-native';
@@ -25,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { data: user, isLoading } = useProfile();
   
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -35,6 +37,8 @@ export default function SettingsScreen() {
     newVendors: false,
     recommendations: true
   });
+
+  if (authLoading || !isAuthenticated) return null;
 
   const handleChangePassword = () => {
     setPasswordDialogOpen(true);

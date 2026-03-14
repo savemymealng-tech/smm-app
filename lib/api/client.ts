@@ -184,9 +184,13 @@ apiClient.interceptors.request.use(
           if (config.headers) {
             config.headers.Authorization = `Bearer ${newToken}`;
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('❌ Token refresh failed:', error);
-          await tokenManager.clearTokens();
+          // Only wipe tokens when the server explicitly rejected them (401).
+          // Don't clear on network errors — the user may just be offline.
+          if (error?.response?.status === 401) {
+            await tokenManager.clearTokens();
+          }
           throw error;
         }
       }
@@ -282,11 +286,14 @@ apiClient.interceptors.response.use(
         }
         
         return apiClient(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed - clear tokens and reject all queued requests
+      } catch (refreshError: any) {
+        // Refresh failed - reject all queued requests
         processQueue(refreshError, null);
-        await tokenManager.clearTokens();
-        
+        // Only clear tokens when the refresh endpoint itself returned 401
+        // (revoked / expired). A network error should not log the user out.
+        if (refreshError?.response?.status === 401) {
+          await tokenManager.clearTokens();
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

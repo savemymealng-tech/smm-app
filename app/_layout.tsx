@@ -1,7 +1,7 @@
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { Provider as JotaiProvider } from "jotai";
@@ -21,47 +21,6 @@ SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
-};
-
-// Deep linking configuration — /app prefix differentiates mobile from web routes
-const linking = {
-  prefixes: [
-    Linking.createURL("/"),
-    "savemymeal://",
-    "https://savemymeal.com/app",
-    "https://www.savemymeal.com/app",
-  ],
-  config: {
-    screens: {
-      "(tabs)": {
-        screens: {
-          index: "",
-          explore: "explore",
-          cart: "cart",
-          profile: "profile",
-        },
-      },
-      login: "login",
-      signup: "signup",
-      checkout: "checkout",
-      addresses: "addresses",
-      "add-address": "add-address",
-      "edit-profile": "edit-profile",
-      payments: "payments",
-      orders: "orders",
-      settings: "settings",
-      vendors: "vendors",
-      "my-reviews": "my-reviews",
-      redirect: "redirect",
-      "verify-otp": "verify-otp",
-      "reset-password": "reset-password",
-      "vendor/[id]": "vendor/:id",
-      "product/[id]": "product/:id",
-      "category/[id]": "category/:id",
-      "order/[id]": "order/:id",
-      "order/[id]/review": "order/:id/review",
-    },
-  },
 };
 
 const queryClient = new QueryClient({
@@ -115,9 +74,43 @@ function AppProviders() {
 function InitAtoms() {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
+  const router = useRouter();
   
   // Initialize automatic token refresh
   useTokenRefresh();
+
+  // Handle deep links from backend email URLs:
+  //   https://savemymeal.com/app/redirect?path=/verify-otp&params=code=123456
+  // Expo Router can't auto-route these because the /app prefix doesn't match
+  // the file-based route (/redirect). We parse and redirect manually.
+  useEffect(() => {
+    const handleUrl = (url: string) => {
+      console.log('Deep link received:', url);
+      const { path, queryParams } = Linking.parse(url);
+
+      // Only intercept our HTTPS redirect URLs.
+      // Custom-scheme URLs (savemymeal://...) are routed automatically.
+      if (path && path.includes('redirect')) {
+        const targetPath = queryParams?.path as string | undefined;
+        const targetParams = queryParams?.params as string | undefined;
+        if (targetPath) {
+          router.replace({
+            pathname: '/redirect',
+            params: { path: targetPath, ...(targetParams ? { params: targetParams } : {}) },
+          });
+        }
+      }
+    };
+
+    // Cold start: app opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url);
+    });
+
+    // Warm start: deep link while app is already running
+    const subscription = Linking.addEventListener('url', (event) => handleUrl(event.url));
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     async function prepare() {

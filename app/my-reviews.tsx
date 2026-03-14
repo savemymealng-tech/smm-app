@@ -10,6 +10,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
 import { api } from "@/lib/api";
+import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import { useCustomerReviews } from "@/lib/hooks/use-reviews";
 import { getImageSource } from "@/lib/utils";
 import { Review } from "@/types/api";
@@ -17,6 +18,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function MyReviewsScreen() {
   const queryClient = useQueryClient();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const {
     reviews,
     totalReviews,
@@ -29,6 +31,8 @@ export default function MyReviewsScreen() {
 
   const [editingReview, setEditingReview] = useState<Review | null>(null);
   const [deletingReview, setDeletingReview] = useState<Review | null>(null);
+
+  if (authLoading || !isAuthenticated) return null;
 
   // Delete review mutation
   const deleteMutation = useMutation({

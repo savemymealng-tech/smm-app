@@ -1,4 +1,6 @@
 export * from './use-hybrid-cart';
+export * from './use-protected-route';
+export * from './use-reviews';
 export * from './useCart';
 export * from './useFeatured';
 export * from './useLocation';
@@ -7,4 +9,4 @@ export * from './useOrders';
 export * from './usePayments';
 export * from './useTokenRefresh';
 export * from './useVendors';
-export * from './use-reviews';
+

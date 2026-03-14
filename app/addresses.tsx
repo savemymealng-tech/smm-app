@@ -9,12 +9,12 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Input } from '@/components/ui/input';
@@ -23,11 +23,13 @@ import { Text } from '@/components/ui/text';
 import { addressesApi, type CreateAddressRequest, type UpdateAddressRequest } from '@/lib/api/addresses';
 import { locationsApi, type Country, type State } from '@/lib/api/locations';
 import { useProfile } from '@/lib/hooks/use-profile';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import type { Address } from '../types';
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const queryClient = useQueryClient();
   const { data: user, refetch: refetchProfile } = useProfile();
   
@@ -63,7 +65,7 @@ export default function AddressesScreen() {
     type: 'home'
   });
 
-  // Fetch addresses
+  if (authLoading || !isAuthenticated) return null;
   const { data: addresses = [], isLoading: loading, refetch: refetchAddresses } = useQuery({
     queryKey: ['addresses'],
     queryFn: () => addressesApi.getAddresses(),
