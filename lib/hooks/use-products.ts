@@ -34,12 +34,24 @@ export function useProducts(vendorId?: string, categoryId?: string) {
 }
 
 // Dedicated hook for fetching products by category
-export function useCategoryProducts(categoryId: string) {
+export function useCategoryProducts(
+  categoryId: string, 
+  locationParams?: { 
+    latitude?: number; 
+    longitude?: number; 
+    radius?: number; 
+  }
+) {
   return useQuery({
-    queryKey: ['category-products', categoryId],
+    queryKey: ['category-products', categoryId, locationParams],
     queryFn: async () => {
       console.log('useCategoryProducts - Fetching for category ID:', categoryId);
-      const result = await api.meals.getMealsByCategory(Number(categoryId));
+      console.log('useCategoryProducts - Location params:', locationParams);
+      
+      const result = await api.meals.getMealsByCategory(Number(categoryId), {
+        ...locationParams,
+      });
+      
       console.log('useCategoryProducts - API result:', result);
       console.log('useCategoryProducts - result.data:', result.data);
       

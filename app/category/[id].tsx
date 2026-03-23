@@ -1,13 +1,17 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useAtom } from "jotai";
+import { useMemo } from "react";
 import { Dimensions, Pressable, RefreshControl, ScrollView, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProductCard } from "@/components/explore/ProductCard";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
+import { locationRadiusAtom, useLocationFilterAtom } from "@/lib/atoms/locationFilter";
 import { useCategory } from "@/lib/hooks/use-categories";
 import { useCategoryProducts } from "@/lib/hooks/use-products";
+import { useLocation } from "@/lib/hooks/useLocation";
 
 const { width: screenWidth } = Dimensions.get("window");
 const CARD_WIDTH = (screenWidth - 48) / 2; // 2 columns, 16px padding on each side + 16px gap
@@ -17,13 +21,31 @@ export default function CategoryScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: category, isLoading: loadingCategory } = useCategory(id);
+  
+  // Get location and location filter settings
+  const { location } = useLocation();
+  const [useLocationFilter] = useAtom(useLocationFilterAtom);
+  const [locationRadius] = useAtom(locationRadiusAtom);
+
+  // Build location params for category products query
+  const locationParams = useMemo(() => {
+    if (!useLocationFilter || !location?.coords) {
+      return undefined;
+    }
+    return {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      radius: locationRadius,
+    };
+  }, [useLocationFilter, location?.coords, locationRadius]);
+
   const {
     data: products,
     isLoading: loadingProducts,
     refetch,
     isRefetching,
     error,
-  } = useCategoryProducts(id || '');
+  } = useCategoryProducts(id || '', locationParams);
   
   // Debug logging
   console.log('==== CATEGORY PAGE DEBUG ====');

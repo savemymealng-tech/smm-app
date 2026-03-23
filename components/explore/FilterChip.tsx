@@ -20,7 +20,7 @@ export function FilterChip({
     <TouchableOpacity
       onPress={onPress}
       className={`flex-row items-center px-3 py-1.5 rounded-full mr-2 mb-2 ${
-        isActive ? "bg-primary" : "bg-gray-100"
+        isActive ? "bg-[#1E8449]" : "bg-gray-100"
       }`}
     >
       <Text

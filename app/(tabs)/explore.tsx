@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
+import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { useDebounce } from "use-debounce";
@@ -13,6 +14,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
+import { locationRadiusAtom, useLocationFilterAtom } from "@/lib/atoms/locationFilter";
 import { useBrowseMealsInfinite, useFeaturedCategories, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
 import type { Vendor } from "@/types";
@@ -45,10 +47,14 @@ export default function ExploreScreen() {
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
 
+  // Location filtering state
+  const [useLocationFilter, setUseLocationFilter] = useAtom(useLocationFilterAtom);
+  const [locationRadius, setLocationRadius] = useAtom(locationRadiusAtom);
+
   const { data: categories } = useFeaturedCategories();
 
-  // Get location for nearby vendors
-  const { location } = useLocation();
+  // Get location for nearby vendors and filtering
+  const { location, isLoading: isLoadingLocation } = useLocation();
 
   // Fetch featured vendors for "all vendors" view
   const { 
@@ -92,8 +98,26 @@ export default function ExploreScreen() {
       params.dietary_preferences = dietaryPreferences.join(',');
     }
     
+    // Add location params when location filter is enabled and location is available
+    if (useLocationFilter && location?.coords) {
+      params.latitude = location.coords.latitude;
+      params.longitude = location.coords.longitude;
+      params.radius = locationRadius;
+      params.sort_by = 'distance'; // Sort by distance when location filter is active
+    }
+    
     return params;
-  }, [debouncedSearchQuery, selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences]);
+  }, [
+    debouncedSearchQuery, 
+    selectedCategory, 
+    minRating, 
+    minPrice, 
+    maxPrice, 
+    dietaryPreferences,
+    useLocationFilter,
+    location?.coords,
+    locationRadius
+  ]);
 
   const {
     data: mealsData,
@@ -107,7 +131,7 @@ export default function ExploreScreen() {
 
   // Flatten all pages into a single array
   const meals = useMemo(() => {
-    return mealsData?.pages.flatMap(page => page.data) || [];
+    return (mealsData?.pages.flatMap(page => page.data).filter(Boolean) || []) as any[];
   }, [mealsData]);
   
   // Use actual product count instead of backend total (backend has data inconsistency)
@@ -154,8 +178,9 @@ export default function ExploreScreen() {
     if (minRating) count++;
     if (minPrice !== null || maxPrice !== null) count++;
     if (dietaryPreferences.length > 0) count++;
+    if (useLocationFilter) count++; // Count location filter as active
     return count;
-  }, [selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences]);
+  }, [selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences, useLocationFilter]);
 
   return (
     <View className="flex-1 bg-white">
@@ -165,8 +190,8 @@ export default function ExploreScreen() {
           <TextInput
             placeholder={
               showVendors 
-                ? "Search for stores..." 
-                : "Search for meals..."
+                ? "Search for vendors..." 
+                : "Search for items..."
             }
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -210,7 +235,7 @@ export default function ExploreScreen() {
         {showVendors && (
           <View className="flex-row items-center mt-3">
             <Text className="text-sm text-gray-500">
-              {vendors?.length || 0} {viewMode === "nearby_vendors" ? "nearby" : ""} {vendors?.length === 1 ? 'store' : 'stores'}
+              {vendors?.length || 0} {viewMode === "nearby_vendors" ? "nearby" : ""} {vendors?.length === 1 ? 'vendor' : 'vendors'}
             </Text>
           </View>
         )}
@@ -232,6 +257,12 @@ export default function ExploreScreen() {
             }}
             dietaryPreferences={dietaryPreferences}
             onDietaryChange={setDietaryPreferences}
+            useLocationFilter={useLocationFilter}
+            onLocationFilterChange={setUseLocationFilter}
+            locationRadius={locationRadius}
+            onRadiusChange={setLocationRadius}
+            currentAddress={location?.address}
+            isLoadingLocation={isLoadingLocation}
           />
         </View>
       )}
@@ -295,8 +326,8 @@ export default function ExploreScreen() {
               <IconSymbol name="storefront" size={48} color="#9ca3af" />
               <Text className="text-gray-500 text-center mt-4 text-base">
                 {viewMode === "nearby_vendors" 
-                  ? "No stores found nearby" 
-                  : "No stores available at the moment"}
+                  ? "No vendors found nearby" 
+                  : "No vendors available at the moment"}
               </Text>
             </View>
           )}

@@ -1,13 +1,16 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDebounce } from "use-debounce";
 
+import { FilterChip } from "@/components/explore/FilterChip";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
+import { locationRadiusAtom } from "@/lib/atoms/locationFilter";
 import { useAllVendors, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
 import { getImageSource } from "@/lib/utils";
@@ -68,6 +71,8 @@ const VendorGridCard = ({ item }: { item: Vendor | FeaturedVendor }) => {
   );
 };
 
+const RADIUS_OPTIONS = [5, 10, 15, 20, 50];
+
 export default function VendorsScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -77,6 +82,9 @@ export default function VendorsScreen() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 500);
+  const [showRadiusFilter, setShowRadiusFilter] = useState(false);
+  const [locationRadius, setLocationRadius] = useAtom(locationRadiusAtom);
+  const [customRadius, setCustomRadius] = useState("");
 
   // Get user location
   const { location, isLoading: loadingLocation, refreshLocation } = useLocation();
@@ -99,7 +107,7 @@ export default function VendorsScreen() {
     refetch: refetchFeatured,
   } = useFeaturedVendors();
 
-  // Fetch nearby vendors
+  // Fetch nearby vendors with configurable radius
   const {
     data: nearbyVendors,
     isLoading: loadingNearby,
@@ -107,7 +115,7 @@ export default function VendorsScreen() {
   } = useNearbyVendors(
     location?.coords.latitude ?? null,
     location?.coords.longitude ?? null,
-    20, // 20km radius
+    locationRadius, // Use configurable radius from atom
     100 // limit
   );
 
@@ -190,7 +198,7 @@ export default function VendorsScreen() {
           <Pressable onPress={() => router.back()} className="mr-3">
             <IconSymbol name="chevron.left" size={24} color="#000" />
           </Pressable>
-          <Text className="text-xl font-bold flex-1">Stores</Text>
+          <Text className="text-xl font-bold flex-1">Vendors</Text>
         </View>
 
         {/* Search Bar */}
@@ -202,7 +210,7 @@ export default function VendorsScreen() {
               color={Colors.light.icon}
             />
             <TextInput
-              placeholder="Search stores..."
+              placeholder="Search vendors..."
               value={searchQuery}
               onChangeText={setSearchQuery}
               className="flex-1 ml-3 text-base"
@@ -230,7 +238,7 @@ export default function VendorsScreen() {
                 filterType === "all" ? "text-white" : "text-gray-700"
               }`}
             >
-              All Stores
+              All Vendors
             </Text>
           </Pressable>
 
@@ -270,12 +278,85 @@ export default function VendorsScreen() {
           </Pressable>
         </View>
 
-        {/* Results Count */}
-        <View className="px-4 pb-3">
-          <Text className="text-sm text-gray-500">
-            {isLoading ? "Loading..." : `${displayVendors.length} stores found`}
-          </Text>
-        </View>
+        {/* Radius Filter - Only show when "nearby" is selected */}
+        {filterType === "nearby" && (
+          <View className="px-4 pb-3">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-sm text-gray-500">
+                {isLoading ? "Loading..." : `${displayVendors.length} vendors found`}
+              </Text>
+              <Pressable
+                onPress={() => setShowRadiusFilter(!showRadiusFilter)}
+                className="flex-row items-center bg-gray-100 px-3 py-1.5 rounded-full"
+              >
+                <IconSymbol name="slider.horizontal.3" size={14} color="#374151" />
+                <Text className="text-xs font-medium text-gray-700 ml-1.5">
+                  {locationRadius} km
+                </Text>
+              </Pressable>
+            </View>
+            
+            {showRadiusFilter && (
+              <View className="bg-gray-50 rounded-2xl p-4 mt-2">
+                <Text className="text-xs font-semibold text-gray-700 mb-3">Search Radius</Text>
+                <View className="flex-row flex-wrap mb-3">
+                  {RADIUS_OPTIONS.map((radius) => (
+                    <FilterChip
+                      key={radius}
+                      label={`${radius} km`}
+                      isActive={locationRadius === radius}
+                      onPress={() => {
+                        setLocationRadius(radius);
+                        setCustomRadius("");
+                      }}
+                    />
+                  ))}
+                </View>
+                
+                {/* Custom Radius Input */}
+                <View className="flex-row items-center">
+                  <Text className="text-xs text-gray-600 mr-2">Custom:</Text>
+                  <View className="flex-1 flex-row items-center bg-white rounded-lg px-3 py-2 border border-gray-200">
+                    <TextInput
+                      placeholder="Enter km"
+                      keyboardType="numeric"
+                      value={customRadius}
+                      onChangeText={(text) => {
+                        setCustomRadius(text);
+                        const value = parseInt(text);
+                        if (!isNaN(value) && value > 0 && value <= 200) {
+                          setLocationRadius(value);
+                        }
+                      }}
+                      className="flex-1 text-sm text-gray-900"
+                      placeholderTextColor="#9ca3af"
+                      maxLength={3}
+                    />
+                    {customRadius && !RADIUS_OPTIONS.includes(locationRadius) && (
+                      <View className="ml-2 bg-[#1E8449]/10 px-2 py-1 rounded">
+                        <Text className="text-xs font-medium text-[#1E8449]">
+                          {locationRadius} km
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <Text className="text-[10px] text-gray-400 mt-1 ml-14">
+                  Max: 200 km
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* Results Count - For non-nearby filters */}
+        {filterType !== "nearby" && (
+          <View className="px-4 pb-3">
+            <Text className="text-sm text-gray-500">
+              {isLoading ? "Loading..." : `${displayVendors.length} vendors found`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Vendors Grid */}
@@ -295,11 +376,11 @@ export default function VendorsScreen() {
           <Text className="text-gray-500 text-center mt-4 text-lg font-medium">
             {filterType === "nearby"
               ? location
-                ? "No stores found nearby"
-                : "Enable location to find nearby stores"
+                ? "No vendors found nearby"
+                : "Enable location to find nearby vendors"
               : filterType === "featured"
-              ? "No featured stores at the moment"
-              : "No stores available"}
+              ? "No featured vendors at the moment"
+              : "No vendors available"}
           </Text>
           {filterType === "nearby" && !location && (
             <Pressable

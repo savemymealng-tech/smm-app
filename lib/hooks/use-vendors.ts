@@ -45,10 +45,10 @@ export function useVendorsFiltered(filters?: VendorParams) {
         limit: filters?.limit,
       };
 
-      const result = await api.vendors.getVendors(params);
+      const result = await api.vendors.listVendors(params);
       console.log("result", result);
 
-      return result.vendors;
+      return result;
     },
     staleTime: 5 * 60 * 1000,
   });

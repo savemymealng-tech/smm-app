@@ -34,3 +34,41 @@ export function useMeal(id: string) {
     enabled: !!id,
   });
 }
+
+/**
+ * Hook to fetch nearby meals based on GPS coordinates
+ * @param latitude - User's latitude (null to disable query)
+ * @param longitude - User's longitude (null to disable query)
+ * @param radius - Search radius in kilometers (default: 10)
+ * @param limit - Max number of results (default: 20)
+ */
+export function useNearbyMeals(
+  latitude: number | null,
+  longitude: number | null,
+  radius: number = 10,
+  limit: number = 20
+) {
+  return useQuery({
+    queryKey: ['meals', 'nearby', latitude, longitude, radius, limit],
+    queryFn: async () => {
+      if (latitude === null || longitude === null) {
+        return [];
+      }
+
+      const params: BrowseMealsParams = {
+        latitude,
+        longitude,
+        radius,
+        limit,
+        sort_by: 'distance',
+        available_only: true,
+      };
+
+      const result = await api.meals.browseMeals(params);
+      console.log('📍 Nearby meals:', result.data?.length || 0);
+      return result.data || [];
+    },
+    enabled: latitude !== null && longitude !== null,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}

@@ -42,7 +42,13 @@ export const mealsApi = {
    */
   async getMealsByCategory(
     categoryId: number,
-    params: { page?: number; limit?: number } = {}
+    params: { 
+      page?: number; 
+      limit?: number;
+      latitude?: number;
+      longitude?: number;
+      radius?: number;
+    } = {}
   ): Promise<PaginatedResponse<Meal>> {
     const endpoint = API_CONFIG.ENDPOINTS.MEALS.BY_CATEGORY(categoryId);
     console.log('Fetching category products from:', endpoint);

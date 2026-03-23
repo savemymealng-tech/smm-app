@@ -15,7 +15,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
+import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyMeals, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
 import { formatCurrency, getImageSource } from "@/lib/utils";
 import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
@@ -77,7 +77,7 @@ const WelcomeHeader = ({
   <Pressable onPress={onPress} className="px-4 py-6 flex-row items-center justify-between">
     <View className="flex-1">
       <Text className="text-sm text-gray-500 font-medium uppercase tracking-wider">
-        Deliver to
+        Vendors near
       </Text>
       <View className="flex-row items-center mt-0.5">
         {isLoading ? (
@@ -375,6 +375,18 @@ export default function HomeScreen() {
     refetch: refetchProducts,
   } = useFeaturedProducts();
 
+  // Nearby meals based on user location
+  const {
+    data: nearbyMeals,
+    isLoading: loadingNearbyMeals,
+    refetch: refetchNearbyMeals,
+  } = useNearbyMeals(
+    location?.coords.latitude ?? null,
+    location?.coords.longitude ?? null,
+    10, // 10km radius
+    20  // limit to 20 meals
+  );
+
   const { 
     data: categories, 
     isLoading: loadingCategories,
@@ -387,6 +399,7 @@ export default function HomeScreen() {
     refetchCategories();
     if (location) {
       refetchNearby();
+      refetchNearbyMeals();
     } else {
       refreshLocation();
     }
@@ -474,7 +487,7 @@ export default function HomeScreen() {
           )}
         </Section>
 
-        {/* Browse All Stores Button */}
+        {/* Browse All Vendors Button */}
         <View className="px-4 mb-6 mt-4">
           <Pressable
             onPress={() => router.push("/vendors")}
@@ -493,7 +506,7 @@ export default function HomeScreen() {
               </View>
               <View className="flex-1">
                 <Text className="text-base font-bold text-gray-900">
-                  Browse All Stores
+                  Browse All Vendors
                 </Text>
                 <Text className="text-sm text-gray-500">
                   Discover more vendors near you
@@ -508,7 +521,7 @@ export default function HomeScreen() {
         {/* Nearby Vendors Section - Only show if we have location */}
         {(location || loadingNearby) && (
           <Section
-            title="Nearby Stores"
+            title="Nearby vendors"
             onSeeAll={
               nearbyVendors?.length
                 ? () => router.push("/vendors?filter=nearby")
@@ -523,7 +536,7 @@ export default function HomeScreen() {
               </View>
             ) : !nearbyVendors?.length ? (
               <SectionEmptyState
-                message="No stores found nearby"
+                message="No vendors found nearby"
                 icon="location.slash.fill"
               />
             ) : (
@@ -545,7 +558,7 @@ export default function HomeScreen() {
         )}
 
         <Section
-          title="Featured Stores"
+          title="Featured Vendors"
           onSeeAll={
             featuredVendors?.length
               ? () => router.push("/vendors?filter=featured")
@@ -581,7 +594,7 @@ export default function HomeScreen() {
         </Section>
 
         <Section
-          title="Featured Products"
+          title="Featured Items"
           onSeeAll={
             featuredProducts?.length
               ? () => router.push("/explore?all_products=true")
@@ -596,7 +609,7 @@ export default function HomeScreen() {
             </View>
           ) : !featuredProducts?.length ? (
             <SectionEmptyState
-              message="No featured products found"
+              message="No featured items found"
               icon="star.fill"
             />
             ) : (
@@ -615,6 +628,46 @@ export default function HomeScreen() {
               }}
             />
           )}
+
+        {/* Nearby Meals Section - Only show if we have location */}
+        {(location || loadingNearbyMeals) && (
+          <Section
+            title="Nearby Meals"
+            onSeeAll={
+              nearbyMeals?.length
+                ? () => router.push("/explore")
+                : undefined
+            }
+          >
+            {loadingNearbyMeals || loadingLocation ? (
+              <View className="flex-row px-4">
+                <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
+                <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
+                <Skeleton className="w-[165px] h-[220px] rounded-3xl" />
+              </View>
+            ) : !nearbyMeals?.length ? (
+              <SectionEmptyState
+                message="No meals found nearby"
+                icon="location.slash.fill"
+              />
+            ) : (
+              <FlashList<FeaturedProduct>
+                data={(nearbyMeals as any) || []}
+                renderItem={renderProductItem}
+                keyExtractor={(item) => String(item.id)}
+                horizontal
+                // @ts-ignore
+                estimatedItemSize={165}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingRight: 32,
+                  paddingBottom: 24,
+                }}
+              />
+            )}
+          </Section>
+        )}
         </Section>
       </ScrollView>
     </View>
