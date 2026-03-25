@@ -1,4 +1,4 @@
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import type { Vendor } from "../../types";
@@ -7,9 +7,13 @@ import { VendorCard } from "./VendorCard";
 
 interface VendorsSectionProps {
   vendors: (Vendor | FeaturedVendor)[];
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 }
 
-export function VendorsSection({ vendors }: VendorsSectionProps) {
+export function VendorsSection({ vendors, userLocation }: VendorsSectionProps) {
   if (vendors.length === 0) return null;
 
   return (
@@ -30,7 +34,7 @@ export function VendorsSection({ vendors }: VendorsSectionProps) {
         className="flex-row flex-wrap justify-between px-4"
       >
         {vendors.map((vendor) => (
-          <VendorCard key={vendor.id} item={vendor} />
+          <VendorCard key={vendor.id} item={vendor} userLocation={userLocation} />
         ))}
       </View>
     </View>

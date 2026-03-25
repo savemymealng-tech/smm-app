@@ -1,12 +1,12 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import {
-  Dimensions,
-  Image,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  View
+    Dimensions,
+    Image,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,7 +17,7 @@ import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
 import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyMeals, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
-import { formatCurrency, getImageSource } from "@/lib/utils";
+import { calculateDistance, formatCurrency, formatDistance, getImageSource } from "@/lib/utils";
 import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -203,57 +203,98 @@ const SectionEmptyState = ({
   </View>
 );
 
-const VendorCard = ({ item }: { item: FeaturedVendor }) => (
-  <View style={{ width: 165, marginRight: 12 }}>
-    <Pressable
-      onPress={() => router.push(`/vendor/${item.id}`)}
-      className="bg-white rounded-3xl overflow-hidden"
-      style={{
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        elevation: 3,
-      }}
-    >
-    <View className="relative">
-      <Image
-        source={getImageSource(item.logo) || require('@/assets/images/default-profile.jpg')}
-        className="w-full h-[140px]"
-        resizeMode="cover"
-      />
+const VendorCard = ({ item, userLocation }: { item: FeaturedVendor; userLocation?: { latitude: number; longitude: number } | null }) => {
+  // Calculate distance if user location and vendor location are available
+  let distance: string | null = null;
+  
+  // First check if distance is already provided by API
+  if (item.distance) {
+    distance = typeof item.distance === 'string' && item.distance.includes('km') 
+      ? item.distance 
+      : `${item.distance} km`;
+  } else if (userLocation && item.latitude && item.longitude) {
+    // Calculate distance if not provided
+    const vendorLat = parseFloat(item.latitude);
+    const vendorLng = parseFloat(item.longitude);
+    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
+      const distanceInMeters = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendorLat,
+        vendorLng
+      );
+      distance = formatDistance(distanceInMeters);
+    }
+  }
+  
+  return (
+    <View style={{ width: 165, marginRight: 12 }}>
+      <Pressable
+        onPress={() => router.push(`/vendor/${item.id}`)}
+        className="bg-white rounded-3xl overflow-hidden"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 6,
+          elevation: 3,
+        }}
+      >
+      <View className="relative">
+        <Image
+          source={getImageSource(item.logo) || require('@/assets/images/default-profile.jpg')}
+          className="w-full h-[140px]"
+          resizeMode="cover"
+        />
         <View className="absolute top-2.5 right-2.5 bg-white/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
-        <IconSymbol name="star.fill" size={11} color="#fbbf24" />
+          <IconSymbol name="star.fill" size={11} color="#fbbf24" />
           <Text className="text-[11px] font-bold ml-1 text-gray-900">
-          {parseFloat(item.rating || '0').toFixed(1)}
-        </Text>
+            {parseFloat(item.rating || '0').toFixed(1)}
+          </Text>
+        </View>
+        {distance && (
+          <View className="absolute bottom-2.5 left-2.5 bg-[#1E8449] rounded-full px-2 py-0.5">
+            <Text className="text-[10px] font-bold text-white">{distance}</Text>
+          </View>
+        )}
       </View>
-    </View>
-    <View className="p-3">
+      <View className="p-3">
         <Text className="font-bold text-base mb-0.5 text-gray-900" numberOfLines={1}>
-        {item.business_name}
-      </Text>
-      <View className="flex-row items-center mb-1">
-        <IconSymbol name="location.fill" size={11} color="#9ca3af" />
+          {item.business_name}
+        </Text>
+        <View className="flex-row items-center mb-1">
+          <IconSymbol name="location.fill" size={11} color="#9ca3af" />
           <Text className="text-xs text-gray-500 ml-1 flex-1" numberOfLines={1}>
-          {item.city || 'Lagos'}
-        </Text>
+            {item.city || 'Lagos'}
+          </Text>
+        </View>
       </View>
-      {item.distance && (
-          <Text className="text-[11px] text-gray-400">
-          {item.distance}
-        </Text>
-      )}
+      </Pressable>
     </View>
-    </Pressable>
-  </View>
-);
+  );
+};
 
-const ProductCard = ({ item }: { item: FeaturedProduct }) => {
+const ProductCard = ({ item, userLocation }: { item: FeaturedProduct; userLocation?: { latitude: number; longitude: number } | null }) => {
   const price = parseFloat(item.price);
   const originalPrice = item.original_price ? parseFloat(item.original_price) : null;
   const hasDiscount = originalPrice && originalPrice > price;
   const discountPercent = hasDiscount ? Math.round(((originalPrice! - price) / originalPrice!) * 100) : 0;
+  
+  // Calculate distance if user location and vendor location are available
+  let distance: string | null = null;
+  if (userLocation && item.vendor?.latitude && item.vendor?.longitude) {
+    const vendorLat = parseFloat(item.vendor.latitude);
+    const vendorLng = parseFloat(item.vendor.longitude);
+    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
+      const distanceInMeters = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendorLat,
+        vendorLng
+      );
+      distance = formatDistance(distanceInMeters);
+    }
+  }
   
   return (
     <View style={{ width: 165, marginRight: 12 }}>
@@ -297,6 +338,14 @@ const ProductCard = ({ item }: { item: FeaturedProduct }) => {
           <Text className="font-bold text-base mb-1 text-gray-900" numberOfLines={1}>
           {item.name}
         </Text>
+        {distance && (
+          <View className="flex-row items-center mb-1">
+            <IconSymbol name="location.fill" size={11} color={Colors.light.tint} />
+            <Text className="text-[10px] text-gray-500 ml-1">
+              {distance} away
+            </Text>
+          </View>
+        )}
         <View className="flex-row items-center justify-between">
           <View>
               <Text className="text-sm font-bold text-[#1E8449]">
@@ -406,7 +455,7 @@ export default function HomeScreen() {
   };
 
   const renderVendorItem = ({ item }: { item: FeaturedVendor }) => (
-    <VendorCard item={item} />
+    <VendorCard item={item} userLocation={location?.coords} />
   );
 
   const renderNearbyVendorItem = ({ item }: { item: Vendor }) => (
@@ -414,7 +463,7 @@ export default function HomeScreen() {
   );
 
   const renderProductItem = ({ item }: { item: FeaturedProduct }) => (
-    <ProductCard item={item} />
+    <ProductCard item={item} userLocation={location?.coords} />
   );
 
   const renderCategoryItem = ({ item }: { item: FeaturedCategory }) => (

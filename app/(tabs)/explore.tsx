@@ -5,10 +5,10 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, Vi
 import { useDebounce } from "use-debounce";
 
 import {
-  EmptyState,
-  FilterPanel,
-  ProductsSection,
-  VendorsSection,
+    EmptyState,
+    FilterPanel,
+    ProductsSection,
+    VendorsSection,
 } from "@/components/explore";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -286,8 +286,8 @@ export default function ExploreScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >
-          {showVendors && <VendorsSection vendors={vendorsToDisplay} />}
-          {showProducts && <ProductsSection products={meals} />}
+          {showVendors && <VendorsSection vendors={vendorsToDisplay} userLocation={location?.coords} />}
+          {showProducts && <ProductsSection products={meals} userLocation={location?.coords} />}
 
           {/* Load More Button for infinite scrolling */}
           {showProducts && hasNextPage && !isLoading && (

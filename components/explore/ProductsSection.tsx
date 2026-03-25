@@ -8,9 +8,13 @@ const { width: screenWidth } = Dimensions.get("window");
 const CARD_WIDTH = (screenWidth - 48) / 2;
 interface ProductsSectionProps {
   products: Meal[];
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 }
 
-export function ProductsSection({ products }: ProductsSectionProps) {
+export function ProductsSection({ products, userLocation }: ProductsSectionProps) {
   if (products.length === 0) return null;
 
   return (
@@ -30,7 +34,7 @@ export function ProductsSection({ products }: ProductsSectionProps) {
               marginBottom: 16 
             }}
           >
-            <ProductCard item={product} />
+            <ProductCard item={product} userLocation={userLocation} />
           </View>
         ))}
       </View>

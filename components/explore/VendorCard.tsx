@@ -4,17 +4,44 @@ import { Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { getImageSource } from "@/lib/utils";
+import { calculateDistance, formatDistance, getImageSource } from "@/lib/utils";
 import type { Vendor } from "../../types";
 import type { FeaturedVendor } from "../../types/api";
 
 interface VendorCardProps {
   item: Vendor | FeaturedVendor;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 }
 
-export function VendorCard({ item }: VendorCardProps) {
+export function VendorCard({ item, userLocation }: VendorCardProps) {
   // Handle both rating types (string | number)
   const rating = typeof item.rating === 'string' ? parseFloat(item.rating) : item.rating;
+  
+  // Calculate distance if user location and vendor location are available
+  let distance: string | null = null;
+  
+  // First check if distance is already provided by API
+  if ('distance' in item && item.distance) {
+    distance = typeof item.distance === 'string' && item.distance.includes('km') 
+      ? item.distance 
+      : `${item.distance} km`;
+  } else if (userLocation && item.latitude && item.longitude) {
+    // Calculate distance if not provided
+    const vendorLat = typeof item.latitude === 'string' ? parseFloat(item.latitude) : item.latitude;
+    const vendorLng = typeof item.longitude === 'string' ? parseFloat(item.longitude) : item.longitude;
+    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
+      const distanceInMeters = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendorLat,
+        vendorLng
+      );
+      distance = formatDistance(distanceInMeters);
+    }
+  }
   
   return (
     <Pressable
@@ -46,6 +73,14 @@ export function VendorCard({ item }: VendorCardProps) {
           <IconSymbol name="star.fill" size={10} color={Colors.light.tint} />
           <Text className="text-xs text-gray-600 ml-0.5">
             {rating.toFixed(1)}
+          </Text>
+        </View>
+      )}
+      {distance && (
+        <View className="flex-row items-center mt-0.5">
+          <IconSymbol name="location.fill" size={9} color="#9ca3af" />
+          <Text className="text-[10px] text-gray-500 ml-0.5">
+            {distance}
           </Text>
         </View>
       )}

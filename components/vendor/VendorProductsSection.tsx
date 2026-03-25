@@ -12,6 +12,10 @@ type VendorProductsSectionProps = {
   productsByCategory: Record<string, Meal[]>;
   categories: string[];
   selectedCategory: string | null;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 };
 
 export function VendorProductsSection({
@@ -19,6 +23,7 @@ export function VendorProductsSection({
   productsByCategory,
   categories,
   selectedCategory,
+  userLocation,
 }: VendorProductsSectionProps) {
   if (selectedCategory) {
     // Show filtered products for selected category
@@ -37,7 +42,7 @@ export function VendorProductsSection({
             if (!item || !item.id) return <View />;
             return (
               <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-                <ProductCard item={item} />
+                <ProductCard item={item} userLocation={userLocation} />
               </View>
             );
           }}
@@ -74,7 +79,7 @@ export function VendorProductsSection({
                   if (!item || !item.id) return <View />;
                   return (
                     <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-                      <ProductCard item={item} />
+                      <ProductCard item={item} userLocation={userLocation} />
                     </View>
                   );
                 }}
@@ -101,7 +106,7 @@ export function VendorProductsSection({
           if (!item || !item.id) return <View />;
           return (
             <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-              <ProductCard item={item} />
+              <ProductCard item={item} userLocation={userLocation} />
             </View>
           );
         }}

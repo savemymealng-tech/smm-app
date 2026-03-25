@@ -4,7 +4,7 @@ import { Dimensions, Image, Pressable, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { formatCurrency, formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
+import { calculateDistance, formatCurrency, formatDistance, formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
 import type { Meal } from "@/types/api";
 
 const { width } = Dimensions.get("window");
@@ -12,9 +12,13 @@ export const PRODUCT_CARD_WIDTH = width > 0 ? (width - 48) / 2 : 160; // 2 colum
 
 interface ProductCardProps {
   item: Meal;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 }
 
-export function ProductCard({ item }: ProductCardProps) {
+export function ProductCard({ item, userLocation }: ProductCardProps) {
   // Safety check
   if (!item || !item.id) {
     return null;
@@ -24,6 +28,22 @@ export function ProductCard({ item }: ProductCardProps) {
   const originalPrice = item.original_price ? parseFloat(item.original_price) : null;
   const hasDiscount = originalPrice && originalPrice > price;
   const discountPercent = hasDiscount ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+
+  // Calculate distance if user location and vendor location are available
+  let distance: string | null = null;
+  if (userLocation && item.vendor?.latitude && item.vendor?.longitude) {
+    const vendorLat = parseFloat(item.vendor.latitude);
+    const vendorLng = parseFloat(item.vendor.longitude);
+    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
+      const distanceInMeters = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendorLat,
+        vendorLng
+      );
+      distance = formatDistance(distanceInMeters);
+    }
+  }
 
   return (
     <Pressable
@@ -90,6 +110,18 @@ export function ProductCard({ item }: ProductCardProps) {
             />
             <Text className="text-xs text-gray-600 ml-1">
               Pickup {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}: {formatTime12Hour(item.pickup_start_time)} - {formatTime12Hour(item.pickup_end_time)}
+            </Text>
+          </View>
+        )}
+        {distance && (
+          <View className="flex-row items-center mb-2">
+            <IconSymbol
+              name="location.fill"
+              size={12}
+              color={Colors.light.tint}
+            />
+            <Text className="text-xs text-gray-600 ml-1">
+              {distance} away
             </Text>
           </View>
         )}

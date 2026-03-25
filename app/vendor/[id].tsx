@@ -7,16 +7,17 @@ import { RatingDisplay, ReviewList } from "@/components/reviews";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import {
-  CategoryFilter,
-  VendorCoverHeader,
-  VendorEmptyState,
-  VendorInfoCard,
-  VendorLoadingState,
-  VendorProductsSection,
+    CategoryFilter,
+    VendorCoverHeader,
+    VendorEmptyState,
+    VendorInfoCard,
+    VendorLoadingState,
+    VendorProductsSection,
 } from "@/components/vendor";
 import { useProducts } from "@/lib/hooks/use-products";
 import { useVendorReviews } from "@/lib/hooks/use-reviews";
 import { useVendor } from "@/lib/hooks/use-vendors";
+import { useLocation } from "@/lib/hooks/useLocation";
 
 export default function VendorDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -26,6 +27,7 @@ export default function VendorDetailScreen() {
   const { data: products, isLoading: isLoadingProducts } = useProducts(
     id || ""
   );
+  const { location } = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
 
@@ -208,6 +210,7 @@ export default function VendorDetailScreen() {
               productsByCategory={productsByCategory}
               categories={categories}
               selectedCategory={selectedCategory}
+              userLocation={location?.coords}
             />
           </View>
         ) : (

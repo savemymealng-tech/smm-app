@@ -137,7 +137,7 @@ export default function CategoryScreen() {
                         marginBottom: 16 
                       }}
                     >
-                      <ProductCard item={product} />
+                      <ProductCard item={product} userLocation={location?.coords} />
                     </View>
                   );
                 })}

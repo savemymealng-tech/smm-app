@@ -13,14 +13,37 @@ import { Colors } from "@/constants/theme";
 import { locationRadiusAtom } from "@/lib/atoms/locationFilter";
 import { useAllVendors, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
-import { getImageSource } from "@/lib/utils";
+import { calculateDistance, formatDistance, getImageSource } from "@/lib/utils";
 import type { FeaturedVendor, Vendor } from "@/types/api";
 import { Image } from "react-native";
 
 type FilterType = "all" | "featured" | "nearby";
 
-const VendorGridCard = ({ item }: { item: Vendor | FeaturedVendor }) => {
+const VendorGridCard = ({ item, userLocation }: { item: Vendor | FeaturedVendor; userLocation?: { latitude: number; longitude: number } | null }) => {
   const rating = typeof item.rating === "string" ? parseFloat(item.rating) : item.rating;
+
+  // Calculate distance if not provided by API
+  let distance: string | null = null;
+  
+  // First check if distance is already provided by API
+  if ('distance' in item && item.distance) {
+    distance = typeof item.distance === 'string' && item.distance.includes('km') 
+      ? item.distance 
+      : `${item.distance} km`;
+  } else if (userLocation && item.latitude && item.longitude) {
+    // Calculate distance if not provided
+    const vendorLat = parseFloat(item.latitude);
+    const vendorLng = parseFloat(item.longitude);
+    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
+      const distanceInMeters = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendorLat,
+        vendorLng
+      );
+      distance = formatDistance(distanceInMeters);
+    }
+  }
 
   return (
     <Pressable
@@ -48,10 +71,10 @@ const VendorGridCard = ({ item }: { item: Vendor | FeaturedVendor }) => {
             {rating > 0 ? rating.toFixed(1) : "N/A"}
           </Text>
         </View>
-        {"distance" in item && item.distance && (
+        {distance && (
           <View className="absolute bottom-3 left-3 bg-[#1E8449] rounded-full px-2.5 py-1">
             <Text className="text-xs font-bold text-white">
-              {item.distance} km
+              {distance}
             </Text>
           </View>
         )}
@@ -407,7 +430,7 @@ export default function VendorsScreen() {
           <View className="flex-row flex-wrap justify-between">
             {displayVendors.map((vendor) => (
               <View key={vendor.id} className="w-[48%]">
-                <VendorGridCard item={vendor} />
+                <VendorGridCard item={vendor} userLocation={location?.coords} />
               </View>
             ))}
           </View>
