@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
-import { setAuthStateAtom } from '@/lib/atoms/auth';
-import type { User } from '@/types';
+import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
   const [, setAuthState] = useAtom(setAuthStateAtom);
+  const [, setVerificationContext] = useAtom(verificationContextAtom);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -57,32 +57,17 @@ export default function SignupScreen() {
         phone: formData.phone.trim(),
       });
       
-      // Fetch full user profile after signup
-      let user: User | null = null;
-      try {
-        user = await api.profile.getProfile();
-      } catch (profileError) {
-        console.error('Error fetching profile:', profileError);
-        // Create a basic user object from auth response
-        user = {
-          id: result.user?.id?.toString() || '',
-          email: result.user?.email || formData.email,
-          name: '',
-          phone: formData.phone || '',
-          addresses: [],
-          paymentMethods: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }
-
-      await setAuthState({
-        user,
-        accessToken: result.token,
-        refreshToken: result.refreshToken || '',
+      // Signup successful - navigate to verification screen
+      // Do NOT store tokens or set auth state yet
+      setVerificationContext({
+        email: formData.email.trim(),
+        fromSignup: true
       });
-
-      router.replace('/(tabs)');
+      // Small delay to ensure state is set before navigation
+      setTimeout(() => {
+        router.push('/verify-otp');
+      }, 50);
+      
     } catch (err: any) {
       // Extract the most user-friendly error message
       let errorMessage = 'Failed to create account. Please try again.';
@@ -112,8 +97,9 @@ export default function SignupScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
         className="flex-1"

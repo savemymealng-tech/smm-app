@@ -1,19 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Text } from '@/components/ui/text';
-import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { setAuthStateAtom } from '@/lib/atoms/auth';
+import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
 import type { User } from '@/types';
 import { router } from 'expo-router';
 import { useAtom } from 'jotai';
 import { useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const [, setAuthState] = useAtom(setAuthStateAtom);
+  const [, setVerificationContext] = useAtom(verificationContextAtom);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,6 +67,83 @@ export default function LoginScreen() {
 
       router.replace('/(tabs)');
     } catch (err: any) {
+      console.log('Login error:', err); // Debug log
+      
+      // Check if email not verified
+      // The API returns error data wrapped in a 'data' object
+      if (err?.statusCode === 403) {
+        const responseData = err?.responseData?.data || err?.responseData;
+        const details = responseData?.details;
+        
+        console.log('403 error details:', details); // Debug log
+        
+        if (details?.code === 'EMAIL_NOT_VERIFIED' || details?.requires_verification) {
+          Alert.alert(
+            'Email Not Verified',
+            'Please verify your email address to continue.',
+            [
+              {
+                text: 'Verify Now',
+                onPress: () => {
+                  setLoading(false);
+                  const emailToVerify = details?.email || email.trim();
+                  console.log('Navigating to verify-otp with email:', emailToVerify);
+                  // Set verification context
+                  setVerificationContext({
+                    email: emailToVerify,
+                    fromSignup: false
+                  });
+                  // Small delay to ensure state is set before navigation
+                  setTimeout(() => {
+                    router.push('/verify-otp');
+                  }, 50);
+                }
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              }
+            ]
+          );
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Also check in error message for "email not verified" text
+      const errorMsg = err?.error || err?.message || '';
+      if (errorMsg.toLowerCase().includes('email not verified') || 
+          errorMsg.toLowerCase().includes('verify your email')) {
+        Alert.alert(
+          'Email Not Verified',
+          'Please verify your email address to continue.',
+          [
+            {
+              text: 'Verify Now',
+              onPress: () => {
+                setLoading(false);
+                const emailToVerify = email.trim();
+                // Set verification context
+                setVerificationContext({
+                  email: emailToVerify,
+                  fromSignup: false
+                });
+                // Small delay to ensure state is set before navigation
+                setTimeout(() => {
+                  router.push('/verify-otp');
+                }, 50);
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+      
       // Extract the most user-friendly error message
       let errorMessage = 'Invalid email or password';
       
@@ -96,13 +173,14 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    toast.info('Coming Soon', 'Password reset feature coming soon!');
+    router.push('/forgot-password');
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-white"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
         className="flex-1"

@@ -12,6 +12,24 @@ export type AuthState = {
   refreshToken: string | null
 }
 
+// Temporary state for verification flow
+export const verificationContextAtom = atom<{
+  email: string | null
+  fromSignup: boolean
+}>({
+  email: null,
+  fromSignup: false,
+});
+
+// Temporary state for password reset flow
+export const passwordResetContextAtom = atom<{
+  email: string | null
+  code: string | null
+}>({
+  email: null,
+  code: null,
+});
+
 export const authAtom = atom<AuthState>({
   user: null,
   isAuthenticated: false,

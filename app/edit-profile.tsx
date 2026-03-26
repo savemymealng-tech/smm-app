@@ -9,7 +9,7 @@ import { getImageSource } from '@/lib/utils';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function EditProfileScreen() {
@@ -104,22 +104,16 @@ export default function EditProfileScreen() {
   const isLoading = updateProfileMutation.isPending || uploadPictureMutation.isPending;
 
   return (
-    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      {/* <View className="flex-row items-center justify-between px-4 py-4 border-b border-gray-100">
-        <Pressable
-          onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center"
-        >
-          <IconSymbol name="arrow.back" size={24} color="#000" />
-        </Pressable>
-        <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
-        <View className="w-10" />
-      </View> */}
-
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1 bg-white"
+      style={{ paddingTop: insets.top }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Profile Picture Section */}
         <View className="items-center my-8">
@@ -215,6 +209,6 @@ export default function EditProfileScreen() {
           )}
         </Button>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

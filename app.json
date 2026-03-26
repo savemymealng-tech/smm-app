@@ -65,7 +65,8 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "package": "com.Savemymeal.app"
+      "package": "com.Savemymeal.app",
+      "softInputMode": "adjustResize"
     },
     "web": {
       "output": "static",

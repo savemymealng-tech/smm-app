@@ -253,8 +253,25 @@ apiClient.interceptors.response.use(
     
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    // Check if this is an authentication endpoint that shouldn't trigger token refresh
+    const authEndpointsToSkip = [
+      '/auth/customer/login',
+      '/auth/customer/signup',
+      '/auth/vendor/login',
+      '/auth/vendor/signup',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/verify-email-code',
+      '/auth/resend-verification-code',
+    ];
+    
+    const isAuthEndpoint = authEndpointsToSkip.some(endpoint => 
+      originalRequest?.url?.includes(endpoint)
+    );
+
     // Handle 401 Unauthorized with request queue
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    // Skip token refresh for authentication endpoints (login, signup, etc.)
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Another request is already refreshing, queue this request
         return new Promise((resolve, reject) => {
@@ -334,10 +351,12 @@ apiClient.interceptors.response.use(
       errorMessage = 'Server error. Please try again later.';
     }
     
-    const apiError: ApiResponse = {
+    const apiError: ApiResponse & { statusCode?: number; responseData?: any } = {
       success: false,
       error: errorMessage,
       validationErrors: error.response?.data?.validationErrors,
+      statusCode: error.response?.status,
+      responseData: error.response?.data,
     };
 
     return Promise.reject(apiError);

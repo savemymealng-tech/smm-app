@@ -12,8 +12,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { toast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
-import { setAuthStateAtom } from "@/lib/atoms/auth";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { setAuthStateAtom, verificationContextAtom } from "@/lib/atoms/auth";
+import { useRouter } from "expo-router";
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -21,6 +21,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    ScrollView,
     TextInput,
     View,
 } from "react-native";
@@ -32,34 +33,31 @@ export default function VerifyOTPScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [, setAuthState] = useAtom(setAuthStateAtom);
+  const [verificationContext, setVerificationContext] = useAtom(verificationContextAtom);
 
-  // Params come from the deep link or redirect screen
-  const { code: deepLinkCode, email: deepLinkEmail } = useLocalSearchParams<{
-    code?: string;
-    email?: string;
-  }>();
+  console.log('📧 [VerifyOTP] Verification context:', verificationContext);
+  
+  // Use only context, don't try to parse URL params at all
+  // This avoids the path.split error entirely
+  const initialEmail = verificationContext?.email || "";
+  const isFromSignup = verificationContext?.fromSignup || false;
 
-  const [otp, setOtp] = useState(deepLinkCode || "");
-  const [email, setEmail] = useState(deepLinkEmail || "");
+  const [otp, setOtp] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const inputRef = useRef<TextInput>(null);
-  const autoSubmittedRef = useRef(false);
-
-  // Auto-verify if the code arrived via deep link
+  
+  console.log('📧 [VerifyOTP] Initial email:', initialEmail, 'isFromSignup:', isFromSignup);
+  
+  // Clear verification context after we've read it
   useEffect(() => {
-    if (
-      deepLinkCode &&
-      deepLinkCode.length === OTP_LENGTH &&
-      deepLinkEmail &&
-      !autoSubmittedRef.current
-    ) {
-      autoSubmittedRef.current = true;
-      handleVerify(deepLinkCode, deepLinkEmail);
+    if (verificationContext?.email) {
+      console.log('📧 [VerifyOTP] Clearing verification context');
+      setVerificationContext({ email: null, fromSignup: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deepLinkCode, deepLinkEmail]);
+  }, [verificationContext?.email]);
 
   // Resend countdown timer
   useEffect(() => {
@@ -83,36 +81,24 @@ export default function VerifyOTPScreen() {
 
     setLoading(true);
     try {
-      const result = await api.auth.verifyCode({ email: finalEmail.trim(), code: finalCode });
-
-      // Fetch full profile
-      let user = null;
-      try {
-        user = await api.profile.getProfile();
-      } catch {
-        user = {
-          id: result.user?.id?.toString() || "",
-          email: result.user?.email || finalEmail,
-          name: "",
-          phone: "",
-          addresses: [],
-          paymentMethods: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        } as any;
-      }
-
-      await setAuthState({
-        user,
-        accessToken: result.token,
-        refreshToken: result.refreshToken || "",
+      // Use verifyEmailCode - does NOT auto-login
+      const result = await api.auth.verifyEmailCode({ 
+        email: finalEmail.trim(), 
+        code: finalCode 
       });
 
-      toast.success("Verified!", "Your account has been verified successfully.");
-      router.replace("/(tabs)");
+      toast.success("Email Verified!", "Your email has been verified. You can now log in.");
+      
+      // Redirect to login screen
+      router.replace('/login');
+      
     } catch (err: any) {
       const msg =
-        err.response?.data?.error ?? err.message ?? "Verification failed. Please try again.";
+        err.response?.data?.error ?? 
+        err.response?.data?.message ??
+        err.error ??
+        err.message ?? 
+        "Verification failed. The code may be invalid or expired.";
       toast.error("Verification Failed", msg);
     } finally {
       setLoading(false);
@@ -126,11 +112,17 @@ export default function VerifyOTPScreen() {
     }
     setResending(true);
     try {
-      await api.auth.requestCode(email.trim());
+      await api.auth.resendVerificationCode(email.trim());
       setCountdown(60);
       toast.success("Code Sent", "A new verification code has been sent to your email.");
+      setOtp(''); // Clear the input
     } catch (err: any) {
-      const msg = err.response?.data?.error ?? err.message ?? "Failed to resend code.";
+      const msg = 
+        err.response?.data?.error ?? 
+        err.response?.data?.message ??
+        err.error ??
+        err.message ?? 
+        "Failed to resend code.";
       toast.error("Error", msg);
     } finally {
       setResending(false);
@@ -142,30 +134,47 @@ export default function VerifyOTPScreen() {
       className="flex-1 bg-white"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ paddingTop: insets.top }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      {/* Header */}
-      <View className="px-4 py-4 flex-row items-center">
-        <Pressable onPress={() => router.back()} className="mr-3 p-1">
-          <IconSymbol name="arrow.left" size={24} color="#000" />
-        </Pressable>
-        <Text className="text-xl font-bold">Verify Account</Text>
-      </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 20,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <View className="px-4 py-4 flex-row items-center">
+          <Pressable onPress={() => router.back()} className="mr-3 p-1">
+            <IconSymbol name="arrow.left" size={24} color="#000" />
+          </Pressable>
+          <Text className="text-xl font-bold">Verify Account</Text>
+        </View>
 
-      <View className="flex-1 px-6 pt-6">
+        <View className="flex-1 px-6 pt-6">
         {/* Icon */}
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-full bg-green-50 items-center justify-center mb-4">
             <IconSymbol name="envelope.badge.fill" size={36} color="#1E8449" />
           </View>
-          <Text className="text-2xl font-bold text-gray-900 text-center">Check your email</Text>
+          <Text className="text-2xl font-bold text-gray-900 text-center">
+            {isFromSignup ? "Verify your email" : "Check your email"}
+          </Text>
           <Text className="text-gray-500 text-center mt-2 leading-5">
-            We sent a {OTP_LENGTH}-digit code to{"\n"}
+            {isFromSignup 
+              ? `We sent a ${OTP_LENGTH}-digit verification code to\n` 
+              : `We sent a ${OTP_LENGTH}-digit code to\n`
+            }
             <Text className="font-semibold text-gray-700">{email || "your email"}</Text>
+            {isFromSignup && (
+              <Text className="text-gray-500">{"\n"}Please verify to complete your registration</Text>
+            )}
           </Text>
         </View>
 
-        {/* Email input (editable if not provided via deep link) */}
-        {!deepLinkEmail && (
+        {/* Email input (editable if not provided via context) */}
+        {!initialEmail && (
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">Email address</Text>
             <TextInput
@@ -175,7 +184,16 @@ export default function VerifyOTPScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               placeholderTextColor="#9ca3af"
-              className="border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 bg-gray-50"
+              style={{
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                fontSize: 16,
+                color: '#111827',
+                backgroundColor: '#f9fafb'
+              }}
             />
           </View>
         )}
@@ -193,8 +211,20 @@ export default function VerifyOTPScreen() {
             keyboardType="number-pad"
             maxLength={OTP_LENGTH}
             placeholderTextColor="#9ca3af"
-            className="border border-gray-200 rounded-xl px-4 py-4 text-2xl font-bold text-center tracking-[12px] text-gray-900 bg-gray-50"
-            autoFocus={!deepLinkCode}
+            style={{
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 16,
+              fontSize: 24,
+              fontWeight: 'bold',
+              textAlign: 'center',
+              letterSpacing: 12,
+              color: '#111827',
+              backgroundColor: '#f9fafb'
+            }}
+            autoFocus={true}
           />
         </View>
 
@@ -230,6 +260,7 @@ export default function VerifyOTPScreen() {
           )}
         </View>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

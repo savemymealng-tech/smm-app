@@ -19,8 +19,9 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    ScrollView,
     TextInput,
-    View,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -117,16 +118,25 @@ export default function ResetPasswordScreen() {
       className="flex-1 bg-white"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ paddingTop: insets.top }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      {/* Header */}
-      <View className="px-4 py-4 flex-row items-center">
-        <Pressable onPress={() => router.back()} className="mr-3 p-1">
-          <IconSymbol name="arrow.left" size={24} color="#000" />
-        </Pressable>
-        <Text className="text-xl font-bold">Reset Password</Text>
-      </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 20,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <View className="px-4 py-4 flex-row items-center">
+          <Pressable onPress={() => router.back()} className="mr-3 p-1">
+            <IconSymbol name="arrow.left" size={24} color="#000" />
+          </Pressable>
+          <Text className="text-xl font-bold">Reset Password</Text>
+        </View>
 
-      <View className="flex-1 px-6 pt-6">
+        <View className="flex-1 px-6 pt-6">
         {/* Icon */}
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-full bg-green-50 items-center justify-center mb-4">
@@ -203,6 +213,7 @@ export default function ResetPasswordScreen() {
           )}
         </Button>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

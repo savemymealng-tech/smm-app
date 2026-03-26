@@ -40,6 +40,12 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
+export interface ResetPasswordWithCodeRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+}
+
 export interface RefreshTokenRequest {
   refreshToken: string;
 }
@@ -132,19 +138,82 @@ export const authApi = {
   },
 
   /**
-   * Request password reset
-   * POST /auth/forgot-password
-   * Sends reset link with 40-character token valid for 1 hour
+   * Verify email with code (without auto-login)
+   * POST /auth/verify-email-code
+   * Verifies the 6-digit code and marks email as verified
+   * Does NOT return tokens - user must login after verification
    */
-  async forgotPassword(email: string): Promise<void> {
-    const response = await apiClient.post<ApiResponse>(
+  async verifyEmailCode(data: VerifyCodeRequest): Promise<{ message: string; email: string; user_type: string }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string; user_type: string }>>(
+      API_CONFIG.ENDPOINTS.AUTH.VERIFY_EMAIL_CODE,
+      data
+    );
+    return extractData(response);
+  },
+
+  /**
+   * Resend verification code
+   * POST /auth/resend-verification-code
+   * Sends a new 6-digit code to the user's email (expires in 15 minutes)
+   */
+  async resendVerificationCode(email: string): Promise<{ message: string; email: string }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string }>>(
+      API_CONFIG.ENDPOINTS.AUTH.RESEND_VERIFICATION_CODE,
+      { email }
+    );
+    return extractData(response);
+  },
+
+  /**
+   * Request password reset (customer - sends 6-digit code)
+   * POST /auth/forgot-password
+   * Sends 6-digit code via email (expires in 15 minutes)
+   */
+  async forgotPassword(email: string): Promise<{ message: string; email: string; method: string }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string; method: string }>>(
       API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD,
       { email }
     );
-    // Always returns success message (prevents email enumeration)
-    if (!response.data.success) {
-      throw new Error(response.data.error || 'Failed to send reset email');
-    }
+    return extractData(response);
+  },
+
+  /**
+   * Verify password reset code
+   * POST /auth/verify-reset-code
+   * Verifies the 6-digit code before allowing password change
+   */
+  async verifyResetCode(email: string, code: string): Promise<{ message: string; email: string; verified: boolean }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string; verified: boolean }>>(
+      API_CONFIG.ENDPOINTS.AUTH.VERIFY_RESET_CODE,
+      { email, code }
+    );
+    return extractData(response);
+  },
+
+  /**
+   * Reset password with code (customer flow)
+   * POST /auth/reset-password-with-code
+   * Resets password using the verified code
+   */
+  async resetPasswordWithCode(data: ResetPasswordWithCodeRequest): Promise<{ message: string; email: string }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string }>>(
+      API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD_WITH_CODE,
+      data
+    );
+    return extractData(response);
+  },
+
+  /**
+   * Resend password reset code
+   * POST /auth/resend-reset-code
+   * Sends a new 6-digit reset code to the user's email
+   */
+  async resendResetCode(email: string): Promise<{ message: string; email: string }> {
+    const response = await apiClient.post<ApiResponse<{ message: string; email: string }>>(
+      API_CONFIG.ENDPOINTS.AUTH.RESEND_RESET_CODE,
+      { email }
+    );
+    return extractData(response);
   },
 
   /**
