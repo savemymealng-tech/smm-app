@@ -5,6 +5,7 @@
 
 import { addressesApi } from './addresses';
 import { authApi } from './auth';
+import { bannersApi } from './banners';
 import { cartApi } from './cart';
 import { tokenManager } from './client';
 import { contactApi } from './contact';
@@ -27,6 +28,7 @@ export type { ApiResponse, PaginatedResponse } from './client';
  */
 export const api = {
   auth: authApi,
+  banners: bannersApi,
   meals: mealsApi,
   vendors: vendorsApi,
   cart: cartApi,

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useAtom } from 'jotai';
 import { useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -333,12 +333,20 @@ export default function SignupScreen() {
             </Pressable>
           </View>
 
-          <Text className="text-xs text-center text-gray-500 px-4">
-            By signing up, you agree to our{' '}
-            <Text className="text-blue-600">Terms of Service</Text>
-            {' '}and{' '}
-            <Text className="text-blue-600">Privacy Policy</Text>
-          </Text>
+          <View className="px-4">
+            <Text className="text-xs text-center text-gray-500">
+              By signing up, you agree to our
+            </Text>
+            <View className="mt-1 flex-row justify-center items-center">
+              <Pressable onPress={() => Linking.openURL('https://savemymeal.com/terms')}>
+                <Text className="text-xs text-blue-600">Terms of Service</Text>
+              </Pressable>
+              <Text className="text-xs text-gray-500"> and </Text>
+              <Pressable onPress={() => Linking.openURL('https://savemymeal.com/privacy')}>
+                <Text className="text-xs text-blue-600">Privacy Policy</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

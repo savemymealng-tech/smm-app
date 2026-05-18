@@ -47,7 +47,10 @@
               "scheme": "savemymeal"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "adaptiveIcon": {
@@ -65,8 +68,7 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "package": "com.Savemymeal.app",
-      "softInputMode": "adjustResize"
+      "package": "com.savemymeal.app"
     },
     "web": {
       "output": "static",
@@ -89,19 +91,13 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Savemymeal to use your location for nearby vendors and delivery."
         }
       ],
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": ""
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
     "extra": {
-      "stripePublishableKey": "pk_test_YOUR_STRIPE_KEY",
       "router": {},
       "eas": {
         "projectId": "e2a8b8a0-f3db-4258-b627-b81bcfec579d"

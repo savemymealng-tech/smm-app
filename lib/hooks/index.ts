@@ -1,6 +1,7 @@
 export * from './use-hybrid-cart';
 export * from './use-protected-route';
 export * from './use-reviews';
+export * from './useBanners';
 export * from './useCart';
 export * from './useFeatured';
 export * from './useLocation';

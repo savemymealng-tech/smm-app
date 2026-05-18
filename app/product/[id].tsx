@@ -4,11 +4,11 @@ import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  AddToCartButton,
-  ProductAdditionalInfo,
-  ProductImageHeader,
-  ProductInfoCard,
-  VendorInfoCard
+    AddToCartButton,
+    ProductAdditionalInfo,
+    ProductImageHeader,
+    ProductInfoCard,
+    VendorInfoCard
 } from "@/components/product";
 import { RatingDisplay, ReviewList } from "@/components/reviews";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ export default function ProductDetailScreen() {
         <View className="mt-4 px-4">
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-xl font-bold">Customer Reviews</Text>
-            {product.average_rating && product.total_reviews && (
+            {product.average_rating != null && product.total_reviews != null && (
               <RatingDisplay
                 rating={product.average_rating}
                 reviewCount={product.total_reviews}

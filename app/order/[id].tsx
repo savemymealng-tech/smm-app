@@ -816,10 +816,8 @@ export default function OrderDetailScreen() {
   const handlePaymentSuccess = useCallback(async () => {
     if (!paymentReference) return;
 
-    console.log('[Order Detail] Payment success - verifying:', paymentReference);
     try {
       const verificationResult = await verifyPayment.mutateAsync(paymentReference);
-      console.log('[Order Detail] Verification result:', verificationResult);
       
       if (verificationResult.status === 'success') {
         setPaymentUrl(null);
@@ -834,7 +832,6 @@ export default function OrderDetailScreen() {
         refetchSingle();
       }
     } catch (error: any) {
-      console.error('[Order Detail] Verification error:', error);
       toast.error('Verification Failed', error.error || error.message || 'Could not verify payment');
       // Still close the payment view even on verification error
       setPaymentUrl(null);
@@ -860,7 +857,6 @@ export default function OrderDetailScreen() {
           toast.warning('Payment Cancelled', `You can retry payment anytime. Status: ${verificationResult.status}`);
         }
       } catch (error: any) {
-        console.error('[Order Detail] Verification error on cancel:', error);
         toast.warning('Payment Cancelled', 'You can retry payment anytime');
       }
     } else {

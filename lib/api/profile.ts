@@ -46,6 +46,21 @@ export const profileApi = {
   },
 
   /**
+   * Delete customer account
+   * DELETE /customers/profile
+   */
+  async deleteAccount(): Promise<void> {
+    console.log('📋 profileApi.deleteAccount - Deleting account...');
+    const response = await apiClient.delete<ApiResponse<null>>(
+      API_CONFIG.ENDPOINTS.PROFILE.DELETE
+    );
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || response.data.message || 'Failed to delete account');
+    }
+  },
+
+  /**
    * Upload profile picture
    * POST /customers/profile/picture
    */

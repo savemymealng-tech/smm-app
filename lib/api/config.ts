@@ -100,6 +100,7 @@ export const API_CONFIG = {
     PROFILE: {
       GET: '/customers/profile',
       UPDATE: '/customers/profile',
+      DELETE: '/customers/profile',
       PICTURE: '/customers/profile/picture',
     },
     
@@ -124,6 +125,9 @@ export const API_CONFIG = {
     CONTACT: {
       SUBMIT: '/contact',
     },
+
+    // Banners
+    BANNERS: '/banners',
   },
 };
 

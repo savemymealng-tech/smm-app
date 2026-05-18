@@ -1,12 +1,13 @@
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import {
-    Dimensions,
-    Image,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    View
+  Dimensions,
+  Image,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,30 +16,23 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { Colors } from "@/constants/theme";
-import { useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyMeals, useNearbyVendors } from "@/lib/hooks";
+import { useBanners, useFeaturedCategories, useFeaturedProducts, useFeaturedVendors, useNearbyMeals, useNearbyVendors } from "@/lib/hooks";
 import { useLocation } from "@/lib/hooks/useLocation";
 import { calculateDistance, formatCurrency, formatDistance, getImageSource } from "@/lib/utils";
-import type { FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
+import type { Banner, FeaturedCategory, FeaturedProduct, FeaturedVendor, Vendor } from "../../types/api";
 
 const { width: screenWidth } = Dimensions.get("window");
 
-const adBanners = [
-  {
-    id: "1",
-    image:
-      "https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=2672&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    id: "2",
-    image:
-      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=2881&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    id: "3",
-    image:
-      "https://images.unsplash.com/photo-1441123285228-1448e608f3d5?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-];
+const handleBannerPress = (linkUrl: string | null) => {
+  if (!linkUrl) return;
+  if (linkUrl.startsWith('savemymeal://')) {
+    // Deep link: strip scheme and route internally
+    const path = linkUrl.replace('savemymeal:/', '');
+    router.push(path as any);
+  } else if (linkUrl.startsWith('https://') || linkUrl.startsWith('http://')) {
+    Linking.openURL(linkUrl);
+  }
+};
 
 
 
@@ -140,26 +134,40 @@ const NearbyVendorCard = ({ item }: { item: Vendor }) => (
   </View>
 );
 
-const AdBanner = () => (
-  <View className="mb-6">
-    <CarouselComponent
-      data={adBanners}
-      renderItem={(item: { image: string }) => (
-        <View className="px-4">
-          <Image
-            source={{ uri: item.image }}
-            className="w-full h-44 rounded-3xl"
-            resizeMode="cover"
-          />
-        </View>
-      )}
-      itemWidth={screenWidth}
-      autoplay
-      loop
-      autoplayInterval={4000}
-    />
-  </View>
-);
+const AdBanner = ({ data, isLoading }: { data?: Banner[]; isLoading?: boolean }) => {
+  if (isLoading) {
+    return (
+      <View className="mb-6 px-4">
+        <Skeleton className="w-full h-44 rounded-3xl" />
+      </View>
+    );
+  }
+  if (!data?.length) return null;
+  return (
+    <View className="mb-6">
+      <CarouselComponent
+        data={data}
+        renderItem={(item: Banner) => (
+          <Pressable
+            className="px-4"
+            onPress={() => handleBannerPress(item.link_url)}
+            disabled={!item.link_url}
+          >
+            <Image
+              source={{ uri: item.image_url }}
+              className="w-full h-44 rounded-3xl"
+              resizeMode="cover"
+            />
+          </Pressable>
+        )}
+        itemWidth={screenWidth}
+        autoplay={data.length > 1}
+        loop={data.length > 1}
+        autoplayInterval={4000}
+      />
+    </View>
+  );
+};
 
 const Section = ({
   title,
@@ -436,6 +444,12 @@ export default function HomeScreen() {
     20  // limit to 20 meals
   );
 
+  const {
+    data: banners,
+    isLoading: loadingBanners,
+    refetch: refetchBanners,
+  } = useBanners();
+
   const { 
     data: categories, 
     isLoading: loadingCategories,
@@ -443,6 +457,7 @@ export default function HomeScreen() {
   } = useFeaturedCategories();
 
   const onRefresh = () => {
+    refetchBanners();
     refetchVendors();
     refetchProducts();
     refetchCategories();
@@ -506,7 +521,7 @@ export default function HomeScreen() {
           />
         }
       >
-        <AdBanner />
+        <AdBanner data={banners} isLoading={loadingBanners} />
 
         <Section title="Categories">
           {loadingCategories ? (

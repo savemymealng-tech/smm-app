@@ -1,22 +1,22 @@
 import {
-    AppInfo,
-    MenuItem,
-    SettingsHeader,
-    SettingsSection,
+  AppInfo,
+  MenuItem,
+  SettingsHeader,
+  SettingsSection,
 } from '@/components/settings';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
-import { useProfile } from '@/lib/hooks/use-profile';
+import { useDeleteAccount, useProfile } from '@/lib/hooks/use-profile';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { data: user, isLoading } = useProfile();
+  const deleteAccountMutation = useDeleteAccount();
   
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -53,10 +54,16 @@ export default function SettingsScreen() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDeleteAccount = () => {
-    setDeleteDialogOpen(false);
-    toast.success('Account Deleted', 'Your account has been deleted successfully.');
-    // Here you would handle account deletion and navigation to auth screen
+  const confirmDeleteAccount = async () => {
+    try {
+      await deleteAccountMutation.mutateAsync();
+      setDeleteDialogOpen(false);
+      toast.success('Account Deleted', 'Your account has been deleted successfully.');
+      router.replace('/login');
+    } catch (err: any) {
+      const msg = err?.error || err?.message || 'Failed to delete account. Please try again.';
+      toast.error('Delete Failed', msg);
+    }
   };
 
   const settingSections: Array<{ title: string; items: MenuItem[] }> = [
@@ -265,8 +272,14 @@ export default function SettingsScreen() {
             <AlertDialogCancel>
               <Text>Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmDeleteAccount} className="bg-red-500">
-              <Text className="text-white">Delete</Text>
+            <AlertDialogAction
+              onPress={confirmDeleteAccount}
+              className="bg-red-500"
+              disabled={deleteAccountMutation.isPending}
+            >
+              <Text className="text-white">
+                {deleteAccountMutation.isPending ? 'Deleting...' : 'Delete'}
+              </Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

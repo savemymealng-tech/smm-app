@@ -1,9 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAtomValue, useAtom } from 'jotai'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { api } from '../api'
-import type { User } from '../../types'
 import type { UpdateProfileRequest } from '../api/profile'
-import { authAtom, setAuthStateAtom } from '../atoms/auth'
+import { authAtom, clearAuthStateAtom, setAuthStateAtom } from '../atoms/auth'
 
 export function useProfile() {
   const authState = useAtomValue(authAtom)
@@ -72,6 +71,21 @@ export function useUploadProfilePicture() {
           refreshToken: refreshToken || undefined,
         })
       }
+    },
+  })
+}
+
+export function useDeleteAccount() {
+  const queryClient = useQueryClient()
+  const clearAuthState = useSetAtom(clearAuthStateAtom)
+
+  return useMutation({
+    mutationFn: async () => {
+      await api.profile.deleteAccount()
+    },
+    onSuccess: async () => {
+      await clearAuthState()
+      queryClient.clear()
     },
   })
 }

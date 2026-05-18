@@ -7,6 +7,22 @@
 // COMMON TYPES
 // ============================================
 
+// ============================================
+// BANNER TYPES
+// ============================================
+
+export interface Banner {
+  id: number;
+  title: string;
+  image_url: string;
+  link_url: string | null;
+  screen: string;
+  is_active: boolean;
+  display_order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PaginatedResponse<T> {
   success: boolean;
   message: string;
