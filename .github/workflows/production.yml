@@ -6,10 +6,16 @@ on:
       - production
   workflow_dispatch:
 
+concurrency:
+  group: production-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build Production
+  android:
+    name: Android Production Build and Submit
     runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4
@@ -23,30 +29,83 @@ jobs:
       - name: 🏗 Setup EAS
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 18.13.0
           token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: ✅ Validate required secrets
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "EXPO_TOKEN is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ANDROID_SERVICE_ACCOUNT_JSON }}" ]; then
+            echo "ANDROID_SERVICE_ACCOUNT_JSON is not set"
+            exit 1
+          fi
+
+      - name: 🔐 Prepare Google Play service account key
+        run: |
+          cat > android-service-account.json <<'JSON'
+          ${{ secrets.ANDROID_SERVICE_ACCOUNT_JSON }}
+          JSON
+          node -e "JSON.parse(require('fs').readFileSync('android-service-account.json', 'utf8'))"
 
       - name: 📦 Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: 🚀 Build Production (Android)
+      - name: 🚀 Build and Submit Production (Android)
         run: eas build --platform android --profile production --non-interactive --auto-submit
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 🧹 Cleanup credentials
+        if: always()
+        run: rm -f android-service-account.json
+
+      - name: 📢 Android Success
+        if: success()
+        run: echo "✅ Android production build and submit completed successfully!"
+
+      - name: 📢 Android Failure
+        if: failure()
+        run: echo "❌ Android production build or submit failed. Check the logs for details."
+
+  ios:
+    name: iOS Production Build and Submit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - name: 🏗 Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: 18.13.0
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: ✅ Validate Expo token
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "EXPO_TOKEN is not set"
+            exit 1
+          fi
+
+      - name: 📦 Install dependencies
+        run: yarn install --frozen-lockfile
 
       # iOS builds require Apple Developer credentials to be set up
       # Run 'eas build --platform ios --profile production' locally once to configure
       # See IOS_CREDENTIALS_SETUP.md for detailed instructions
-      - name: 🚀 Build Production (iOS)
+      - name: 🚀 Build and Submit Production (iOS)
         run: eas build --platform ios --profile production --non-interactive --auto-submit
-        continue-on-error: true
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: 📢 Notify Success
-        if: success()
-        run: echo "✅ Production builds completed successfully!"
-
-      - name: 📢 Notify Failure
-        if: failure()
-        run: echo "❌ Production builds failed. Check the logs for details."
+      - name: 📢 iOS Status
+        if: always()
+        run: echo "ℹ️ iOS job is best-effort and does not block Android production releases."

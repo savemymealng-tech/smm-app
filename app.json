@@ -21,10 +21,9 @@
         "NSFaceIDUsageDescription": "Allow Face ID to quickly and securely log into your account.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.Savemymeal.app",
+      "bundleIdentifier": "com.savemymeal.app",
       "associatedDomains": [
-        "applinks:savemymeal.com",
-        "applinks:www.savemymeal.com"
+        "applinks:savemymeal.com"
       ]
     },
     "android": {
@@ -36,11 +35,6 @@
             {
               "scheme": "https",
               "host": "savemymeal.com",
-              "pathPrefix": "/app/redirect"
-            },
-            {
-              "scheme": "https",
-              "host": "www.savemymeal.com",
               "pathPrefix": "/app/redirect"
             },
             {
