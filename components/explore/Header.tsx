@@ -59,7 +59,7 @@ export function Header({
           <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-2 border border-gray-200">
             <Search size={18} color="#6b7280" />
             <TextInput
-              placeholder="Search dishes or restaurants"
+              placeholder="Search meals or vendors"
               value={searchQuery}
               onChangeText={onSearch}
               placeholderTextColor="#6b7280"

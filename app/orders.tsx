@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-    Image,
-    Pressable,
-    ScrollView,
-    View
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,7 +17,7 @@ import { Text } from '@/components/ui/text';
 import { useOrders } from '@/lib/hooks/use-orders';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { useReorder } from '@/lib/hooks/useOrders';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getImageSource } from '@/lib/utils';
 
 import type { Order } from '@/types/api';
 
@@ -90,10 +91,14 @@ export default function OrdersScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
 
-  const { data: rawItems = [], isLoading } = useOrders();
+  const { data: rawItems = [], isLoading, isRefetching, refetch } = useOrders();
   const { mutate: reorder, isPending: isReordering } = useReorder();
 
   const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('all');
+
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   if (authLoading || !isAuthenticated) return null;
 
@@ -218,12 +223,12 @@ export default function OrdersScreen() {
       </Text>
       <Text className="text-gray-500 text-center leading-6 mb-10">
         {selectedFilter === 'all'
-          ? "You haven't placed any orders.\nStart exploring restaurants near you!"
+          ? "You haven't placed any orders.\nStart exploring vendors near you!"
           : `No ${getStatusLabel(selectedFilter as OrderStatus).toLowerCase()} orders found.`}
       </Text>
       {selectedFilter === 'all' && (
         <Button size="lg" onPress={() => router.push('/(tabs)')} className="px-12">
-          Browse Restaurants
+          Browse Vendors
         </Button>
       )}
     </View>
@@ -285,6 +290,13 @@ export default function OrdersScreen() {
       {/* Content */}
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={handleRefresh}
+            tintColor="#15785B"
+          />
+        }
         contentContainerStyle={{ 
           paddingHorizontal: 16, 
           paddingTop: 20, 
@@ -322,14 +334,19 @@ export default function OrdersScreen() {
                     </Text>
                   </View>
 
+                  <View className="mb-2">
+                    <Text className="text-xs text-gray-500">
+                      {isSingle ? `Order #${firstOrder.id}` : `Group ${group.order_group_id}`}
+                    </Text>
+                  </View>
+
                   {/* Vendor Info / Count */}
                   {isSingle ? (
                     <View className="flex-row items-center mb-3">
                       <Image
                         source={
-                          firstOrder.vendor?.logo
-                            ? { uri: firstOrder.vendor.logo }
-                            : require('@/assets/images/default-profile.jpg')
+                          getImageSource(firstOrder.vendor?.logo) ||
+                          require('@/assets/images/default-profile.jpg')
                         }
                         className="w-12 h-12 rounded-lg mr-3 bg-gray-100"
                         resizeMode="cover"
@@ -345,7 +362,7 @@ export default function OrdersScreen() {
                           {group.total_orders} vendors
                         </Text>
                       </View>
-                      <Text className="text-gray-600 text-sm">Multiple restaurants</Text>
+                      <Text className="text-gray-600 text-sm">Multiple vendors</Text>
                     </View>
                   )}
 

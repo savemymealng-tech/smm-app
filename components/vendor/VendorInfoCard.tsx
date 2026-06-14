@@ -17,6 +17,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
   const [previewVisible, setPreviewVisible] = useState(false);
   const imageSource = getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg');
+  const orderCount = vendor.order_count ?? vendor.total_orders ?? 0;
 
   return (
     <>
@@ -54,7 +55,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
               {parseFloat(vendor.rating || '0').toFixed(1)}
             </Text>
             <Text className="text-gray-500 text-sm ml-1.5">
-              ({vendor.total_orders?.toLocaleString() || 0} orders)
+              ({Number(orderCount).toLocaleString()} orders)
             </Text>
           </View>
 

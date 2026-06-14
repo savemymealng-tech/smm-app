@@ -13,6 +13,7 @@ interface VendorInfoCardProps {
 
 export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
   const router = useRouter();
+  const orderCount = vendor.order_count ?? vendor.total_orders ?? 0;
 
   return (
     <Pressable
@@ -48,7 +49,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
               {parseFloat(vendor.rating).toFixed(1)}
             </Text>
             <Text className="text-gray-500 text-sm ml-1.5">
-              ({vendor.total_orders} orders)
+              ({Number(orderCount).toLocaleString()} orders)
             </Text>
           </View>
           {vendor.distance && (

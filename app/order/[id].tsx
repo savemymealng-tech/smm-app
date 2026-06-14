@@ -24,7 +24,7 @@ import { formatCurrency, getImageSource } from '@/lib/utils';
 import type { DeliveryAddress, Order, OrderItem } from '@/types/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ────────────────────────────────────────────────
@@ -190,7 +190,7 @@ function OrderStatusCard({
 
         {!isGroup && (
           <View className="flex-row gap-2">
-            {displayOrder.payment_status && (
+            {displayOrder.status !== 'cancelled' && displayOrder.payment_status && (
               <View className={`px-3 py-1 rounded-full ${getPaymentStatusBadgeClass(displayOrder.payment_status)}`}>
                 <Text className="text-sm font-medium">{getPaymentStatusLabel(displayOrder.payment_status)}</Text>
               </View>
@@ -211,6 +211,9 @@ function OrderStatusCard({
           <View className="flex-row flex-wrap gap-2">
             {/* Show group payment status if available */}
             {(() => {
+              const hasNonCancelledOrder = orders.some((o) => o.status !== 'cancelled');
+              if (!hasNonCancelledOrder) return null;
+
               const groupPayment = orders.find(o => o.payment?.order_group_id)?.payment;
               const paymentStatus = groupPayment?.status || orders[0]?.payment_status;
               if (paymentStatus) {
@@ -245,72 +248,7 @@ function OrderStatusCard({
           <Text className="ml-2 text-gray-600">Picked Up</Text>
         </View>
       )}
-      
-      {/* Payment Failed Warning */}
-      {(() => {
-        if (isGroup) {
-          // Check if there's a group payment that failed
-          const groupPayment = orders.find(o => o.payment?.order_group_id)?.payment;
-          if (groupPayment?.status === 'failed') {
-            return (
-              <View className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <View className="flex-row items-center mb-2">
-                  <IconSymbol name="exclamationmark.triangle.fill" size={16} color="#dc2626" />
-                  <Text className="ml-2 text-red-700 font-semibold text-sm">Payment Failed</Text>
-                </View>
-                <Text className="text-red-600 text-xs">
-                  Payment for this group order has failed. Please retry payment to complete your orders.
-                </Text>
-              </View>
-            );
-          }
-          // Check if group payment doesn't exist (not initialized)
-          if (!groupPayment && orders.some(o => o.payment_method === 'card')) {
-            return (
-              <View className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <View className="flex-row items-center mb-2">
-                  <IconSymbol name="exclamationmark.triangle.fill" size={16} color="#dc2626" />
-                  <Text className="ml-2 text-red-700 font-semibold text-sm">Payment Required</Text>
-                </View>
-                <Text className="text-red-600 text-xs">
-                  Payment has not been initialized. Please retry payment to complete your orders.
-                </Text>
-              </View>
-            );
-          }
-        } else {
-          // Single order
-          if (displayOrder.payment_method === 'card') {
-            if (!displayOrder.payment) {
-              return (
-                <View className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <View className="flex-row items-center mb-2">
-                    <IconSymbol name="exclamationmark.triangle.fill" size={16} color="#dc2626" />
-                    <Text className="ml-2 text-red-700 font-semibold text-sm">Payment Initialization Failed</Text>
-                  </View>
-                  <Text className="text-red-600 text-xs">
-                    Payment could not be initialized. Please retry payment to complete your order.
-                  </Text>
-                </View>
-              );
-            }
-            if (displayOrder.payment.status === 'failed') {
-              return (
-                <View className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <View className="flex-row items-center mb-2">
-                    <IconSymbol name="exclamationmark.triangle.fill" size={16} color="#dc2626" />
-                    <Text className="ml-2 text-red-700 font-semibold text-sm">Payment Failed</Text>
-                  </View>
-                  <Text className="text-red-600 text-xs">
-                    Payment has failed. Please retry payment to complete your order.
-                  </Text>
-                </View>
-              );
-            }
-          }
-        }
-        return null;
-      })()}
+
     </View>
   );
 }
@@ -344,8 +282,11 @@ function VendorSection({
           </View>
         </View>
 
-        <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(order.status)}`}>
-          <Text className="text-xs font-medium">{getStatusLabel(order.status)}</Text>
+        <View className="flex-row items-center gap-2">
+          <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(order.status)}`}>
+            <Text className="text-xs font-medium">{getStatusLabel(order.status)}</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={16} color="#9CA3AF" />
         </View>
       </Pressable>
 
@@ -657,25 +598,21 @@ function RetryPaymentSection({
   isRetrying: boolean;
   showVendorInfo?: boolean;
 }) {
-  // Only show for card payments where payment initialization failed or status is failed
-  if (order.payment_method !== 'card') return null;
-  if (order.payment && order.payment.status !== 'failed') return null;
+  const shouldShowRetry =
+    order.status !== 'cancelled' &&
+    order.payment_status !== 'paid' &&
+    order.payment?.status !== 'success';
+
+  if (!shouldShowRetry) return null;
 
   return (
     <View className="pb-4">
       <View className="bg-white rounded-xl p-6 shadow-sm border-2 border-red-200">
-        <View className="flex-row items-center justify-center mb-2">
-          <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#dc2626" />
-          <Text className="text-lg font-semibold ml-2 text-red-700">Payment Required</Text>
-        </View>
         {showVendorInfo && order.vendor && (
           <Text className="text-center text-sm text-gray-600 mb-2">
             {order.vendor.business_name} - Order #{order.id}
           </Text>
         )}
-        <Text className="text-gray-600 text-center mb-5">
-          Payment initialization failed. Retry to complete your order.
-        </Text>
 
         <Button onPress={onRetryPayment} disabled={isRetrying} className="bg-red-600">
           {isRetrying ? (
@@ -709,11 +646,12 @@ export default function OrderDetailScreen() {
   // If the ID is not a pure number, treat it as a group ID or order_group_id
   const isGroupId = id ? isNaN(Number(id)) : false;
 
-  const { data: ordersList = [] } = useOrders();
+  const { data: ordersList = [], refetch: refetchOrders, isRefetching: isRefetchingOrders } = useOrders();
 
   const {
     data: singleOrder,
     isLoading: isLoadingSingle,
+    isRefetching: isRefetchingSingle,
     error: singleOrderError,
     refetch: refetchSingle,
   } = useTrackOrder(id || '', {
@@ -740,6 +678,7 @@ export default function OrderDetailScreen() {
   const [reviewSheetOpen, setReviewSheetOpen] = useState(false);
   const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [retryingPaymentKey, setRetryingPaymentKey] = useState<string | null>(null);
 
   const orderData = useMemo<OrderViewData | null>(() => {
     console.log('orderData memo - Computing with:', { isGroupId, id, singleOrder, ordersListLength: ordersList.length });
@@ -812,61 +751,142 @@ export default function OrderDetailScreen() {
     return { type: 'single', order: match as Order };
   }, [isGroupId, id, ordersList, singleOrder]);
 
+  const isGroup = orderData?.type === 'group';
+  const orders = isGroup ? orderData.group.orders : orderData ? [orderData.order] : [];
+  const displayOrder = orders[0];
+  const groupTotal = isGroup ? orderData.group.grand_total : orderData?.order.total_amount || '0';
+
+  const refreshOrderData = useCallback(async () => {
+    if (isGroupId) {
+      await refetchOrders();
+      return;
+    }
+
+    await Promise.all([refetchSingle(), refetchOrders()]);
+  }, [isGroupId, refetchOrders, refetchSingle]);
+
+  const clearPaymentState = useCallback(() => {
+    setPaymentUrl(null);
+    setPaymentReference(null);
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    await refreshOrderData();
+  }, [refreshOrderData]);
+
+  const isRefreshing = isRefetchingOrders || isRefetchingSingle;
+
   // All useCallback hooks must be called before any conditional returns
   const handlePaymentSuccess = useCallback(async () => {
     if (!paymentReference) return;
 
     try {
       const verificationResult = await verifyPayment.mutateAsync(paymentReference);
-      
+
       if (verificationResult.status === 'success') {
-        setPaymentUrl(null);
-        setPaymentReference(null);
+        clearPaymentState();
+        await refreshOrderData();
         setSuccessDialogOpen(true);
-        refetchSingle();
         toast.success('Payment Verified', 'Your payment has been confirmed');
-      } else {
-        toast.warning('Payment Status', `Payment status: ${verificationResult.status}`);
-        setPaymentUrl(null);
-        setPaymentReference(null);
-        refetchSingle();
+        return;
       }
+
+      clearPaymentState();
+      await refreshOrderData();
     } catch (error: any) {
-      toast.error('Verification Failed', error.error || error.message || 'Could not verify payment');
-      // Still close the payment view even on verification error
-      setPaymentUrl(null);
-      setPaymentReference(null);
-      refetchSingle();
+      clearPaymentState();
+      console.error('[Order Detail] Silent payment verification failed:', error);
+      await refreshOrderData();
     }
-  }, [paymentReference, verifyPayment, refetchSingle]);
+  }, [paymentReference, verifyPayment, clearPaymentState, refreshOrderData]);
 
   const handlePaymentCancel = useCallback(async () => {
-    console.log('[Order Detail] Payment cancelled/failed - verifying:', paymentReference);
-    
-    // Even when cancelled, verify the payment status to ensure accuracy
     if (paymentReference) {
       try {
         const verificationResult = await verifyPayment.mutateAsync(paymentReference);
-        console.log('[Order Detail] Verification after cancel:', verificationResult);
-        
         if (verificationResult.status === 'success') {
-          // Payment actually succeeded despite cancel
+          clearPaymentState();
+          await refreshOrderData();
           setSuccessDialogOpen(true);
           toast.success('Payment Verified', 'Your payment has been confirmed');
-        } else {
-          toast.warning('Payment Cancelled', `You can retry payment anytime. Status: ${verificationResult.status}`);
+          return;
         }
       } catch (error: any) {
-        toast.warning('Payment Cancelled', 'You can retry payment anytime');
+        console.error('[Order Detail] Silent verification after cancel failed:', error);
       }
-    } else {
-      toast.warning('Payment Cancelled', 'You can retry payment anytime');
     }
-    
-    setPaymentUrl(null);
-    setPaymentReference(null);
-    refetchSingle();
-  }, [paymentReference, verifyPayment, refetchSingle]);
+
+    clearPaymentState();
+    await refreshOrderData();
+  }, [clearPaymentState, paymentReference, refreshOrderData, verifyPayment]);
+
+  const handleRetryPayment = useCallback(
+    async (orderId?: number) => {
+      console.log('[Order Detail] Retry payment initiated for order:', orderId);
+      const retryKey = orderId ? `order-${orderId}` : `group-${String(id)}`;
+      setRetryingPaymentKey(retryKey);
+
+      const targetOrder = orderId ? orders.find((o) => o.id === orderId) : displayOrder;
+
+      if (!targetOrder?.Customer?.email) {
+        toast.error('Error', 'Customer email not found');
+        setRetryingPaymentKey(null);
+        return;
+      }
+
+      const paymentGroupId = targetOrder.payment?.order_group_id || targetOrder.order_group_id;
+      const isGroupedPayment = (isGroup && !orderId) || (!!paymentGroupId && !orderId);
+
+      if (targetOrder.payment?.reference) {
+        try {
+          const verificationResult = await verifyPayment.mutateAsync(targetOrder.payment.reference);
+
+          if (verificationResult.status === 'success') {
+            clearPaymentState();
+            await refreshOrderData();
+            setSuccessDialogOpen(true);
+            toast.success('Payment Verified', 'Your payment has been confirmed');
+            setRetryingPaymentKey(null);
+            return;
+          }
+
+          if (verificationResult.status === 'abandoned' && targetOrder.payment.authorization_url) {
+            setPaymentUrl(targetOrder.payment.authorization_url);
+            setPaymentReference(targetOrder.payment.reference);
+            setRetryingPaymentKey(null);
+            return;
+          }
+        } catch (error) {
+          console.error('[Order Detail] Silent verification failed, retrying payment:', error);
+        }
+      }
+
+      try {
+        const data = await initializePayment.mutateAsync(
+          isGroupedPayment && paymentGroupId
+            ? {
+                orderGroupId: paymentGroupId,
+                email: targetOrder.Customer.email,
+                callbackUrl: 'savemymeal://payment/callback',
+              }
+            : {
+                orderId: targetOrder.id,
+                email: targetOrder.Customer.email,
+                callbackUrl: 'savemymeal://payment/callback',
+              },
+        );
+
+        setPaymentUrl(data.authorization_url);
+        setPaymentReference(data.reference);
+      } catch (error: any) {
+        console.error('[Order Detail] Payment initialization error:', error);
+        toast.error('Payment Failed', error?.error || error?.message || 'Failed to initialize payment');
+      } finally {
+        setRetryingPaymentKey(null);
+      }
+    },
+    [clearPaymentState, displayOrder, id, initializePayment, isGroup, orders, refreshOrderData, verifyPayment],
+  );
 
   // Memoize PaystackWebView to prevent unnecessary re-renders
   const paystackWebView = useMemo(
@@ -939,11 +959,6 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const isGroup = orderData.type === 'group';
-  const orders = isGroup ? orderData.group.orders : [orderData.order];
-  const displayOrder = orders[0];
-  const groupTotal = isGroup ? orderData.group.grand_total : orderData.order.total_amount;
-
   const handleCancelRequest = () => {
     if (displayOrder.status !== 'pending') {
       toast.warning('Cannot Cancel', 'Only pending orders can be cancelled.');
@@ -996,118 +1011,6 @@ export default function OrderDetailScreen() {
     setCurrentOrder(null);
   };
 
-  const handleRetryPayment = async (orderId?: number) => {
-    console.log('[Order Detail] Retry payment initiated for order:', orderId);
-    
-    // For grouped orders, use orderGroupId; for single orders, use orderId
-    const targetOrder = orderId ? orders.find(o => o.id === orderId) : displayOrder;
-    
-    if (!targetOrder?.Customer?.email) {
-      toast.error('Error', 'Customer email not found');
-      return;
-    }
-
-    // Check if payment has order_group_id (regardless of current isGroup detection)
-    const paymentGroupId = targetOrder.payment?.order_group_id || targetOrder.order_group_id;
-    
-    // Determine if this is a grouped order payment
-    const isGroupedPayment = (isGroup && !orderId) || (!!paymentGroupId && !orderId);
-    const orderGroupId = paymentGroupId;
-
-    // STEP 1: ALWAYS verify payment status FIRST before any initialization
-    let shouldInitializePayment = true;
-    
-    if (targetOrder.payment?.reference) {
-      console.log('[Order Detail] Found existing payment reference, verifying before retry:', targetOrder.payment.reference);
-      toast.info('Checking...', 'Verifying payment status');
-      
-      try {
-        const verificationResult = await verifyPayment.mutateAsync(targetOrder.payment.reference);
-        console.log('[Order Detail] Pre-retry verification result:', verificationResult);
-        
-        // If payment is successful, no need to retry
-        if (verificationResult.status === 'success') {
-          toast.success('Payment Already Verified', 'Your payment has already been confirmed');
-          setSuccessDialogOpen(true);
-          refetchSingle();
-          return; // Exit completely
-        }
-        
-        // If payment is abandoned, check URL availability and reuse
-        if (verificationResult.status === 'abandoned' && targetOrder.payment.authorization_url) {
-          console.log('[Order Detail] Payment abandoned, reusing existing URL');
-          setPaymentUrl(targetOrder.payment.authorization_url);
-          setPaymentReference(targetOrder.payment.reference);
-          toast.info('Resuming Payment', 'Continue with your payment');
-          return; // Exit completely
-        }
-        
-        // If payment failed or refunded, we can proceed with new initialization
-        console.log('[Order Detail] Payment status:', verificationResult.status, '- will initialize new payment');
-        shouldInitializePayment = true;
-      } catch (error: any) {
-        console.error('[Order Detail] Verification error:', error);
-        const errorMessage = error?.error || error?.message || 'Unknown error';
-        
-        // Check if error indicates payment is already completed
-        if (errorMessage.toLowerCase().includes('already been paid') || 
-            errorMessage.toLowerCase().includes('already paid')) {
-          console.log('[Order Detail] Payment already completed based on error message');
-          toast.success('Payment Already Completed', 'This order has already been paid');
-          refetchSingle();
-          return; // Exit completely
-        }
-        
-        // For other verification errors, still allow retry
-        console.log('[Order Detail] Verification failed, but allowing payment retry');
-        toast.warning('Verification Issue', 'Proceeding with payment');
-        shouldInitializePayment = true;
-      }
-    } else {
-      console.log('[Order Detail] No existing payment reference found, proceeding with initialization');
-      shouldInitializePayment = true;
-    }
-
-    // STEP 2: Only initialize payment if verification indicates it's needed
-    if (!shouldInitializePayment) {
-      console.log('[Order Detail] Skipping payment initialization based on verification result');
-      return;
-    }
-
-    console.log('[Order Detail] Initializing payment...', { isGroupedPayment, orderGroupId, orderId: targetOrder.id });
-    toast.info('Initializing', 'Creating payment session');
-
-    // Initialize new payment
-    initializePayment.mutate(
-      isGroupedPayment && orderGroupId
-        ? {
-            orderGroupId,
-            email: targetOrder.Customer.email,
-            callbackUrl: 'savemymeal://payment/callback',
-          }
-        : {
-            orderId: targetOrder.id,
-            email: targetOrder.Customer.email,
-            callbackUrl: 'savemymeal://payment/callback',
-          },
-      {
-        onSuccess: (data) => {
-          console.log('[Order Detail] Payment initialization success:', {
-            authorization_url: data.authorization_url,
-            reference: data.reference,
-          });
-          setPaymentUrl(data.authorization_url);
-          setPaymentReference(data.reference);
-        },
-        onError: (error: any) => {
-          console.error('[Order Detail] Payment initialization error:', error);
-          const errorMsg = error?.error || error?.message || 'Failed to initialize payment';
-          toast.error('Payment Failed', errorMsg);
-        },
-      }
-    );
-  };
-
   return (
     <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
       {/* Fixed Header */}
@@ -1121,6 +1024,13 @@ export default function OrderDetailScreen() {
 
       {/* Scrollable Content */}
       <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#15785B"
+          />
+        }
         contentContainerStyle={{
           paddingBottom: 60,
           flexGrow: 1,
@@ -1147,7 +1057,14 @@ export default function OrderDetailScreen() {
         ) : (
           <>
             {/* Single order vendor info */}
-            <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
+            <Pressable
+              onPress={() => {
+                if (displayOrder.vendor_id) {
+                  router.push(`/vendor/${displayOrder.vendor_id}` as any);
+                }
+              }}
+              className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm"
+            >
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center">
                   <Image
@@ -1165,11 +1082,11 @@ export default function OrderDetailScreen() {
                     <Text className="text-gray-600">{displayOrder.vendor?.phone || '—'}</Text>
                   </View>
                 </View>
-                <Pressable className="bg-gray-100 rounded-full p-2.5">
-                  <IconSymbol name="phone.fill" size={20} color="#666" />
-                </Pressable>
+                <View className="bg-gray-100 rounded-full p-2.5">
+                  <IconSymbol name="chevron.right" size={18} color="#666" />
+                </View>
               </View>
-            </View>
+            </Pressable>
 
             <SingleOrderItems 
               order={displayOrder} 
@@ -1182,31 +1099,26 @@ export default function OrderDetailScreen() {
 
         {/* Retry Payment Section - For failed card payments */}
         {(() => {
+          const nonCancelledOrders = orders.filter((order) => order.status !== 'cancelled');
+          const retryEligibleOrders = nonCancelledOrders.filter(
+            (order) => order.payment_status !== 'paid' && order.payment?.status !== 'success',
+          );
+
+          if (retryEligibleOrders.length === 0) return null;
+
           if (!isGroup) {
-            // Single order: show retry button only if payment failed
-            const hasFailedPayment = displayOrder.payment_method === 'card' && 
-              (!displayOrder.payment || displayOrder.payment.status === 'failed');
-            
-            return hasFailedPayment ? (
+            return (
               <View className="px-4">
                 <RetryPaymentSection 
                   order={displayOrder} 
                   onRetryPayment={() => handleRetryPayment(displayOrder.id)}
-                  isRetrying={initializePayment.isPending}
+                  isRetrying={retryingPaymentKey === `order-${displayOrder.id}`}
                 />
               </View>
-            ) : null;
+            );
           }
 
-          // Grouped order: Find group payment (payment with order_group_id)
-          const groupPayment = orders.find(o => o.payment?.order_group_id)?.payment;
-          
-          // If there's a group payment, check its status for the entire group
-          if (groupPayment) {
-            // If group payment exists and is not failed, don't show retry button
-            if (groupPayment.status !== 'failed') return null;
-            
-            // Group payment failed - show one button for all
+          if (retryEligibleOrders.length === nonCancelledOrders.length) {
             return (
               <View className="px-4">
                 <View className="pb-4">
@@ -1215,16 +1127,13 @@ export default function OrderDetailScreen() {
                       <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#dc2626" />
                       <Text className="text-lg font-semibold ml-2 text-red-700">Payment Failed</Text>
                     </View>
-                    <Text className="text-gray-600 text-center mb-5">
-                      Retry to complete your orders.
-                    </Text>
 
                     <Button 
                       onPress={() => handleRetryPayment()} 
-                      disabled={initializePayment.isPending} 
+                      disabled={retryingPaymentKey === `group-${String(id)}`} 
                       className="bg-red-600"
                     >
-                      {initializePayment.isPending ? (
+                      {retryingPaymentKey === `group-${String(id)}` ? (
                         <View className="flex-row items-center justify-center">
                           <ActivityIndicator size="small" color="white" />
                           <Text className="ml-2 text-white">Initializing Payment...</Text>
@@ -1242,60 +1151,15 @@ export default function OrderDetailScreen() {
             );
           }
 
-          // No group payment - check individual orders
-          const failedOrders = orders.filter(o => 
-            o.payment_method === 'card' && (!o.payment || o.payment.status === 'failed')
-          );
-          
-          if (failedOrders.length === 0) return null;
-
-          // If ALL orders in the group failed payment, show one button to pay for all
-          if (failedOrders.length === orders.length) {
-            return (
-              <View className="px-4">
-                <View className="pb-4">
-                  <View className="bg-white rounded-xl p-6 shadow-sm border-2 border-red-200">
-                    <View className="flex-row items-center justify-center mb-2">
-                      <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#dc2626" />
-                      <Text className="text-lg font-semibold ml-2 text-red-700">Payment Required</Text>
-                    </View>
-
-                    <Text className="text-gray-600 text-center mb-5">
-                      Payment initialization failed. Retry to complete your orders.
-                    </Text>
-
-                    <Button 
-                      onPress={() => handleRetryPayment()} 
-                      disabled={initializePayment.isPending} 
-                      className="bg-red-600"
-                    >
-                      {initializePayment.isPending ? (
-                        <View className="flex-row items-center justify-center">
-                          <ActivityIndicator size="small" color="white" />
-                          <Text className="ml-2 text-white">Initializing Payment...</Text>
-                        </View>
-                      ) : (
-                        <View className="flex-row items-center justify-center">
-                          <IconSymbol name="creditcard.fill" size={18} color="white" />
-                          <Text className="ml-2 text-white font-semibold">Pay All Orders ({formatCurrency(Number(groupTotal))})</Text>
-                        </View>
-                      )}
-                    </Button>
-                  </View>
-                </View>
-              </View>
-            );
-          }
-
           // If SOME orders failed payment, show individual retry buttons
           return (
             <View className="px-4">
-              {failedOrders.map((order) => (
+              {retryEligibleOrders.map((order) => (
                 <View key={order.id} className="mb-4">
                   <RetryPaymentSection 
                     order={order} 
                     onRetryPayment={() => handleRetryPayment(order.id)}
-                    isRetrying={initializePayment.isPending}
+                    isRetrying={retryingPaymentKey === `order-${order.id}`}
                     showVendorInfo={true}
                   />
                 </View>
@@ -1347,9 +1211,8 @@ export default function OrderDetailScreen() {
           <AlertDialogFooter>
             <AlertDialogAction onPress={() => {
               setSuccessDialogOpen(false);
-              router.push('/orders');
             }}>
-              <Text className="text-white">View Orders</Text>
+              <Text className="text-white">Continue</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

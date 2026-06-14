@@ -144,7 +144,7 @@ export default function ProfileScreen() {
           />
           <ProfileMenuItem
             icon="heart.fill"
-            label="Favorite Restaurants"
+            label="Favorite Vendors"
             onPress={() => { }}
             color="#ea4335"
           />

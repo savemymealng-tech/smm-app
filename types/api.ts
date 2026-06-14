@@ -69,6 +69,7 @@ export interface Vendor {
   longitude: string;
   rating: string;
   total_orders: number;
+  order_count?: number;
   distance?: string;
   user?: VendorUser;
 }
@@ -107,6 +108,7 @@ export interface Meal {
   delivery_time_minutes?: number;
   average_rating?: string;
   total_reviews?: number;
+  order_count?: number;
 }
 
 export interface BrowseMealsParams {

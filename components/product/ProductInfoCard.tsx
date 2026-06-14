@@ -14,6 +14,7 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
   const price = parseFloat(product.price);
   const originalPrice = product.original_price ? parseFloat(product.original_price) : null;
   const hasDiscount = originalPrice && originalPrice > price;
+  const orderCount = product.order_count;
   
   return (
     <View className="mx-4 mb-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -22,12 +23,21 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
           <Text className="text-2xl font-bold text-gray-900 mb-2">
             {product.name}
           </Text>
-          {product.average_rating      && (
+          {(product.average_rating || orderCount !== undefined) && (
             <View className="flex-row items-center">
-              <IconSymbol name="star.fill" size={16} color="#fbbf24" />
-              <Text className="ml-1.5 font-semibold text-gray-900">
-                {parseFloat(product.average_rating).toFixed(1)}
-              </Text>
+              {product.average_rating && (
+                <>
+                  <IconSymbol name="star.fill" size={16} color="#fbbf24" />
+                  <Text className="ml-1.5 font-semibold text-gray-900">
+                    {parseFloat(product.average_rating).toFixed(1)}
+                  </Text>
+                </>
+              )}
+              {orderCount !== undefined && (
+                <Text className="text-gray-500 text-sm ml-1.5">
+                  ({Number(orderCount).toLocaleString()} orders)
+                </Text>
+              )}
             </View>
           )}
         </View>

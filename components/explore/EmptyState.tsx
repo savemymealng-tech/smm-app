@@ -17,7 +17,7 @@ export function EmptyState({ hasSearchQuery }: EmptyStateProps) {
       <Text className="text-sm text-gray-500 text-center">
         {hasSearchQuery
           ? "Try adjusting your search or filters to find what you're looking for"
-          : "Search for restaurants, dishes, or food items"}
+          : "Search for vendors, meals, or food items"}
       </Text>
     </View>
   );
