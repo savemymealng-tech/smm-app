@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import * as Clipboard from 'expo-clipboard';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { WebViewMessageEvent } from 'react-native-webview';
 
 export const usePaystackWebView = ({
   visible,
@@ -36,7 +36,17 @@ export const usePaystackWebView = ({
     (url: string): boolean => {
       const lower = url.toLowerCase();
       if (lower.includes('paystack.co/close') || lower.includes('success') || lower.includes('thank-you')) {
-        onPaymentSuccess(reference);
+        let successReference = reference;
+        try {
+          const parsed = new URL(url);
+          successReference =
+            parsed.searchParams.get('reference') ||
+            parsed.searchParams.get('trxref') ||
+            reference;
+        } catch {
+          successReference = reference;
+        }
+        onPaymentSuccess(successReference);
         return true;
       }
       if (lower.includes('cancel') || lower.includes('dismiss') || lower.includes('failed')) {

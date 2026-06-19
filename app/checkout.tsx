@@ -28,6 +28,7 @@ import { toast } from "@/components/ui/toast";
 
 import { addressesApi } from "@/lib/api/addresses";
 import {
+  useInitializePayment,
   usePlaceOrder,
   useVerifyPayment,
 } from "@/lib/hooks";
@@ -214,6 +215,7 @@ export default function CheckoutScreen() {
   });
 
   const placeOrder = usePlaceOrder();
+  const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
 
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
@@ -315,25 +317,95 @@ export default function CheckoutScreen() {
       });
 
       const orderResponse = await placeOrder.mutateAsync(orderPayload);
+      const response = orderResponse as any;
 
-      // New backend returns { orders, payment, error } structure
-      const { orders, payment, error } = orderResponse as any;
-      
-      // Handle both single order and multiple vendor orders
-      const ordersList = Array.isArray(orders) ? orders : [orders];
+      // Support multiple backend response shapes:
+      // 1) { orders, payment, error }
+      // 2) { order, payment, error }
+      // 3) single Order object with nested payment
+      const ordersSource = response?.orders ?? response?.order ?? response;
+      const ordersList = Array.isArray(ordersSource)
+        ? ordersSource
+        : ordersSource && (ordersSource.id || ordersSource.order_group_id)
+          ? [ordersSource]
+          : [];
+
       const firstOrder = ordersList[0];
-      
-      // For card payment, check if payment was automatically initialized
-      if (payment && payment.authorization_url) {
-        // Payment was successfully initialized
-        setPaymentReference(payment.reference);
-        setPaymentUrl(payment.authorization_url);
+      const getPaymentValues = (source: any) => {
+        const payment = source?.payment ?? source?.data?.payment ?? firstOrder?.payment;
+        const authorizationUrl =
+          payment?.authorization_url ??
+          payment?.authorizationUrl ??
+          payment?.checkout_url ??
+          payment?.checkoutUrl ??
+          payment?.data?.authorization_url ??
+          source?.authorization_url ??
+          source?.data?.authorization_url;
+
+        const reference =
+          payment?.reference ??
+          payment?.data?.reference ??
+          firstOrder?.payment?.reference;
+
+        const referenceFromUrl = (() => {
+          if (!authorizationUrl) return null;
+          try {
+            const parsed = new URL(authorizationUrl);
+            return parsed.searchParams.get("reference") || parsed.searchParams.get("trxref");
+          } catch {
+            return null;
+          }
+        })();
+
+        return {
+          authorizationUrl,
+          resolvedReference: reference || referenceFromUrl,
+        };
+      };
+
+      let { authorizationUrl, resolvedReference } = getPaymentValues(response);
+
+      // If place-order response doesn't include payment link, initialize payment explicitly.
+      if (!authorizationUrl && firstOrder) {
+        const customerEmail =
+          user?.email ??
+          (firstOrder as any)?.Customer?.email;
+
+        if (customerEmail) {
+          try {
+            const initializedPayment = await initializePayment.mutateAsync(
+              firstOrder?.order_group_id
+                ? {
+                    orderGroupId: firstOrder.order_group_id,
+                    email: customerEmail,
+                    callbackUrl: "savemymeal://payment/callback",
+                  }
+                : {
+                    orderId: firstOrder.id,
+                    email: customerEmail,
+                    callbackUrl: "savemymeal://payment/callback",
+                  }
+            );
+
+            const values = getPaymentValues(initializedPayment);
+            authorizationUrl = values.authorizationUrl;
+            resolvedReference = values.resolvedReference;
+          } catch (initError) {
+            console.error("Payment initialization after checkout failed:", initError);
+          }
+        }
+      }
+
+      // On checkout, open Paystack preview whenever authorization URL exists.
+      if (authorizationUrl) {
+        setPaymentReference(resolvedReference || "pending_reference");
+        setPaymentUrl(authorizationUrl);
         setShowPaymentWebView(true);
-        
+
         // Store order info for success handling
-        if (ordersList.length > 1) {
+        if (ordersList.length > 1 && firstOrder?.order_group_id) {
           setSuccessOrderId(firstOrder.order_group_id as any);
-        } else {
+        } else if (firstOrder?.id) {
           setSuccessOrderId(firstOrder.id);
         }
       } else {
@@ -341,7 +413,7 @@ export default function CheckoutScreen() {
         clearCart.mutate();
         toast.warning(
           "Payment Initialization Failed",
-          error || "Order created but payment could not be initialized. You can pay later from your orders."
+          response?.error || "Order created but payment could not be initialized. You can pay later from your orders."
         );
         // Navigate to orders page
         router.replace("/orders");
