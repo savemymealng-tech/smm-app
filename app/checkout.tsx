@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -26,6 +26,7 @@ import { PaystackWebView } from "@/components/ui/paystack-webview";
 import { Text } from "@/components/ui/text";
 import { toast } from "@/components/ui/toast";
 
+import { api } from "@/lib/api";
 import { addressesApi } from "@/lib/api/addresses";
 import {
   useInitializePayment,
@@ -227,6 +228,7 @@ export default function CheckoutScreen() {
   const [showPaymentWebView, setShowPaymentWebView] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const isAutoVerifyingRef = useRef(false);
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<number | null>(null);
@@ -276,6 +278,17 @@ export default function CheckoutScreen() {
         quantity: Number(item.quantity) || 1,
       };
     });
+  };
+
+  const getVerificationStatus = (result: any) => {
+    const status = String(result?.status || '').toLowerCase();
+
+    if (result?.success === true || status === 'success') return 'success';
+    if (result?.failed === true || status === 'failed' || status === 'reversed') return 'failed';
+    if (result?.pending === true || ['pending', 'ongoing', 'processing', 'queued'].includes(status)) return 'pending';
+    if (status === 'abandoned' || result?.abandoned === true) return 'abandoned';
+
+    return status || null;
   };
 
   const handlePlaceOrder = async () => {
@@ -435,33 +448,130 @@ export default function CheckoutScreen() {
     setIsProcessing(true);
 
     try {
-      await verifyPayment.mutateAsync(reference);
+      const verification = await verifyPayment.mutateAsync(reference);
+
+      if (getVerificationStatus(verification) !== 'success') {
+        throw new Error('Payment verification did not return success');
+      }
+
       clearCart.mutate();
+      setPaymentUrl(null);
+      setPaymentReference(null);
       setSuccessMessage("Payment successful! Your order has been confirmed.");
       setSuccessDialogOpen(true);
     } catch (err) {
       console.error("Payment verification failed:", err);
       toast.error(
-        "Verification Issue",
-        "Payment may have been received. Please contact support."
+        "Payment Verification Failed",
+        "Unable to confirm your payment. Please try again or contact support."
       );
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handlePaymentCancel = () => {
+  const handlePaymentCancel = async () => {
     setShowPaymentWebView(false);
+
+    // Callback URL may not be configured on gateway side.
+    // Verify with known reference before marking this as cancelled.
+    if (paymentReference && paymentReference !== "pending_reference") {
+      setIsProcessing(true);
+      try {
+        const verification = await api.payments.verifyPayment(paymentReference);
+        const status = getVerificationStatus(verification);
+
+        if (status === "success") {
+          clearCart.mutate();
+          setPaymentUrl(null);
+          setPaymentReference(null);
+          setSuccessMessage("Payment successful! Your order has been confirmed.");
+          setSuccessDialogOpen(true);
+          return;
+        }
+
+        if (status === 'failed' || status === 'reversed') {
+          setPaymentUrl(null);
+          setPaymentReference(null);
+          toast.error("Payment Failed", "Your payment failed. Please try again.");
+          return;
+        }
+
+        if (status === 'abandoned') {
+          setPaymentUrl(null);
+          setPaymentReference(null);
+          toast.warning("Payment Cancelled", "You cancelled the payment.");
+          return;
+        }
+
+        if (status === 'pending') {
+          toast.warning("Payment Pending", "Your payment is still being confirmed.");
+          return;
+        }
+      } catch (err) {
+        console.log("Payment not verified on cancel/close:", err);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+
     setPaymentUrl(null);
     setPaymentReference(null);
     toast.warning("Payment Cancelled", "You cancelled the payment.");
   };
 
   const handlePaymentClose = () => {
-    setShowPaymentWebView(false);
-    setPaymentUrl(null);
-    setPaymentReference(null);
+    void handlePaymentCancel();
   };
+
+  useEffect(() => {
+    if (!showPaymentWebView) return;
+    if (!paymentReference || paymentReference === "pending_reference") return;
+
+    let stopped = false;
+    let attempts = 0;
+    const maxAttempts = 40;
+
+    const interval = setInterval(() => {
+      if (stopped || isAutoVerifyingRef.current) return;
+
+      attempts += 1;
+      isAutoVerifyingRef.current = true;
+
+      void api.payments
+        .verifyPayment(paymentReference)
+        .then((verification) => {
+          if (stopped) return;
+
+          if (getVerificationStatus(verification) === "success") {
+            stopped = true;
+            clearInterval(interval);
+            setShowPaymentWebView(false);
+            setPaymentUrl(null);
+            setPaymentReference(null);
+            clearCart.mutate();
+            setSuccessMessage("Payment successful! Your order has been confirmed.");
+            setSuccessDialogOpen(true);
+          }
+        })
+        .catch(() => {
+          // Ignore transient verification failures while payment is in progress.
+        })
+        .finally(() => {
+          isAutoVerifyingRef.current = false;
+          if (attempts >= maxAttempts) {
+            stopped = true;
+            clearInterval(interval);
+          }
+        });
+    }, 3000);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      isAutoVerifyingRef.current = false;
+    };
+  }, [showPaymentWebView, paymentReference, clearCart]);
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -683,18 +793,7 @@ export default function CheckoutScreen() {
             <AlertDialogAction
               onPress={() => {
                 setSuccessDialogOpen(false);
-                if (successOrderId) {
-                  // Check if it's an order group ID (starts with OG-)
-                  const orderIdStr = String(successOrderId);
-                  if (orderIdStr.startsWith('OG-')) {
-                    // Navigate to orders list for now, or implement group view
-                    router.replace("/orders");
-                  } else {
-                    router.replace(`/order/${successOrderId}`);
-                  }
-                } else {
-                  router.replace("/orders");
-                }
+                router.replace("/orders");
               }}
             >
               <Text>View Order</Text>

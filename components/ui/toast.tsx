@@ -9,13 +9,13 @@ import * as React from 'react';
 import { View } from 'react-native';
 
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from './alert-dialog';
 import { IconSymbol } from './icon-symbol';
 import { Text } from './text';
@@ -69,41 +69,56 @@ const dialogConfig: Record<
     icon: string;
     iconColor: string;
     iconBg: string;
+    accentBg: string;
     titleColor: string;
+    descriptionColor: string;
     buttonBg: string;
+    buttonTextColor: string;
     buttonText: string;
   }
 > = {
   success: {
     icon: 'checkmark.circle.fill',
     iconColor: '#16a34a',
-    iconBg: 'bg-green-50',
-    titleColor: 'text-green-700',
+    iconBg: 'bg-green-100',
+    accentBg: 'bg-green-600',
+    titleColor: 'text-[#166534]',
+    descriptionColor: 'text-[#166534]/80',
     buttonBg: 'bg-green-600',
+    buttonTextColor: 'text-white',
     buttonText: 'Continue',
   },
   error: {
     icon: 'xmark.circle.fill',
     iconColor: '#dc2626',
-    iconBg: 'bg-red-50',
-    titleColor: 'text-red-700',
+    iconBg: 'bg-red-100',
+    accentBg: 'bg-red-600',
+    titleColor: 'text-[#991B1B]',
+    descriptionColor: 'text-[#991B1B]/80',
     buttonBg: 'bg-red-600',
+    buttonTextColor: 'text-white',
     buttonText: 'Close',
   },
   warning: {
     icon: 'exclamationmark.triangle.fill',
     iconColor: '#d97706',
-    iconBg: 'bg-amber-50',
-    titleColor: 'text-amber-700',
+    iconBg: 'bg-amber-100',
+    accentBg: 'bg-amber-500',
+    titleColor: 'text-[#92400E]',
+    descriptionColor: 'text-[#92400E]/80',
     buttonBg: 'bg-amber-600',
+    buttonTextColor: 'text-white',
     buttonText: 'Understood',
   },
   info: {
     icon: 'info.circle.fill',
     iconColor: '#2563eb',
-    iconBg: 'bg-blue-50',
-    titleColor: 'text-blue-700',
+    iconBg: 'bg-blue-100',
+    accentBg: 'bg-blue-600',
+    titleColor: 'text-[#1E3A8A]',
+    descriptionColor: 'text-[#1E3A8A]/80',
     buttonBg: 'bg-blue-600',
+    buttonTextColor: 'text-white',
     buttonText: 'OK',
   },
 };
@@ -183,29 +198,33 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
       {active && config && (
         <AlertDialog open={true} onOpenChange={(open) => !open && handleCloseActive()}>
-          <AlertDialogContent className="rounded-3xl px-6 py-7">
-            <AlertDialogHeader className="items-center">
-              <View className={`mb-1 h-14 w-14 items-center justify-center rounded-full ${config.iconBg}`}>
-                <IconSymbol name={config.icon as any} size={28} color={config.iconColor} />
-              </View>
-              <AlertDialogTitle className={`text-center text-xl font-bold ${config.titleColor}`}>
-                {active.title}
-              </AlertDialogTitle>
-              {active.message ? (
-                <AlertDialogDescription className="mt-1 text-center text-sm leading-5 text-gray-600">
-                  {active.message}
-                </AlertDialogDescription>
-              ) : null}
-            </AlertDialogHeader>
+          <AlertDialogContent className="overflow-hidden rounded-3xl border border-gray-200 bg-white p-0">
+            <View className={`h-1.5 w-full ${config.accentBg}`} />
 
-            <AlertDialogFooter className="mt-4">
-              <AlertDialogAction
-                onPress={handleCloseActive}
-                className={`w-full rounded-xl ${config.buttonBg}`}
-              >
-                <Text className="text-white font-semibold">{config.buttonText}</Text>
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            <View className="px-6 py-6">
+              <AlertDialogHeader className="items-center">
+                <View className={`mb-1 h-14 w-14 items-center justify-center rounded-full ${config.iconBg}`}>
+                  <IconSymbol name={config.icon as any} size={27} color={config.iconColor} />
+                </View>
+                <AlertDialogTitle className={`text-center text-[22px] font-bold tracking-tight ${config.titleColor}`}>
+                  {active.title}
+                </AlertDialogTitle>
+                {active.message ? (
+                  <AlertDialogDescription className={`mt-0.5 text-center text-[15px] leading-6 ${config.descriptionColor}`}>
+                    {active.message}
+                  </AlertDialogDescription>
+                ) : null}
+              </AlertDialogHeader>
+
+              <AlertDialogFooter className="mt-5">
+                <AlertDialogAction
+                  onPress={handleCloseActive}
+                  className={`w-full rounded-2xl ${config.buttonBg}`}
+                >
+                  <Text className={`font-semibold ${config.buttonTextColor}`}>{config.buttonText}</Text>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </View>
           </AlertDialogContent>
         </AlertDialog>
       )}

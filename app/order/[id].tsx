@@ -16,14 +16,15 @@ import { PaystackWebView } from '@/components/ui/paystack-webview';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
+import { api } from '@/lib/api';
 import { useCancelOrder, useReorder, useTrackOrder } from '@/lib/hooks';
 import { useOrders } from '@/lib/hooks/use-orders';
 import { useReviews } from '@/lib/hooks/use-reviews';
-import { useInitializePayment, useVerifyPayment } from '@/lib/hooks/usePayments';
+import { useVerifyPayment } from '@/lib/hooks/usePayments';
 import { formatCurrency, getImageSource } from '@/lib/utils';
 import type { DeliveryAddress, Order, OrderItem } from '@/types/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -667,7 +668,6 @@ export default function OrderDetailScreen() {
 
   const cancelOrder = useCancelOrder();
   const reorder = useReorder();
-  const initializePayment = useInitializePayment();
   const verifyPayment = useVerifyPayment();
   const { submitReview, submitting } = useReviews();
 
@@ -679,6 +679,7 @@ export default function OrderDetailScreen() {
   const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [retryingPaymentKey, setRetryingPaymentKey] = useState<string | null>(null);
+  const isAutoVerifyingRef = useRef(false);
 
   const orderData = useMemo<OrderViewData | null>(() => {
     console.log('orderData memo - Computing with:', { isGroupId, id, singleOrder, ordersListLength: ordersList.length });
@@ -770,6 +771,17 @@ export default function OrderDetailScreen() {
     setPaymentReference(null);
   }, []);
 
+  const getVerificationStatus = useCallback((result: any) => {
+    const status = String(result?.status || '').toLowerCase();
+
+    if (result?.success === true || status === 'success') return 'success';
+    if (result?.failed === true || status === 'failed' || status === 'reversed') return 'failed';
+    if (result?.pending === true || ['pending', 'ongoing', 'processing', 'queued'].includes(status)) return 'pending';
+    if (status === 'abandoned' || result?.abandoned === true) return 'abandoned';
+
+    return status || null;
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     await refreshOrderData();
   }, [refreshOrderData]);
@@ -783,11 +795,10 @@ export default function OrderDetailScreen() {
     try {
       const verificationResult = await verifyPayment.mutateAsync(paymentReference);
 
-      if (verificationResult.status === 'success') {
+      if (getVerificationStatus(verificationResult) === 'success') {
         clearPaymentState();
         await refreshOrderData();
         setSuccessDialogOpen(true);
-        toast.success('Payment Verified', 'Your payment has been confirmed');
         return;
       }
 
@@ -798,17 +809,38 @@ export default function OrderDetailScreen() {
       console.error('[Order Detail] Silent payment verification failed:', error);
       await refreshOrderData();
     }
-  }, [paymentReference, verifyPayment, clearPaymentState, refreshOrderData]);
+  }, [clearPaymentState, getVerificationStatus, paymentReference, refreshOrderData, verifyPayment]);
 
   const handlePaymentCancel = useCallback(async () => {
     if (paymentReference) {
       try {
-        const verificationResult = await verifyPayment.mutateAsync(paymentReference);
-        if (verificationResult.status === 'success') {
+        const verificationResult = await api.payments.verifyPayment(paymentReference);
+        const status = getVerificationStatus(verificationResult);
+
+        if (status === 'success') {
           clearPaymentState();
           await refreshOrderData();
           setSuccessDialogOpen(true);
-          toast.success('Payment Verified', 'Your payment has been confirmed');
+          return;
+        }
+
+        if (status === 'failed' || status === 'reversed') {
+          clearPaymentState();
+          await refreshOrderData();
+          toast.error('Payment Failed', 'Your payment failed. Please try again.');
+          return;
+        }
+
+        if (status === 'abandoned') {
+          clearPaymentState();
+          await refreshOrderData();
+          toast.warning('Payment Cancelled', 'You cancelled the payment.');
+          return;
+        }
+
+        if (status === 'pending') {
+          await refreshOrderData();
+          toast.warning('Payment Pending', 'Your payment is still being confirmed.');
           return;
         }
       } catch (error: any) {
@@ -818,7 +850,8 @@ export default function OrderDetailScreen() {
 
     clearPaymentState();
     await refreshOrderData();
-  }, [clearPaymentState, paymentReference, refreshOrderData, verifyPayment]);
+    toast.warning('Payment Cancelled', 'You cancelled the payment.');
+  }, [clearPaymentState, getVerificationStatus, paymentReference, refreshOrderData]);
 
   const handleRetryPayment = useCallback(
     async (orderId?: number) => {
@@ -839,22 +872,19 @@ export default function OrderDetailScreen() {
 
       if (targetOrder.payment?.reference) {
         try {
-          const verificationResult = await verifyPayment.mutateAsync(targetOrder.payment.reference);
+          const verificationResult = await api.payments.verifyPayment(targetOrder.payment.reference);
+          const status = getVerificationStatus(verificationResult);
 
-          if (verificationResult.status === 'success') {
+          if (status === 'success') {
             clearPaymentState();
             await refreshOrderData();
-            setSuccessDialogOpen(true);
-            toast.success('Payment Verified', 'Your payment has been confirmed');
+            toast.success('Payment Verified', 'Order has already been paid');
             setRetryingPaymentKey(null);
             return;
           }
 
-          if (verificationResult.status === 'abandoned' && targetOrder.payment.authorization_url) {
-            setPaymentUrl(targetOrder.payment.authorization_url);
-            setPaymentReference(targetOrder.payment.reference);
-            setRetryingPaymentKey(null);
-            return;
+          if (status === 'failed' || status === 'abandoned' || status === 'reversed' || status === 'pending') {
+            // Continue to initialize a fresh payment silently.
           }
         } catch (error) {
           console.error('[Order Detail] Silent verification failed, retrying payment:', error);
@@ -862,7 +892,7 @@ export default function OrderDetailScreen() {
       }
 
       try {
-        const data = await initializePayment.mutateAsync(
+        const data = await api.payments.initializePayment(
           isGroupedPayment && paymentGroupId
             ? {
                 orderGroupId: paymentGroupId,
@@ -880,13 +910,67 @@ export default function OrderDetailScreen() {
         setPaymentReference(data.reference);
       } catch (error: any) {
         console.error('[Order Detail] Payment initialization error:', error);
-        toast.error('Payment Failed', error?.error || error?.message || 'Failed to initialize payment');
+        const errorMessage = error?.error || error?.response?.data?.message || error?.message || 'Failed to initialize payment';
+        const normalizedMessage = String(errorMessage).toLowerCase();
+
+        if (normalizedMessage.includes('already been paid') || normalizedMessage.includes('already paid')) {
+          toast.success('Payment Verified', 'Order has already been paid');
+          await refreshOrderData();
+          return;
+        }
+
+        toast.error('Payment Failed', errorMessage);
       } finally {
         setRetryingPaymentKey(null);
       }
     },
-    [clearPaymentState, displayOrder, id, initializePayment, isGroup, orders, refreshOrderData, verifyPayment],
+    [clearPaymentState, displayOrder, id, isGroup, orders, refreshOrderData, verifyPayment],
   );
+
+  useEffect(() => {
+    if (!paymentUrl || !paymentReference) return;
+
+    let stopped = false;
+    let attempts = 0;
+    const maxAttempts = 40;
+
+    const interval = setInterval(() => {
+      if (stopped || isAutoVerifyingRef.current) return;
+
+      attempts += 1;
+      isAutoVerifyingRef.current = true;
+
+      void api.payments
+        .verifyPayment(paymentReference)
+        .then(async (verificationResult) => {
+          if (stopped) return;
+
+          if (getVerificationStatus(verificationResult) === 'success') {
+            stopped = true;
+            clearInterval(interval);
+            clearPaymentState();
+            await refreshOrderData();
+            setSuccessDialogOpen(true);
+          }
+        })
+        .catch(() => {
+          // Ignore transient verification failures while payment is in progress.
+        })
+        .finally(() => {
+          isAutoVerifyingRef.current = false;
+          if (attempts >= maxAttempts) {
+            stopped = true;
+            clearInterval(interval);
+          }
+        });
+    }, 3000);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      isAutoVerifyingRef.current = false;
+    };
+  }, [clearPaymentState, getVerificationStatus, paymentReference, paymentUrl, refreshOrderData]);
 
   // Memoize PaystackWebView to prevent unnecessary re-renders
   const paystackWebView = useMemo(
@@ -1211,6 +1295,7 @@ export default function OrderDetailScreen() {
           <AlertDialogFooter>
             <AlertDialogAction onPress={() => {
               setSuccessDialogOpen(false);
+              router.replace('/orders');
             }}>
               <Text className="text-white">Continue</Text>
             </AlertDialogAction>

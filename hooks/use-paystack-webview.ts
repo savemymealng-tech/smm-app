@@ -35,6 +35,43 @@ export const usePaystackWebView = ({
   const detectOutcome = useCallback(
     (url: string): boolean => {
       const lower = url.toLowerCase();
+
+      const isCallbackRedirect =
+        lower.includes(callbackUrl.toLowerCase()) ||
+        lower.includes('/payment/callback') ||
+        lower.startsWith('savemymeal://payment/callback');
+
+      if (isCallbackRedirect) {
+        let callbackStatus = '';
+        let callbackReference = reference;
+
+        try {
+          const parsed = new URL(url);
+          callbackStatus = (parsed.searchParams.get('status') || '').toLowerCase();
+          callbackReference =
+            parsed.searchParams.get('reference') ||
+            parsed.searchParams.get('trxref') ||
+            reference;
+        } catch {
+          callbackStatus = '';
+          callbackReference = reference;
+        }
+
+        if (
+          callbackStatus === 'failed' ||
+          callbackStatus === 'abandoned' ||
+          callbackStatus === 'cancelled' ||
+          callbackStatus === 'canceled' ||
+          callbackStatus === 'error'
+        ) {
+          onPaymentCancel();
+        } else {
+          onPaymentSuccess(callbackReference);
+        }
+
+        return true;
+      }
+
       if (lower.includes('paystack.co/close') || lower.includes('success') || lower.includes('thank-you')) {
         let successReference = reference;
         try {
