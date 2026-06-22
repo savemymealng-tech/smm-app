@@ -409,9 +409,41 @@ export default function CheckoutScreen() {
         }
       }
 
-      // On checkout, open Paystack preview whenever authorization URL exists.
-      if (authorizationUrl) {
-        setPaymentReference(resolvedReference || "pending_reference");
+      // If we have a payment link but no reference, explicitly initialize again
+      // to retrieve a usable Paystack reference for verification/auto-close.
+      if (authorizationUrl && !resolvedReference && firstOrder) {
+        const customerEmail =
+          user?.email ??
+          (firstOrder as any)?.Customer?.email;
+
+        if (customerEmail) {
+          try {
+            const initializedPayment = await initializePayment.mutateAsync(
+              firstOrder?.order_group_id
+                ? {
+                    orderGroupId: firstOrder.order_group_id,
+                    email: customerEmail,
+                    callbackUrl: "savemymeal://payment/callback",
+                  }
+                : {
+                    orderId: firstOrder.id,
+                    email: customerEmail,
+                    callbackUrl: "savemymeal://payment/callback",
+                  }
+            );
+
+            const values = getPaymentValues(initializedPayment);
+            authorizationUrl = values.authorizationUrl;
+            resolvedReference = values.resolvedReference;
+          } catch (initError) {
+            console.error("Payment reference recovery failed:", initError);
+          }
+        }
+      }
+
+      // Open Paystack only when we have both authorization URL and reference.
+      if (authorizationUrl && resolvedReference) {
+        setPaymentReference(resolvedReference);
         setPaymentUrl(authorizationUrl);
         setShowPaymentWebView(true);
 
@@ -475,7 +507,7 @@ export default function CheckoutScreen() {
 
     // Callback URL may not be configured on gateway side.
     // Verify with known reference before marking this as cancelled.
-    if (paymentReference && paymentReference !== "pending_reference") {
+    if (paymentReference) {
       setIsProcessing(true);
       try {
         const verification = await api.payments.verifyPayment(paymentReference);
@@ -526,7 +558,7 @@ export default function CheckoutScreen() {
 
   useEffect(() => {
     if (!showPaymentWebView) return;
-    if (!paymentReference || paymentReference === "pending_reference") return;
+    if (!paymentReference) return;
 
     let stopped = false;
     let attempts = 0;
