@@ -148,7 +148,7 @@ function OrderHeader({
         <Text className="text-xl font-bold">Order Details</Text>
       </View>
 
-      {!isGroup && status === 'pending' && (
+      {status === 'pending' && (
         <Button
           onPress={onCancelPress}
           disabled={isCancelling}
@@ -1051,13 +1051,40 @@ export default function OrderDetailScreen() {
     setCancelDialogOpen(true);
   };
 
-  const confirmCancel = () => {
-    if (orderData.type === 'single') {
-      cancelOrder.mutate(String(orderData.order.id), {
-        onSuccess: () => refetchSingle(),
-      });
+  const confirmCancel = async () => {
+    try {
+      if (orderData.type === 'single') {
+        cancelOrder.mutate(String(orderData.order.id), {
+          onSuccess: () => refetchSingle(),
+        });
+        return;
+      }
+
+      const pendingOrders = orderData.group.orders.filter((order) => order.status === 'pending');
+      if (pendingOrders.length === 0) {
+        toast.warning('Cannot Cancel', 'Only pending orders can be cancelled.');
+        return;
+      }
+
+      await Promise.all(pendingOrders.map((order) => api.orders.cancelOrder(order.id)));
+      await refreshOrderData();
+
+      toast.success(
+        'Orders Cancelled',
+        pendingOrders.length === 1
+          ? 'Pending order was cancelled successfully.'
+          : `${pendingOrders.length} pending orders were cancelled successfully.`,
+      );
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error ??
+        error?.response?.data?.message ??
+        error?.message ??
+        'Failed to cancel order.';
+      toast.error('Cancel Failed', msg);
+    } finally {
+      setCancelDialogOpen(false);
     }
-    setCancelDialogOpen(false);
   };
 
   const handleReviewPress = (item: OrderItem, order: Order) => {
