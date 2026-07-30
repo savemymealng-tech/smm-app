@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.26.0",
+    "version": ">= 18.13.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -24,6 +24,7 @@
       }
     },
     "production": {
+      "distribution": "store",
       "autoIncrement": true,
       "env": {
         "ENVIRONMENT": "production"
@@ -34,13 +35,13 @@
     }
   },
   "submit": {
-    "preview": {},
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./android-service-account.json"
+        "serviceAccountKeyPath": "./android-service-account.json",
+        "track": "production"
       },
       "ios": {
-        "ascAppId": "YOUR_APP_STORE_ID"
+        "ascAppId": "6795679400"
       }
     }
   }
