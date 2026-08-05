@@ -35,15 +35,6 @@ export function EditProfileSheet({
 
   const pickImage = async () => {
     try {
-      // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        toast.error('Permission Denied', 'We need camera roll permissions to update your profile picture.');
-        return;
-      }
-
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
         allowsEditing: true,
