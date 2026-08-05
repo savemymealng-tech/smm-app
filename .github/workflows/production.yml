@@ -4,18 +4,41 @@ on:
   push:
     branches:
       - production
-  workflow_dispatch:
 
-concurrency:
-  group: production-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build and submit
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - both
 
 jobs:
   android:
     name: Android Production Build and Submit
+
+    # Production pushes run Android automatically.
+    # Manual runs execute Android only when android or both is selected.
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        inputs.platform == 'android' ||
+        inputs.platform == 'both'
+      }}
+
     runs-on: ubuntu-latest
+
+    concurrency:
+      group: android-production-${{ github.ref }}
+      cancel-in-progress: true
+
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4
@@ -33,28 +56,44 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: ✅ Validate required secrets
+        shell: bash
         run: |
           if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
             echo "EXPO_TOKEN is not set"
             exit 1
           fi
+
           if [ -z "${{ secrets.ANDROID_SERVICE_ACCOUNT_JSON }}" ]; then
             echo "ANDROID_SERVICE_ACCOUNT_JSON is not set"
             exit 1
           fi
 
       - name: 🔐 Prepare Google Play service account key
+        shell: bash
         run: |
           cat > android-service-account.json <<'JSON'
           ${{ secrets.ANDROID_SERVICE_ACCOUNT_JSON }}
           JSON
-          node -e "JSON.parse(require('fs').readFileSync('android-service-account.json', 'utf8'))"
+
+          node -e "
+            JSON.parse(
+              require('fs').readFileSync(
+                'android-service-account.json',
+                'utf8'
+              )
+            );
+          "
 
       - name: 📦 Install dependencies
         run: yarn install --frozen-lockfile
 
       - name: 🚀 Build and Submit Production (Android)
-        run: eas build --platform android --profile production --non-interactive --auto-submit
+        run: >
+          eas build
+          --platform android
+          --profile production
+          --non-interactive
+          --auto-submit
 
       - name: 🧹 Cleanup credentials
         if: always()
@@ -62,18 +101,31 @@ jobs:
 
       - name: 📢 Android Success
         if: success()
-        run: echo "✅ Android production build and submit completed successfully!"
+        run: echo "✅ Android production build and submission completed."
 
       - name: 📢 Android Failure
         if: failure()
-        run: echo "❌ Android production build or submit failed. Check the logs for details."
+        run: echo "❌ Android build or submission failed. Check the logs."
 
   ios:
     name: iOS Production Build and Submit
+
+    # iOS runs only when manually selected.
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' &&
+        (inputs.platform == 'ios' || inputs.platform == 'both')
+      }}
+
     runs-on: ubuntu-latest
-    continue-on-error: true
+
+    concurrency:
+      group: ios-production-${{ github.ref }}
+      cancel-in-progress: true
+
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4
@@ -91,6 +143,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: ✅ Validate Expo token
+        shell: bash
         run: |
           if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
             echo "EXPO_TOKEN is not set"
@@ -100,12 +153,18 @@ jobs:
       - name: 📦 Install dependencies
         run: yarn install --frozen-lockfile
 
-      # iOS builds require Apple Developer credentials to be set up
-      # Run 'eas build --platform ios --profile production' locally once to configure
-      # See IOS_CREDENTIALS_SETUP.md for detailed instructions
       - name: 🚀 Build and Submit Production (iOS)
-        run: eas build --platform ios --profile production --non-interactive --auto-submit
+        run: >
+          eas build
+          --platform ios
+          --profile production
+          --non-interactive
+          --auto-submit
 
-      - name: 📢 iOS Status
-        if: always()
-        run: echo "ℹ️ iOS job is best-effort and does not block Android production releases."
+      - name: 📢 iOS Success
+        if: success()
+        run: echo "✅ iOS production build and submission completed."
+
+      - name: 📢 iOS Failure
+        if: failure()
+        run: echo "❌ iOS build or submission failed. Check the logs."

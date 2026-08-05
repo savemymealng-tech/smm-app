@@ -1,7 +1,6 @@
 import { toast } from '@/components/ui/toast';
-import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { View } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { captureRef } from 'react-native-view-shot';
@@ -52,13 +51,8 @@ export function QRCodeActions({
 
   const handleSaveQR = async () => {
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      
-      if (status !== 'granted') {
-        toast.warning(
-          'Permission Required',
-          'Please grant permission to save images to your photo library'
-        );
+      if (!(await Sharing.isAvailableAsync())) {
+        toast.error('Saving Unavailable', 'Saving is not available on this device');
         return;
       }
 
@@ -68,10 +62,10 @@ export function QRCodeActions({
           quality: 1,
         });
 
-        const asset = await MediaLibrary.createAssetAsync(uri);
-        await MediaLibrary.createAlbumAsync('Party With Me', asset, false);
-        
-        toast.success('Saved', 'QR code saved to your photo library');
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `Save QR Code - ${eventTitle}`,
+        });
       }
     } catch (error) {
       console.error('Error saving QR code:', error);
