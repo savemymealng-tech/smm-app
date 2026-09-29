@@ -406,6 +406,8 @@ export default function HomeScreen() {
     location,
     isLoading: loadingLocation,
     refreshLocation,
+    requestLocation,
+    error: locationError,
   } = useLocation();
 
   // Nearby vendors based on user location
@@ -505,8 +507,9 @@ export default function HomeScreen() {
         <WelcomeHeader
           address={location?.address}
           isLoading={loadingLocation}
-          onPress={refreshLocation}
+          onPress={requestLocation}
         />
+        {locationError && <Text className="px-4 pb-2 text-sm text-gray-500">{locationError}</Text>}
         <SearchBar />
       </View>
 

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import * as Location from 'expo-location';
+import { getLocationAccess } from '@/lib/locationAccess';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
@@ -22,6 +23,7 @@ interface LocationPickerProps {
 }
 
 export function LocationPicker({ onLocationSelected, initialLocation }: LocationPickerProps) {
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isGettingCurrent, setIsGettingCurrent] = useState(false);
@@ -29,12 +31,11 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
 
   const handleUseCurrentLocation = async () => {
     setIsGettingCurrent(true);
+    setLocationNotice(null);
     try {
-      // Request permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        toast.error('Permission Denied', 'We need location permission to get your current location');
+      const access = await getLocationAccess(true);
+      if (!access.available) {
+        setLocationNotice(access.message);
         return;
       }
 
@@ -65,7 +66,7 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
       }
     } catch (error) {
       console.error('Error getting current location:', error);
-      toast.error('Error', 'Failed to get your current location');
+      setLocationNotice('Current location is unavailable. Search for an address or fill in the address fields manually.');
     } finally {
       setIsGettingCurrent(false);
     }
@@ -73,10 +74,11 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      toast.warning('Enter Location', 'Please enter a location to search');
+      setLocationNotice('Please enter a location to search.');
       return;
     }
 
+    setLocationNotice(null);
     setIsSearching(true);
     setSearchResults([]);
 
@@ -85,7 +87,7 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
       const results = await Location.geocodeAsync(searchQuery);
 
       if (results.length === 0) {
-        toast.info('No Results', 'No locations found for your search');
+        setLocationNotice('No locations found. You can enter the address fields manually.');
         return;
       }
 
@@ -93,6 +95,11 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
       const locationResults: LocationResult[] = [];
       
       for (const result of results.slice(0, 5)) { // Limit to 5 results
+        const fallback: LocationResult = {
+          address: searchQuery.trim(),
+          latitude: result.latitude,
+          longitude: result.longitude,
+        };
         try {
           const addresses = await Location.reverseGeocodeAsync({
             latitude: result.latitude,
@@ -109,8 +116,11 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
               street: address.street || undefined,
               postalCode: address.postalCode || undefined,
             });
+          } else {
+            locationResults.push(fallback);
           }
         } catch (err) {
+          locationResults.push(fallback);
           console.error('Error reverse geocoding:', err);
         }
       }
@@ -118,11 +128,11 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
       setSearchResults(locationResults);
 
       if (locationResults.length === 0) {
-        toast.info('No Results', 'Could not find detailed information for these locations');
+        setLocationNotice('Could not find these locations. You can enter the address fields manually.');
       }
     } catch (error) {
       console.error('Error searching location:', error);
-      toast.error('Search Failed', 'Failed to search for location');
+      setLocationNotice('Address search is unavailable. You can enter the address fields manually.');
     } finally {
       setIsSearching(false);
     }
@@ -155,6 +165,8 @@ export function LocationPicker({ onLocationSelected, initialLocation }: Location
           </View>
         )}
       </Button>
+
+      {locationNotice && <Text className="mb-3 text-sm text-gray-600">{locationNotice}</Text>}
 
       {/* Divider */}
       <View className="flex-row items-center my-4">

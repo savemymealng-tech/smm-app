@@ -110,7 +110,7 @@ export default function VendorsScreen() {
   const [customRadius, setCustomRadius] = useState("");
 
   // Get user location
-  const { location, isLoading: loadingLocation, refreshLocation } = useLocation();
+  const { location, isLoading: loadingLocation, requestLocation, error: locationError } = useLocation();
 
   // Default city for search
   const defaultCity = "Lagos";
@@ -283,7 +283,7 @@ export default function VendorsScreen() {
           <Pressable
             onPress={() => {
               if (!location) {
-                refreshLocation();
+                requestLocation();
               }
               setFilterType("nearby");
             }}
@@ -400,14 +400,14 @@ export default function VendorsScreen() {
             {filterType === "nearby"
               ? location
                 ? "No vendors found nearby"
-                : "Enable location to find nearby vendors"
+                : locationError || "Use current location to find nearby vendors, or choose All to browse without location"
               : filterType === "featured"
               ? "No featured vendors at the moment"
               : "No vendors available"}
           </Text>
           {filterType === "nearby" && !location && (
             <Pressable
-              onPress={refreshLocation}
+              onPress={requestLocation}
               className="mt-4 bg-[#1E8449] px-6 py-3 rounded-full"
             >
               <Text className="text-white font-semibold">Enable Location</Text>

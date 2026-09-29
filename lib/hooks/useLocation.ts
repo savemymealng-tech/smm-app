@@ -1,93 +1,30 @@
-/**
- * useLocation Hook
- * Handles location permissions and GPS coordinate tracking
- */
-
-import { toast } from '@/components/ui/toast';
+/** Location enhances browsing; it never gates navigation. */
 import * as Location from 'expo-location';
 import { useAtom } from 'jotai';
-import { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Linking } from 'react-native';
 import { locationAtom, type UserLocation } from '../atoms/location';
+import { getLocationAccess, type LocationPermissionStatus } from '../locationAccess';
 
-export type LocationPermissionStatus = 
-  | 'undetermined' 
-  | 'granted' 
-  | 'denied' 
-  | 'restricted';
+export type { LocationPermissionStatus } from '../locationAccess';
 
 export interface UseLocationReturn {
-  /** Current user location */
   location: UserLocation;
-  /** Whether location is currently being fetched */
   isLoading: boolean;
-  /** Error message if location fetch failed */
   error: string | null;
-  /** Current permission status */
   permissionStatus: LocationPermissionStatus;
-  /** Request location permission and get current location */
   requestLocation: () => Promise<void>;
-  /** Refresh location (re-fetch current position) */
   refreshLocation: () => Promise<void>;
-  /** Open device settings for location permissions */
   openSettings: () => Promise<void>;
 }
 
-/**
- * Hook to manage user location with permission handling
- * @param autoRequest - Whether to automatically request location on mount (default: true)
- */
+/** autoRequest refreshes already-authorized GPS only; it never prompts. */
 export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   const [location, setLocation] = useAtom(locationAtom);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<LocationPermissionStatus>('undetermined');
-
-  /**
-   * Check current permission status
-   */
-  const checkPermission = useCallback(async (): Promise<LocationPermissionStatus> => {
-    try {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      const mappedStatus: LocationPermissionStatus = 
-        status === Location.PermissionStatus.GRANTED ? 'granted' :
-        status === Location.PermissionStatus.DENIED ? 'denied' :
-        'undetermined';
-      
-      setPermissionStatus(mappedStatus);
-      return mappedStatus;
-    } catch (err) {
-      console.error('Error checking location permission:', err);
-      return 'undetermined';
-    }
-  }, []);
-
-  /**
-   * Request location permission
-   */
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      const mappedStatus: LocationPermissionStatus = 
-        status === Location.PermissionStatus.GRANTED ? 'granted' :
-        status === Location.PermissionStatus.DENIED ? 'denied' :
-        'undetermined';
-      
-      setPermissionStatus(mappedStatus);
-      
-      if (status !== Location.PermissionStatus.GRANTED) {
-        setError('Location permission denied');
-        return false;
-      }
-      
-      return true;
-    } catch (err) {
-      console.error('Error requesting location permission:', err);
-      setError('Failed to request location permission');
-      return false;
-    }
-  }, []);
+  const inFlight = useRef(false);
 
   /**
    * Get current position
@@ -134,115 +71,54 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
     }
   }, []);
 
-  /**
-   * Request location permission and get current location
-   */
-  const requestLocation = useCallback(async () => {
+  const updateLocation = useCallback(async (allowPrompt: boolean) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setIsLoading(true);
     setError(null);
-
     try {
-      // Check/request permission
-      const currentStatus = await checkPermission();
-      
-      if (currentStatus === 'denied') {
-        // Permission was previously denied, show toast and offer to open settings
-        toast.warning(
-          'Location Permission Required',
-          'Tap to open settings and enable location access'
-        );
-        // Auto-open settings for convenience
-        openSettings();
-        setIsLoading(false);
+      const access = await getLocationAccess(allowPrompt);
+      setPermissionStatus(access.status);
+      if (!access.available) {
+        setLocation(null);
+        if (allowPrompt) setError(access.message);
         return;
       }
-
-      if (currentStatus !== 'granted') {
-        const granted = await requestPermission();
-        if (!granted) {
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Get current position
-      const userLocation = await getCurrentPosition();
-      
-      if (userLocation) {
-        setLocation(userLocation);
-        console.log('📍 Location updated:', userLocation.coords);
-      }
+      const nextLocation = await getCurrentPosition();
+      // Permission/services may have changed while GPS or geocoding was pending.
+      const latest = await getLocationAccess(false);
+      setPermissionStatus(latest.status);
+      setLocation(latest.available ? nextLocation : null);
     } catch (err: any) {
-      setError(err.message || 'Failed to get location');
+      setLocation(null);
+      if (allowPrompt) setError('Current location is unavailable. You can continue browsing or enter an address manually.');
       console.error('Location error:', err);
     } finally {
+      inFlight.current = false;
       setIsLoading(false);
     }
-  }, [checkPermission, requestPermission, getCurrentPosition, setLocation]);
+  }, [getCurrentPosition, setLocation]);
 
-  /**
-   * Refresh location (re-fetch current position)
-   */
-  const refreshLocation = useCallback(async () => {
-    if (permissionStatus !== 'granted') {
-      await requestLocation();
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const userLocation = await getCurrentPosition();
-      
-      if (userLocation) {
-        setLocation(userLocation);
-        console.log('📍 Location refreshed:', userLocation.coords);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh location');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [permissionStatus, requestLocation, getCurrentPosition, setLocation]);
-
-  /**
-   * Open device settings for location permissions
-   */
+  const requestLocation = useCallback(() => updateLocation(true), [updateLocation]);
+  const refreshLocation = useCallback(() => updateLocation(false), [updateLocation]);
   const openSettings = useCallback(async () => {
     try {
-      if (Platform.OS === 'ios') {
-        await Linking.openURL('app-settings:');
-      } else {
-        await Linking.openSettings();
-      }
-    } catch (err) {
-      console.error('Failed to open settings:', err);
-      toast.error('Error', 'Unable to open settings. Please enable location manually.');
+      await Linking.openSettings();
+    } catch {
+      setError('Unable to open Settings. You can continue without location.');
     }
   }, []);
 
-  // Check permission status on mount
   useEffect(() => {
-    checkPermission();
-  }, [checkPermission]);
+    if (!autoRequest) return;
+    void refreshLocation();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshLocation();
+    });
+    return () => subscription.remove();
+  }, [autoRequest, refreshLocation]);
 
-  // Auto-request location on mount if enabled and no location exists
-  useEffect(() => {
-    if (autoRequest && !location) {
-      requestLocation();
-    }
-  }, [autoRequest]); // Only run on mount
-
-  return {
-    location,
-    isLoading,
-    error,
-    permissionStatus,
-    requestLocation,
-    refreshLocation,
-    openSettings,
-  };
+  return { location, isLoading, error, permissionStatus, requestLocation, refreshLocation, openSettings };
 }
 
 export default useLocation;
