@@ -1,3 +1,4 @@
+import { growthApi } from "@/lib/api/growth";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -241,10 +242,26 @@ export default function CheckoutScreen() {
     setSelectedAddress(defaultAddr);
   }, [addresses, selectedAddress]);
 
-  const total = useMemo(
+  const legacyTotal = useMemo(
     () => subtotal + deliveryFee + serviceFee + tax,
     [subtotal, deliveryFee, serviceFee, tax]
   );
+
+  const [offerCode, setOfferCode] = useState("");
+  const [appliedCode, setAppliedCode] = useState("");
+  const [coinInput, setCoinInput] = useState("0");
+  const [appliedCoins, setAppliedCoins] = useState(0);
+  const requestKey = useRef(`checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+  const growthConfig = useQuery({ queryKey: ["growth-config"], queryFn: growthApi.config });
+  const cartSignature = JSON.stringify(cart.map(item => ({id: item.productId, quantity: item.quantity, fulfillment: item.fulfillment_method})));
+  const quoteQuery = useQuery({
+    queryKey: ["checkout-quote", cartSignature, appliedCode, appliedCoins],
+    queryFn: () => growthApi.quote({ use_cart: true, campaign_code: appliedCode || undefined, coins: appliedCoins }),
+    enabled: Boolean(growthConfig.data?.enabled && cart.length), retry: false, refetchInterval: 60000,
+  });
+  const serverQuote = growthConfig.data?.enabled ? quoteQuery.data : undefined;
+  const total = serverQuote ? serverQuote.payable_kobo / 100 : legacyTotal;
+  const quoteNotReady = Boolean(growthConfig.data?.enabled && (quoteQuery.isFetching || quoteQuery.isError || !serverQuote));
 
   // Check if any items require fulfillment choice
   const hasItemsRequiringChoice = useMemo(() => {
@@ -306,6 +323,7 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (quoteNotReady) { toast.warning("Refresh checkout", "Wait for your final price before placing this order."); return; }
     setIsProcessing(true);
 
     try {
@@ -317,6 +335,12 @@ export default function CheckoutScreen() {
         recipient_name: user?.full_name || user?.name || undefined,
         special_instructions: deliveryNotes || undefined,
         payment_method: "card" as const,
+        ...(growthConfig.data?.enabled ? {
+          campaign_code: appliedCode || undefined,
+          coins: appliedCoins,
+          quote_token: serverQuote?.quote_token,
+          request_key: requestKey.current,
+        } : {}),
       };
 
       // Log for debugging - ensure address is included for delivery orders
@@ -334,6 +358,12 @@ export default function CheckoutScreen() {
       // 1) { orders, payment, error }
       // 2) { order, payment, error }
       // 3) single Order object with nested payment
+      if (response?.paid === true) {
+        clearCart.mutate();
+        setSuccessMessage("Your order is confirmed. Your offer and SMM Coin covered the amount due.");
+        setSuccessDialogOpen(true);
+        return;
+      }
       const ordersSource = response?.orders ?? response?.order ?? response;
       const ordersList = Array.isArray(ordersSource)
         ? ordersSource
@@ -529,7 +559,7 @@ export default function CheckoutScreen() {
       clearCart.mutate();
       setPaymentUrl(null);
       setPaymentReference(null);
-      setSuccessMessage("Payment successful! Your order has been confirmed.");
+      setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
       setSuccessDialogOpen(true);
     } catch (err) {
       console.error("Payment verification failed:", err);
@@ -557,7 +587,7 @@ export default function CheckoutScreen() {
           clearCart.mutate();
           setPaymentUrl(null);
           setPaymentReference(null);
-          setSuccessMessage("Payment successful! Your order has been confirmed.");
+          setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
           setSuccessDialogOpen(true);
           return;
         }
@@ -622,7 +652,7 @@ export default function CheckoutScreen() {
             setPaymentUrl(null);
             setPaymentReference(null);
             clearCart.mutate();
-            setSuccessMessage("Payment successful! Your order has been confirmed.");
+            setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
             setSuccessDialogOpen(true);
           }
         })
@@ -668,15 +698,25 @@ export default function CheckoutScreen() {
         <View className="bg-white p-4 mb-4">
           <SectionHeader title="Order Summary" />
           <TotalsDisplay
-            subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            serviceFee={serviceFee}
-            tax={tax}
+            subtotal={serverQuote ? serverQuote.subtotal_kobo / 100 : subtotal}
+            deliveryFee={serverQuote ? serverQuote.delivery_kobo / 100 : deliveryFee}
+            serviceFee={serverQuote ? serverQuote.service_fee_kobo / 100 : serviceFee}
+            tax={serverQuote ? 0 : tax}
             total={total}
           />
         </View>
 
 
+
+        {growthConfig.data?.enabled && <View className="mb-4 bg-white p-4">
+          <Text className="text-lg font-semibold">Offers & SMM Coin</Text>
+          <TextInput className="mt-4 rounded-xl border border-gray-300 p-3" placeholder="Promotion code (optional)" value={offerCode} onChangeText={setOfferCode} autoCapitalize="characters" maxLength={40} />
+          {growthConfig.data.coins_enabled && <><Text className="mt-4 text-sm">Coins to spend (whole coins)</Text><TextInput className="mt-2 rounded-xl border border-gray-300 p-3" value={coinInput} onChangeText={setCoinInput} keyboardType="number-pad" /><Pressable onPress={() => router.push('/rewards' as any)}><Text className="mt-3 text-[#008236]">View my balance and rewards</Text></Pressable></>}
+          <Pressable className="mt-4 rounded-xl bg-[#008236] p-3" onPress={() => { const coins = Number(coinInput); if (!Number.isSafeInteger(coins) || coins < 0) { toast.warning("Invalid coins", "Enter a whole number of coins."); return; } setAppliedCode(offerCode.trim().toUpperCase());setAppliedCoins(coins);void quoteQuery.refetch();}}><Text className="text-center font-semibold text-white">Apply and refresh total</Text></Pressable>
+          {quoteQuery.isFetching && <Text className="mt-3 text-gray-500">Updating your total…</Text>}
+          {quoteQuery.isError && <Text accessibilityRole="alert" className="mt-3 text-red-700">{String(quoteQuery.error?.message || 'Could not confirm this offer. Remove the code or refresh.')}</Text>}
+          {serverQuote && <View className="mt-4"><Text>{serverQuote.campaign?.name || 'No promotional discount applied'}</Text><Text className="mt-2 text-[#008236]">Offer savings: −{formatCurrency(serverQuote.discount_kobo / 100)}</Text>{serverQuote.coins_kobo > 0 && <Text className="mt-2 text-[#008236]">SMM Coin: −{formatCurrency(serverQuote.coins_kobo / 100)}</Text>}<Text className="mt-3 font-semibold">Amount to pay: {formatCurrency(serverQuote.payable_kobo / 100)}</Text></View>}
+        </View>}
 
         {/* Pickup Information */}
         {hasPickupItems && (
@@ -755,7 +795,7 @@ export default function CheckoutScreen() {
 
         <Button
           onPress={handlePlaceOrder}
-          disabled={!canPlaceOrder}
+          disabled={!canPlaceOrder || quoteNotReady}
           className="w-full"
         >
           {isProcessing ? (

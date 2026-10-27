@@ -9,6 +9,7 @@ import { API_CONFIG } from './config';
 
 // Request types (matching API guide)
 export interface SignupRequest {
+  referral_code?: string;
   email: string;
   password: string;
   phone: string;

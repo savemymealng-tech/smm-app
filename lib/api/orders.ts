@@ -16,6 +16,10 @@ export const ordersApi = {
     const body = data.use_cart
       ? {
           use_cart: true,
+          campaign_code: data.campaign_code,
+          coins: data.coins,
+          quote_token: data.quote_token,
+          request_key: data.request_key,
           address_id: data.address_id,
           delivery_address: data.delivery_address,
           recipient_name: data.recipient_name,

@@ -333,6 +333,10 @@ export interface Order {
 }
 
 export interface PlaceOrderRequest {
+  campaign_code?: string;
+  coins?: number;
+  quote_token?: string;
+  request_key?: string;
   /** When true, server uses current user cart; items can be omitted. Preferred when logged in. */
   use_cart?: boolean;
   /** Order line items. Omit or leave empty when use_cart is true. */
@@ -368,6 +372,8 @@ export interface InitializePaymentResponse {
 }
 
 export interface PaymentVerification {
+  requires_review?: boolean;
+  message?: string;
   reference: string;
   amount: string;
   status: 'success' | 'failed' | 'abandoned' | 'refunded';

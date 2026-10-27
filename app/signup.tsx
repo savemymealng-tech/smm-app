@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAtom } from 'jotai';
 import { useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -12,6 +12,8 @@ import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
+  const referralParams = useLocalSearchParams<{referral_code?: string}>();
+  const [referralCode, setReferralCode] = useState(typeof referralParams.referral_code === 'string' ? referralParams.referral_code : '');
   const [, setAuthState] = useAtom(setAuthStateAtom);
   const [, setVerificationContext] = useAtom(verificationContextAtom);
   
@@ -55,6 +57,7 @@ export default function SignupScreen() {
         email: formData.email.trim(),
         password: formData.password.trim(),
         phone: formData.phone.trim(),
+        referral_code: referralCode.trim() || undefined,
       });
       
       // Signup successful - navigate to verification screen
@@ -255,6 +258,11 @@ export default function SignupScreen() {
             </View>
           </View>
 
+          <View className="mb-5">
+            <Text className="mb-2 text-gray-700">Referral code (optional)</Text>
+            <TextInput value={referralCode} onChangeText={setReferralCode} autoCapitalize="characters" maxLength={40} placeholder="Friend or partner code" className="rounded-xl border border-gray-300 p-4" />
+            <Text className="mt-2 text-xs text-gray-500">Enter your invite before creating your account. Eligible benefits are confirmed at checkout.</Text>
+          </View>
           {/* Confirm Password Field */}
           <View className="mb-6">
             <Text className="text-sm font-medium text-gray-700 mb-2">

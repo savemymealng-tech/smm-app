@@ -46,6 +46,11 @@ export default function RedirectScreen() {
     // Normalise: strip leading slash and lower-case for matching
     const normalised = path.replace(/^\//, "").toLowerCase();
 
+    if (normalised === "signup") {
+      router.replace({ pathname: "/signup", params: parsedParams });
+      return;
+    }
+
     // ── Auth flows ──────────────────────────────────────────────────────────
     if (normalised === "verify-otp") {
       router.replace({

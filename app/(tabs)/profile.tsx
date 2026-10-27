@@ -130,6 +130,7 @@ export default function ProfileScreen() {
           <Text className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
             Activity
           </Text>
+          <ProfileMenuItem icon="gift.fill" label="SMM Coin & referrals" onPress={() => router.push('/rewards' as any)} />
           <ProfileMenuItem
             icon="calendar"
             label="Order History"
