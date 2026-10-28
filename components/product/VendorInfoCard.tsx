@@ -1,11 +1,12 @@
-import { useRouter } from "expo-router";
-import { Pressable, View } from "react-native";
+import { ratingLabel } from '@/lib/product-display';
+import { useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Text } from "@/components/ui/text";
-import { getImageSource } from "@/lib/utils";
-import type { Vendor } from "@/types/api";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Text } from '@/components/ui/text';
+import { getImageSource } from '@/lib/utils';
+import type { Vendor } from '@/types/api';
 
 interface VendorInfoCardProps {
   vendor: Vendor;
@@ -22,12 +23,18 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
     >
       <View className="flex-row items-center">
         <Avatar
-          className="w-14 h-14 rounded-full border-2 border-blue-100"
+          style={{ width: 56, height: 56, borderRadius: 28 }}
+          className="w-14 h-14 rounded-full border-2 border-green-100"
           alt={vendor.business_name}
         >
-          <AvatarImage source={getImageSource(vendor.logo) || require('@/assets/images/default-profile.jpg')} />
-          <AvatarFallback className="bg-blue-100">
-            <Text className="text-blue-600 font-bold text-lg">
+          <AvatarImage
+            source={
+              getImageSource(vendor.logo) ||
+              require('@/assets/images/default-profile.jpg')
+            }
+          />
+          <AvatarFallback className="bg-green-50">
+            <Text className="text-[#008236] font-bold text-lg">
               {vendor.business_name.charAt(0)}
             </Text>
           </AvatarFallback>
@@ -38,7 +45,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
               {vendor.business_name}
             </Text>
             {vendor.verification_status === 'approved' && (
-              <View className="ml-2 bg-blue-100 rounded-full p-0.5">
+              <View className="ml-2 bg-green-50 rounded-full p-0.5">
                 <IconSymbol name="checkmark" size={14} color="#3b82f6" />
               </View>
             )}
@@ -46,12 +53,17 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
           <View className="flex-row items-center mb-1">
             <IconSymbol name="star.fill" size={14} color="#fbbf24" />
             <Text className="ml-1 text-sm font-semibold text-gray-900">
-              {parseFloat(vendor.rating).toFixed(1)}
+              {ratingLabel(vendor.rating)}
             </Text>
             <Text className="text-gray-500 text-sm ml-1.5">
               ({Number(orderCount).toLocaleString()} orders)
             </Text>
           </View>
+          {!!vendor.address && (
+            <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
+              Pickup: {vendor.address}
+            </Text>
+          )}
           {vendor.distance && (
             <View className="flex-row items-center mt-1">
               <IconSymbol name="location.fill" size={13} color="#666" />
@@ -66,4 +78,3 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
     </Pressable>
   );
 }
-

@@ -1,3 +1,4 @@
+import { attachRateLimitHandling, retryAfterSeconds } from './rate-limit';
 /**
  * API Client
  * Axios instance with interceptors for authentication and error handling
@@ -106,6 +107,9 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
+const refreshClient = axios.create({ baseURL: API_CONFIG.BASE_URL });
+attachRateLimitHandling(refreshClient);
+
 // Request queue for handling concurrent 401 errors
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -142,8 +146,8 @@ const refreshAccessToken = async (): Promise<string> => {
   console.log('🔄 [RefreshToken] Sending refresh request to:', `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`);
   console.log('🔄 [RefreshToken] Request body:', { refreshToken: `${refreshToken.substring(0, 20)}...` });
 
-  const response = await axios.post<ApiResponse<{ token: string; refreshToken?: string }>>(
-    `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH}`,
+  const response = await refreshClient.post<ApiResponse<{ token: string; refreshToken?: string }>>(
+    API_CONFIG.ENDPOINTS.AUTH.REFRESH,
     { refreshToken },
     {
       headers: {
@@ -173,6 +177,8 @@ const refreshAccessToken = async (): Promise<string> => {
 // Request interceptor - add auth token and handle proactive refresh
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    // Public auth flows and refresh must not trigger another proactive refresh.
+    if (config.url?.includes('/auth/')) return config;
     const token = await tokenManager.getAccessToken();
     
     if (token) {
@@ -231,6 +237,8 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+attachRateLimitHandling(apiClient);
 
 // Response interceptor - handle errors and token refresh with request queue
 apiClient.interceptors.response.use(
@@ -351,12 +359,13 @@ apiClient.interceptors.response.use(
       errorMessage = 'Server error. Please try again later.';
     }
     
-    const apiError: ApiResponse & { statusCode?: number; responseData?: any } = {
+    const apiError: ApiResponse & { statusCode?: number; responseData?: any; retryAfterSeconds?: number } = {
       success: false,
       error: errorMessage,
       validationErrors: error.response?.data?.validationErrors,
       statusCode: error.response?.status,
       responseData: error.response?.data,
+      ...(error.response?.status === 429 ? { retryAfterSeconds: retryAfterSeconds(error.response.headers?.['retry-after'], (error.response.data as any)?.rateLimit?.retryAfterSeconds) } : {}),
     };
 
     return Promise.reject(apiError);

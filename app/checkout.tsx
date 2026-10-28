@@ -1,227 +1,71 @@
-import { growthApi } from "@/lib/api/growth";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { formatMoney as formatCurrency } from '@/lib/order-display';
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import {
-  ActivityIndicator,
+  Screen,
+  PageScroll,
+  Card,
+  Action,
+  AmountRow,
+  ui,
+  palette,
+} from '@/components/ui/screen-kit';
+import { AppImage } from '@/components/ui/app-image';
+import { rateLimitWaitMs } from '@/lib/api/rate-limit';
+import { OutcomeDialog } from '@/components/ui/outcome-dialog';
+import { growthApi } from '@/lib/api/growth';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
-  ScrollView,
   TextInput,
   View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
 
+import { PaystackWebView } from '@/components/ui/paystack-webview';
+import { Text } from '@/components/ui/text';
+import { toast } from '@/components/ui/toast';
+
+import { api } from '@/lib/api';
+
+import { usePlaceOrder, useVerifyPayment } from '@/lib/hooks';
+import { useHybridCart, useHybridClearCart } from '@/lib/hooks/use-hybrid-cart';
+import { useProfile } from '@/lib/hooks/use-profile';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { Button } from "@/components/ui/button";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { PaystackWebView } from "@/components/ui/paystack-webview";
-import { Text } from "@/components/ui/text";
-import { toast } from "@/components/ui/toast";
-
-import { api } from "@/lib/api";
-import { addressesApi } from "@/lib/api/addresses";
-import {
-  usePlaceOrder,
-  useVerifyPayment,
-} from "@/lib/hooks";
-import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
-import { useProfile } from "@/lib/hooks/use-profile";
-import { formatCurrency, formatTime12Hour, getEffectivePickupDay } from "@/lib/utils";
-
-import type { Address } from "../types";
-
-// ────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────
-
-interface CartItem {
-  id?: string | number;
-  product_id?: string | number;
-  productId?: string | number;
-  product?: { id: string | number };
-  quantity: number;
-}
-
-// ────────────────────────────────────────────────
-// Sub-components
-// ────────────────────────────────────────────────
-
-function SectionHeader({
-  title,
-  actionText,
-  onAction,
-}: {
-  title: string;
-  actionText?: string;
-  onAction?: () => void;
-}) {
-  return (
-    <View className="flex-row items-center justify-between mb-3">
-      <Text className="text-lg font-semibold text-gray-900">{title}</Text>
-      {actionText && onAction && (
-        <Pressable onPress={onAction}>
-          <Text className="text-primary">{actionText}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-function AddressDisplay({ address }: { address: Address }) {
-  return (
-    <View className="bg-gray-50 rounded-lg p-3">
-      <View className="flex-row items-center mb-1">
-        <IconSymbol name="location.fill" size={16} color="#666" />
-        <Text className="ml-2 font-semibold capitalize">{address.type}</Text>
-      </View>
-      <Text className="text-gray-700">
-        {address.street}, {address.city}, {address.state?.name || ''} {address.zipCode}
-      </Text>
-    </View>
-  );
-}
-
-function PaymentMethodDisplay({
-  method,
-}: {
-  method: "card" | null;
-}) {
-  if (!method) return null;
-
-  return (
-    <View className="bg-gray-50 rounded-lg p-3">
-      <View className="flex-row items-center">
-        <IconSymbol name="creditcard.fill" size={16} color="#666" />
-        <Text className="ml-2 font-semibold">Online Payment</Text>
-      </View>
-      <Text className="text-xs text-gray-500 mt-1">Pay via Paystack</Text>
-    </View>
-  );
-}
-
-function TotalsDisplay({
-  subtotal,
-  deliveryFee,
-  serviceFee,
-  tax,
-  total,
-}: {
-  subtotal: number;
-  deliveryFee: number;
-  serviceFee: number;
-  tax: number;
-  total: number;
-}) {
-  return (
-    <View className="mb-4">
-      <View className="flex-row justify-between mb-2">
-        <Text className="text-gray-600">Subtotal</Text>
-        <Text className="text-gray-900 font-medium">{formatCurrency(subtotal)}</Text>
-      </View>
-      {deliveryFee > 0 && (
-        <View className="flex-row justify-between mb-2">
-          <Text className="text-gray-600">Delivery Fee</Text>
-          <Text className="text-gray-900 font-medium">{formatCurrency(deliveryFee)}</Text>
-        </View>
-      )}
-      {serviceFee > 0 && (
-        <View className="flex-row justify-between mb-2">
-          <Text className="text-gray-600">Service Fee</Text>
-          <Text className="text-gray-900 font-medium">{formatCurrency(serviceFee)}</Text>
-        </View>
-      )}
-      <View className="border-t border-gray-200 my-3" />
-      <View className="flex-row justify-between">
-        <Text className="text-lg font-bold text-gray-900">Total</Text>
-        <Text className="text-lg font-bold text-gray-900">{formatCurrency(total)}</Text>
-      </View>
-    </View>
-  );
-}
-
-// ────────────────────────────────────────────────
-// Main Component
-// ────────────────────────────────────────────────
+  formatTime12Hour,
+  getEffectivePickupDay,
+  getImageSource,
+} from '@/lib/utils';
 
 export default function CheckoutScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
 
   const { cart, subtotal, deliveryFee, serviceFee, tax } = useHybridCart();
   const { data: user } = useProfile();
   const clearCart = useHybridClearCart();
 
-  // Check if cart has delivery or pickup items based on selected fulfillment method
-  const hasDeliveryItems = useMemo(() => {
-    return cart.some(item => 
-      (item as any).fulfillment_method === 'delivery' || 
-      (item.product?.available_for_delivery && !item.product?.available_for_pickup)
-    );
+  const hasDeliveryItems = cart.some(
+    (item) =>
+      item.fulfillment_method === 'delivery' ||
+      item.product?.available_for_pickup === false,
+  );
+  const vendorGroups = useMemo(() => {
+    const groups = new Map<string, typeof cart>();
+    for (const item of cart) {
+      const key = item.vendorId || 'unknown';
+      groups.set(key, [...(groups.get(key) || []), item]);
+    }
+    return [...groups.entries()];
   }, [cart]);
-
-  const hasPickupItems = useMemo(() => {
-    return cart.some(item => 
-      (item as any).fulfillment_method === 'pickup' || 
-      (item.product?.available_for_pickup && !item.product?.available_for_delivery)
-    );
-  }, [cart]);
-
-  // Calculate estimated delivery/pickup times from cart
-  const estimatedTimes = useMemo(() => {
-    const deliveryItems = cart.filter(item => 
-      (item as any).fulfillment_method === 'delivery' || 
-      (item.product?.available_for_delivery && !item.product?.available_for_pickup)
-    );
-    const pickupItems = cart.filter(item => 
-      (item as any).fulfillment_method === 'pickup' || 
-      (item.product?.available_for_pickup && !item.product?.available_for_delivery)
-    );
-
-    const maxDeliveryTime = deliveryItems.reduce((max, item) => {
-      const time = item.product?.delivery_time_minutes || 0;
-      return time > max ? time : max;
-    }, 0);
-
-    // Get pickup time ranges from products
-    const pickupTimeRanges = pickupItems
-      .map(item => ({
-        start: item.product?.pickup_start_time,
-        end: item.product?.pickup_end_time,
-        day: item.product?.pickup_day
-      }))
-      .filter(range => range.start && range.end);
-
-    return { 
-      delivery: maxDeliveryTime, 
-      pickupTimeRanges,
-      hasDelivery: deliveryItems.length > 0,
-      hasPickup: pickupItems.length > 0
-    };
-  }, [cart]);
-
-  // Fetch addresses from API
-  const { data: addresses = [], isLoading: loadingAddresses } = useQuery({
-    queryKey: ['addresses'],
-    queryFn: () => addressesApi.getAddresses(),
-    staleTime: 30000,
-  });
-
+  const [offersOpen, setOffersOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const placeOrder = usePlaceOrder();
   const verifyPayment = useVerifyPayment();
 
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<"card">("card");
-  const [deliveryNotes, setDeliveryNotes] = useState("");
-  const [showAddressSelector, setShowAddressSelector] = useState(false);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPaymentWebView, setShowPaymentWebView] = useState(false);
@@ -231,99 +75,131 @@ export default function CheckoutScreen() {
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<number | null>(null);
-  const [successMessage, setSuccessMessage] = useState("");
-
-  // Auto-select default address
-  useEffect(() => {
-    if (selectedAddress) return;
-    if (!addresses?.length) return;
-
-    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
-    setSelectedAddress(defaultAddr);
-  }, [addresses, selectedAddress]);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [paymentOutcome, setPaymentOutcome] = useState<{
+    kind: 'pending' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+  const showPaymentStatus = (
+    kind: 'pending' | 'error',
+    title: string,
+    message: string,
+  ) => setPaymentOutcome({ kind, title, message });
 
   const legacyTotal = useMemo(
     () => subtotal + deliveryFee + serviceFee + tax,
-    [subtotal, deliveryFee, serviceFee, tax]
+    [subtotal, deliveryFee, serviceFee, tax],
   );
 
-  const [offerCode, setOfferCode] = useState("");
-  const [appliedCode, setAppliedCode] = useState("");
-  const [coinInput, setCoinInput] = useState("0");
+  const [offerCode, setOfferCode] = useState('');
+  const [appliedCode, setAppliedCode] = useState('');
+  const [coinInput, setCoinInput] = useState('0');
   const [appliedCoins, setAppliedCoins] = useState(0);
-  const requestKey = useRef(`checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
-  const growthConfig = useQuery({ queryKey: ["growth-config"], queryFn: growthApi.config });
-  const cartSignature = JSON.stringify(cart.map(item => ({id: item.productId, quantity: item.quantity, fulfillment: item.fulfillment_method})));
+  const requestKey = useRef(
+    `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`,
+  );
+  const growthConfig = useQuery({
+    queryKey: ['growth-config'],
+    queryFn: growthApi.config,
+    enabled: isAuthenticated,
+  });
+  const cartSignature = JSON.stringify(
+    cart.map((item) => ({
+      id: item.productId,
+      quantity: item.quantity,
+      fulfillment: item.fulfillment_method,
+    })),
+  );
+  useEffect(() => {
+    requestKey.current = `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  }, [cartSignature, appliedCode, appliedCoins]);
   const quoteQuery = useQuery({
-    queryKey: ["checkout-quote", cartSignature, appliedCode, appliedCoins],
-    queryFn: () => growthApi.quote({ use_cart: true, campaign_code: appliedCode || undefined, coins: appliedCoins }),
-    enabled: Boolean(growthConfig.data?.enabled && cart.length), retry: false, refetchInterval: 60000,
+    queryKey: ['checkout-quote', cartSignature, appliedCode, appliedCoins],
+    queryFn: () =>
+      growthApi.quote({
+        use_cart: true,
+        campaign_code: appliedCode || undefined,
+        coins: appliedCoins,
+      }),
+    enabled: Boolean(
+      isAuthenticated && growthConfig.data?.enabled && cart.length,
+    ),
+    retry: false,
+    refetchInterval: 60000,
+  });
+  const rewards = useQuery({
+    queryKey: ['rewards'],
+    queryFn: growthApi.rewards,
+    enabled: Boolean(isAuthenticated && growthConfig.data?.coins_enabled),
   });
   const serverQuote = growthConfig.data?.enabled ? quoteQuery.data : undefined;
   const total = serverQuote ? serverQuote.payable_kobo / 100 : legacyTotal;
-  const quoteNotReady = Boolean(growthConfig.data?.enabled && (quoteQuery.isFetching || quoteQuery.isError || !serverQuote));
+  const quoteNotReady = Boolean(
+    growthConfig.isLoading ||
+      growthConfig.isError ||
+      (growthConfig.data?.enabled &&
+        (quoteQuery.isFetching || quoteQuery.isError || !serverQuote)),
+  );
 
   // Check if any items require fulfillment choice
   const hasItemsRequiringChoice = useMemo(() => {
-    return cart.some(item => (item as any).requires_fulfillment_choice);
+    return cart.some((item) => (item as any).requires_fulfillment_choice);
   }, [cart]);
 
   const canPlaceOrder = Boolean(
-    ((hasDeliveryItems && selectedAddress) || !hasDeliveryItems) &&
-    selectedPayment && 
-    cart.length > 0 && 
-    !isProcessing &&
-    !hasItemsRequiringChoice
+    !hasDeliveryItems &&
+      cart.length > 0 &&
+      !isProcessing &&
+      !hasItemsRequiringChoice,
   );
-
-  const prepareOrderItems = (cartItems: typeof cart) => {
-    return cartItems.map((item) => {
-      const productId =
-        (item as { product_id?: string | number; productId?: string | number; product?: { id: string | number }; id?: string | number }).product_id
-        ?? item.productId
-        ?? item.product?.id
-        ?? (item as { id?: string | number }).id;
-
-      if (!productId) {
-        throw new Error(`Cart item missing product ID: ${JSON.stringify(item)}`);
-      }
-
-      return {
-        product_id: Number(productId),
-        quantity: Number(item.quantity) || 1,
-      };
-    });
-  };
 
   const getVerificationStatus = (result: any) => {
     const status = String(result?.status || '').toLowerCase();
 
     if (result?.success === true || status === 'success') return 'success';
-    if (result?.failed === true || status === 'failed' || status === 'reversed') return 'failed';
-    if (result?.pending === true || ['pending', 'ongoing', 'processing', 'queued'].includes(status)) return 'pending';
-    if (status === 'abandoned' || result?.abandoned === true) return 'abandoned';
+    if (result?.failed === true || status === 'failed' || status === 'reversed')
+      return 'failed';
+    if (
+      result?.pending === true ||
+      ['pending', 'ongoing', 'processing', 'queued'].includes(status)
+    )
+      return 'pending';
+    if (status === 'abandoned' || result?.abandoned === true)
+      return 'abandoned';
 
     return status || null;
   };
 
   const handlePlaceOrder = async () => {
-    // Validate delivery items have a selected address
-    // if (hasDeliveryItems && !selectedAddress) {
-    //   toast.warning("Missing Information", "Please select a delivery address for your delivery items.");
-    //   return;
-    // }
+    if (hasDeliveryItems) {
+      toast.warning(
+        'Pickup only',
+        'Remove delivery items from your cart and add them again for pickup.',
+      );
+      return;
+    }
 
     if (cart.length === 0) {
-      toast.warning("Empty Cart", "Your cart is empty.");
+      toast.warning('Empty Cart', 'Your cart is empty.');
       return;
     }
 
     if (hasItemsRequiringChoice) {
-      toast.warning("Fulfillment Method Required", "Please select pickup or delivery for all items in your cart.");
+      toast.warning(
+        'Fulfillment Method Required',
+        'Please select pickup or delivery for all items in your cart.',
+      );
       return;
     }
 
-    if (quoteNotReady) { toast.warning("Refresh checkout", "Wait for your final price before placing this order."); return; }
+    if (quoteNotReady) {
+      toast.warning(
+        'Refresh checkout',
+        'Wait for your final price before placing this order.',
+      );
+      return;
+    }
     setIsProcessing(true);
 
     try {
@@ -331,25 +207,19 @@ export default function CheckoutScreen() {
       const orderPayload = {
         use_cart: true,
         items: [], // Server uses cart when use_cart is true
-        address_id: hasDeliveryItems && selectedAddress ? Number(selectedAddress.id) : undefined,
+
         recipient_name: user?.full_name || user?.name || undefined,
         special_instructions: deliveryNotes || undefined,
-        payment_method: "card" as const,
-        ...(growthConfig.data?.enabled ? {
-          campaign_code: appliedCode || undefined,
-          coins: appliedCoins,
-          quote_token: serverQuote?.quote_token,
-          request_key: requestKey.current,
-        } : {}),
+        payment_method: 'card' as const,
+        ...(growthConfig.data?.enabled
+          ? {
+              campaign_code: appliedCode || undefined,
+              coins: appliedCoins,
+              quote_token: serverQuote?.quote_token,
+              request_key: requestKey.current,
+            }
+          : {}),
       };
-
-      // Log for debugging - ensure address is included for delivery orders
-      console.log('🛒 Placing order:', {
-        hasDeliveryItems,
-        hasPickupItems,
-        address_id: orderPayload.address_id,
-        cart_items: cart.length,
-      });
 
       const orderResponse = await placeOrder.mutateAsync(orderPayload);
       const response = orderResponse as any;
@@ -360,7 +230,9 @@ export default function CheckoutScreen() {
       // 3) single Order object with nested payment
       if (response?.paid === true) {
         clearCart.mutate();
-        setSuccessMessage("Your order is confirmed. Your offer and SMM Coin covered the amount due.");
+        setSuccessMessage(
+          'Your order is confirmed. Your offer and SMM Coin covered the amount due.',
+        );
         setSuccessDialogOpen(true);
         return;
       }
@@ -373,7 +245,8 @@ export default function CheckoutScreen() {
 
       const firstOrder = ordersList[0];
       const getPaymentValues = (source: any) => {
-        const payment = source?.payment ?? source?.data?.payment ?? firstOrder?.payment;
+        const payment =
+          source?.payment ?? source?.data?.payment ?? firstOrder?.payment;
         const authorizationUrl =
           payment?.authorization_url ??
           payment?.authorizationUrl ??
@@ -394,7 +267,10 @@ export default function CheckoutScreen() {
           if (!authorizationUrl) return null;
           try {
             const parsed = new URL(authorizationUrl);
-            return parsed.searchParams.get("reference") || parsed.searchParams.get("trxref");
+            return (
+              parsed.searchParams.get('reference') ||
+              parsed.searchParams.get('trxref')
+            );
           } catch {
             return null;
           }
@@ -418,8 +294,7 @@ export default function CheckoutScreen() {
       // If place-order response doesn't include payment link, initialize payment explicitly.
       if (!authorizationUrl && firstOrder) {
         const customerEmail =
-          user?.email ??
-          (firstOrder as any)?.Customer?.email;
+          user?.email ?? (firstOrder as any)?.Customer?.email;
 
         console.log('💳 [Checkout] Initializing payment explicitly:', {
           email: customerEmail,
@@ -434,16 +309,19 @@ export default function CheckoutScreen() {
                 ? {
                     orderGroupId: firstOrder.order_group_id,
                     email: customerEmail,
-                    callbackUrl: "savemymeal://payment/callback",
+                    callbackUrl: 'savemymeal://payment/callback',
                   }
                 : {
                     orderId: firstOrder.id,
                     email: customerEmail,
-                    callbackUrl: "savemymeal://payment/callback",
-                  }
+                    callbackUrl: 'savemymeal://payment/callback',
+                  },
             );
 
-            console.log('💳 [Checkout] Payment initialized:', initializedPayment);
+            console.log(
+              '💳 [Checkout] Payment initialized:',
+              initializedPayment,
+            );
 
             const values = getPaymentValues(initializedPayment);
             authorizationUrl = values.authorizationUrl;
@@ -454,7 +332,10 @@ export default function CheckoutScreen() {
               hasReference: !!resolvedReference,
             });
           } catch (initError) {
-            console.error("💳 [Checkout] Payment initialization failed:", initError);
+            console.error(
+              '💳 [Checkout] Payment initialization failed:',
+              initError,
+            );
           }
         }
       }
@@ -463,8 +344,7 @@ export default function CheckoutScreen() {
       // to retrieve a usable Paystack reference for verification/auto-close.
       if (authorizationUrl && !resolvedReference && firstOrder) {
         const customerEmail =
-          user?.email ??
-          (firstOrder as any)?.Customer?.email;
+          user?.email ?? (firstOrder as any)?.Customer?.email;
 
         console.log('💳 [Checkout] Re-initializing to get reference:', {
           email: customerEmail,
@@ -478,13 +358,13 @@ export default function CheckoutScreen() {
                 ? {
                     orderGroupId: firstOrder.order_group_id,
                     email: customerEmail,
-                    callbackUrl: "savemymeal://payment/callback",
+                    callbackUrl: 'savemymeal://payment/callback',
                   }
                 : {
                     orderId: firstOrder.id,
                     email: customerEmail,
-                    callbackUrl: "savemymeal://payment/callback",
-                  }
+                    callbackUrl: 'savemymeal://payment/callback',
+                  },
             );
 
             const values = getPaymentValues(initializedPayment);
@@ -496,7 +376,10 @@ export default function CheckoutScreen() {
               hasReference: !!resolvedReference,
             });
           } catch (initError) {
-            console.error("💳 [Checkout] Reference recovery failed:", initError);
+            console.error(
+              '💳 [Checkout] Reference recovery failed:',
+              initError,
+            );
           }
         }
       }
@@ -514,7 +397,7 @@ export default function CheckoutScreen() {
 
         // Store order info for success handling
         if (ordersList.length > 1 && firstOrder?.order_group_id) {
-          setSuccessOrderId(firstOrder.order_group_id as any);
+          setSuccessOrderId(null);
         } else if (firstOrder?.id) {
           setSuccessOrderId(firstOrder.id);
         }
@@ -527,19 +410,20 @@ export default function CheckoutScreen() {
         });
         clearCart.mutate();
         toast.warning(
-          "Payment Initialization Failed",
-          response?.error || "Order created but payment could not be initialized. You can retry payment from your orders."
+          'Payment Initialization Failed',
+          response?.error ||
+            'Order created but payment could not be initialized. You can retry payment from your orders.',
         );
         // Navigate to orders page
-        router.replace("/orders");
+        router.replace('/orders');
       }
     } catch (err: any) {
       const msg =
         err.response?.data?.error ??
         err.message ??
-        "Failed to place order. Please try again.";
-      toast.error("Order Failed", msg);
-      console.error("Order placement failed:", err);
+        'Failed to place order. Please try again.';
+      toast.error('Order Failed', msg);
+      console.error('Order placement failed:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -559,13 +443,19 @@ export default function CheckoutScreen() {
       clearCart.mutate();
       setPaymentUrl(null);
       setPaymentReference(null);
-      setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
+      setSuccessMessage(
+        verification.requires_review
+          ? verification.message ||
+              'Your order is confirmed. An extra payment has been flagged for refund review.'
+          : 'Payment successful! Your order has been confirmed.',
+      );
       setSuccessDialogOpen(true);
     } catch (err) {
-      console.error("Payment verification failed:", err);
-      toast.error(
-        "Payment Verification Failed",
-        "Unable to confirm your payment. Please try again or contact support."
+      console.error('Payment verification failed:', err);
+      showPaymentStatus(
+        'pending',
+        'Payment status unavailable',
+        'We could not check your payment yet. View your order and check its payment status before trying another payment.',
       );
     } finally {
       setIsProcessing(false);
@@ -583,11 +473,16 @@ export default function CheckoutScreen() {
         const verification = await api.payments.verifyPayment(paymentReference);
         const status = getVerificationStatus(verification);
 
-        if (status === "success") {
+        if (status === 'success') {
           clearCart.mutate();
           setPaymentUrl(null);
           setPaymentReference(null);
-          setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
+          setSuccessMessage(
+            verification.requires_review
+              ? verification.message ||
+                  'Your order is confirmed. An extra payment has been flagged for refund review.'
+              : 'Payment successful! Your order has been confirmed.',
+          );
           setSuccessDialogOpen(true);
           return;
         }
@@ -595,23 +490,40 @@ export default function CheckoutScreen() {
         if (status === 'failed' || status === 'reversed') {
           setPaymentUrl(null);
           setPaymentReference(null);
-          toast.error("Payment Failed", "Your payment failed. Please try again.");
+          showPaymentStatus(
+            'error',
+            'Payment unsuccessful',
+            'Your payment was not completed. Open your order to review its status and retry payment.',
+          );
           return;
         }
 
         if (status === 'abandoned') {
           setPaymentUrl(null);
           setPaymentReference(null);
-          toast.warning("Payment Cancelled", "You cancelled the payment.");
+          showPaymentStatus(
+            'pending',
+            'Payment window closed',
+            'Your order is saved. Review its payment status before trying again.',
+          );
           return;
         }
 
         if (status === 'pending') {
-          toast.warning("Payment Pending", "Your payment is still being confirmed.");
+          showPaymentStatus(
+            'pending',
+            'Confirming your payment',
+            'Your payment is still being confirmed. Check your order status before paying again.',
+          );
           return;
         }
-      } catch (err) {
-        console.log("Payment not verified on cancel/close:", err);
+      } catch {
+        showPaymentStatus(
+          'pending',
+          'Payment status unavailable',
+          'We could not check whether payment completed. Check your order before making another payment.',
+        );
+        return;
       } finally {
         setIsProcessing(false);
       }
@@ -619,7 +531,11 @@ export default function CheckoutScreen() {
 
     setPaymentUrl(null);
     setPaymentReference(null);
-    toast.warning("Payment Cancelled", "You cancelled the payment.");
+    showPaymentStatus(
+      'pending',
+      'Payment window closed',
+      'Your order is saved. Review its payment status before trying again.',
+    );
   };
 
   const handlePaymentClose = () => {
@@ -635,7 +551,12 @@ export default function CheckoutScreen() {
     const maxAttempts = 40;
 
     const interval = setInterval(() => {
-      if (stopped || isAutoVerifyingRef.current) return;
+      if (
+        stopped ||
+        isAutoVerifyingRef.current ||
+        rateLimitWaitMs(`/payments/verify/${paymentReference}`) > 0
+      )
+        return;
 
       attempts += 1;
       isAutoVerifyingRef.current = true;
@@ -645,14 +566,19 @@ export default function CheckoutScreen() {
         .then((verification) => {
           if (stopped) return;
 
-          if (getVerificationStatus(verification) === "success") {
+          if (getVerificationStatus(verification) === 'success') {
             stopped = true;
             clearInterval(interval);
             setShowPaymentWebView(false);
             setPaymentUrl(null);
             setPaymentReference(null);
             clearCart.mutate();
-            setSuccessMessage(verification.requires_review ? (verification.message || "Your order is confirmed. An extra payment has been flagged for refund review.") : "Payment successful! Your order has been confirmed.");
+            setSuccessMessage(
+              verification.requires_review
+                ? verification.message ||
+                    'Your order is confirmed. An extra payment has been flagged for refund review.'
+                : 'Payment successful! Your order has been confirmed.',
+            );
             setSuccessDialogOpen(true);
           }
         })
@@ -675,256 +601,372 @@ export default function CheckoutScreen() {
     };
   }, [showPaymentWebView, paymentReference, clearCart]);
 
+  if (authLoading || !isAuthenticated) return null;
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* Header - fixed at top */}
-      <View className="bg-white border-b border-gray-200 px-4 py-4 mt-12 flex-row items-center">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <IconSymbol name="arrow.left" size={24} color="#000" />
-        </Pressable>
-        <Text className="text-xl font-bold">Checkout</Text>
-      </View>
-
-      {/* Scrollable content */}
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + 180, // safe space for bottom button
-          flexGrow: 1,
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Order Summary */}
-        <View className="bg-white p-4 mb-4">
-          <SectionHeader title="Order Summary" />
-          <TotalsDisplay
-            subtotal={serverQuote ? serverQuote.subtotal_kobo / 100 : subtotal}
-            deliveryFee={serverQuote ? serverQuote.delivery_kobo / 100 : deliveryFee}
-            serviceFee={serverQuote ? serverQuote.service_fee_kobo / 100 : serviceFee}
-            tax={serverQuote ? 0 : tax}
-            total={total}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen
+        title="Checkout"
+        footer={
+          <Action
+            label={
+              isProcessing
+                ? 'Processing…'
+                : total === 0
+                  ? 'Confirm pickup order'
+                  : `Pay ${formatCurrency(total)}`
+            }
+            onPress={handlePlaceOrder}
+            busy={isProcessing}
+            disabled={!canPlaceOrder || quoteNotReady}
           />
-        </View>
-
-
-
-        {growthConfig.data?.enabled && <View className="mb-4 bg-white p-4">
-          <Text className="text-lg font-semibold">Offers & SMM Coin</Text>
-          <TextInput className="mt-4 rounded-xl border border-gray-300 p-3" placeholder="Promotion code (optional)" value={offerCode} onChangeText={setOfferCode} autoCapitalize="characters" maxLength={40} />
-          {growthConfig.data.coins_enabled && <><Text className="mt-4 text-sm">Coins to spend (whole coins)</Text><TextInput className="mt-2 rounded-xl border border-gray-300 p-3" value={coinInput} onChangeText={setCoinInput} keyboardType="number-pad" /><Pressable onPress={() => router.push('/rewards' as any)}><Text className="mt-3 text-[#008236]">View my balance and rewards</Text></Pressable></>}
-          <Pressable className="mt-4 rounded-xl bg-[#008236] p-3" onPress={() => { const coins = Number(coinInput); if (!Number.isSafeInteger(coins) || coins < 0) { toast.warning("Invalid coins", "Enter a whole number of coins."); return; } setAppliedCode(offerCode.trim().toUpperCase());setAppliedCoins(coins);void quoteQuery.refetch();}}><Text className="text-center font-semibold text-white">Apply and refresh total</Text></Pressable>
-          {quoteQuery.isFetching && <Text className="mt-3 text-gray-500">Updating your total…</Text>}
-          {quoteQuery.isError && <Text accessibilityRole="alert" className="mt-3 text-red-700">{String(quoteQuery.error?.message || 'Could not confirm this offer. Remove the code or refresh.')}</Text>}
-          {serverQuote && <View className="mt-4"><Text>{serverQuote.campaign?.name || 'No promotional discount applied'}</Text><Text className="mt-2 text-[#008236]">Offer savings: −{formatCurrency(serverQuote.discount_kobo / 100)}</Text>{serverQuote.coins_kobo > 0 && <Text className="mt-2 text-[#008236]">SMM Coin: −{formatCurrency(serverQuote.coins_kobo / 100)}</Text>}<Text className="mt-3 font-semibold">Amount to pay: {formatCurrency(serverQuote.payable_kobo / 100)}</Text></View>}
-        </View>}
-
-        {/* Pickup Information */}
-        {hasPickupItems && (
-          <View className="bg-white p-4 mb-4">
-            <SectionHeader title="Pickup Information" />
-            <View className="flex-row items-start mt-2">
-              <IconSymbol name="bag.fill" size={20} color="#1E8449" />
-              <View className="flex-1 ml-3">
-                <Text className="text-gray-900 font-semibold mb-1">
-                  {hasDeliveryItems ? 'Some items will be ready for pickup' : 'Items will be ready for pickup'}
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Please collect these items directly from the vendor after placing your order.
-                  You will receive pickup details in your order confirmation.
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Payment Method */}
-        <View className="bg-white p-4 mb-4">
-          <SectionHeader
-            title="Payment Method"
-          />
-          <PaymentMethodDisplay method={selectedPayment} />
-          <Text className="text-xs text-gray-500 mt-2">Choose from the payment methods available at checkout</Text>
-        </View>
-
-        {/* Special Instructions */}
-        <View className="bg-white p-4 mb-4">
-          <SectionHeader title="Special Instructions" />
-          <TextInput
-            placeholder="Special instructions for your order (optional)..."
-            value={deliveryNotes}
-            onChangeText={setDeliveryNotes}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            placeholderTextColor="#9ca3af"
-            className="min-h-[100px] rounded-xl bg-gray-50 px-4 py-3 text-base border border-gray-200 text-gray-900"
-          />
-        </View>
-
-        {/* Estimated Pickup Times */}
-        {estimatedTimes.hasPickup && estimatedTimes.pickupTimeRanges.length > 0 && (
-          <View className="bg-white p-4 mb-6">
-            <View className="flex-row items-start">
-              <IconSymbol name="bag.fill" size={20} color="#1E8449" />
-              <View className="ml-3 flex-1">
-                <Text className="font-semibold mb-1">Pickup Times</Text>
-                {estimatedTimes.pickupTimeRanges.map((range, index) => (
-                  <Text key={index} className="text-gray-600">
-                    {getEffectivePickupDay(range.day, range.end)}: {formatTime12Hour(range.start)} - {formatTime12Hour(range.end)}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Extra space at bottom (helps when keyboard opens) */}
-        <View className="h-20" />
-      </ScrollView>
-
-      {/* Floating Place Order Button */}
-      <View
-        className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg"
-        style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+        }
       >
-        {cart.length === 0 && (
-          <Text className="text-red-600 text-sm mb-3 text-center">
-            Cart is empty
-          </Text>
-        )}
-
-        <Button
-          onPress={handlePlaceOrder}
-          disabled={!canPlaceOrder || quoteNotReady}
-          className="w-full"
-        >
-          {isProcessing ? (
-            <View className="flex-row items-center justify-center gap-2">
-              <ActivityIndicator color="white" size="small" />
-              <Text className="text-white font-medium">Processing…</Text>
-            </View>
-          ) : (
-            <Text className="text-white font-medium">
-              Place Order • {formatCurrency(total)}
-            </Text>
-          )}
-        </Button>
-      </View>
-
-      {/* Address Selector Bottom Sheet */}
-      <BottomSheet
-        visible={showAddressSelector}
-        onClose={() => setShowAddressSelector(false)}
-        title="Select Delivery Address"
-      >
-        <View className="flex-1 px-6 pb-6">
-          {loadingAddresses ? (
-            <View className="flex-1 items-center justify-center py-12">
-              <ActivityIndicator size="large" color="#15785B" />
-              <Text className="text-gray-500 mt-3">Loading addresses...</Text>
-            </View>
-          ) : (
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-              {addresses?.map((address) => (
-              <Pressable
-                key={address.id}
-                onPress={() => {
-                  setSelectedAddress(address);
-                  setShowAddressSelector(false);
-                }}
-                className="mb-3"
-              >
-                <View
-                  className={`rounded-xl p-4 border-2 ${
-                    selectedAddress?.id === address.id
-                      ? "border-primary bg-primary/5"
-                      : "border-gray-200 bg-white"
-                  }`}
-                >
-                  <View className="flex-row items-center justify-between mb-2">
-                    <View className="flex-row items-center flex-1">
-                      <IconSymbol
-                        name={address.type === 'home' ? 'house' : address.type === 'work' ? 'briefcase' : 'location'}
-                        size={20}
-                        color={selectedAddress?.id === address.id ? "#15785B" : "#666"}
-                      />
-                      <Text
-                        className={`ml-2 font-semibold capitalize ${
-                          selectedAddress?.id === address.id ? "text-primary" : "text-gray-900"
-                        }`}
-                      >
-                          {address.type}
-                      </Text>
-                      {address.isDefault && (
-                        <View className="ml-2 bg-green-100 px-2 py-0.5 rounded-full">
-                          <Text className="text-green-800 text-xs font-medium">Default</Text>
-                        </View>
-                      )}
-                    </View>
-                    {selectedAddress?.id === address.id && (
-                      <IconSymbol name="checkmark.circle.fill" size={24} color="#15785B" />
-                    )}
-                  </View>
-                  <Text className="text-gray-600 text-sm">
-                    {address.street}, {address.city}, {address.state?.name || ''} {address.zipCode}
-                  </Text>
-                  {address.country && (
-                    <Text className="text-gray-500 text-xs mt-1">{address.country.name}</Text>
-                  )}
-                </View>
-              </Pressable>
-            ))}
-            
-            <Pressable
-              onPress={() => {
-                setShowAddressSelector(false);
-                router.push("/addresses");
-              }}
-              className="border-2 border-dashed border-primary rounded-xl p-6 items-center mt-2"
-            >
-              <IconSymbol name="plus" size={28} color="#15785B" />
-              <Text className="text-primary mt-2 font-medium">
-                Add New Address
+        <PageScroll>
+          <View style={ui.between}>
+            <View style={{ flex: 1 }}>
+              <Text style={ui.heading}>Your pickup order</Text>
+              <Text style={ui.muted}>
+                Collect each meal directly from its vendor.
               </Text>
-            </Pressable>
-          </ScrollView>
-          )}
-        </View>
-      </BottomSheet>
-
-
-
-      {/* Success Dialog */}
-      <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Order Confirmed!</AlertDialogTitle>
-            <AlertDialogDescription>{successMessage}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onPress={() => {
-                setSuccessDialogOpen(false);
-                router.replace("/orders");
-              }}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/cart')}
+              style={{ minHeight: 44, justifyContent: 'center' }}
             >
-              <Text>View Order</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Paystack WebView */}
-      {paymentUrl && paymentReference && (
-        <PaystackWebView
-          visible={showPaymentWebView}
-          authorizationUrl={paymentUrl}
-          reference={paymentReference}
-          onClose={handlePaymentClose}
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentCancel={handlePaymentCancel}
+              <Text style={ui.link}>Edit cart</Text>
+            </Pressable>
+          </View>
+          {cart.length === 0 && (
+            <Card>
+              <Text style={ui.heading}>Your cart is empty</Text>
+              <Action
+                secondary
+                label="Explore meals"
+                onPress={() => router.push('/(tabs)/explore')}
+              />
+            </Card>
+          )}
+          {hasDeliveryItems && (
+            <Card>
+              <Text style={[ui.body, { color: palette.red }]}>
+                This app supports pickup orders. Remove any delivery items from
+                your cart and add them again for pickup before paying.
+              </Text>
+            </Card>
+          )}
+          {vendorGroups.map(([key, items]) => {
+            const vendor = items[0].product?.vendor;
+            return (
+              <Card key={key}>
+                <View style={ui.row}>
+                  <AppImage
+                    source={getImageSource(vendor?.logo)}
+                    fallbackSource={require('@/assets/images/default-profile.jpg')}
+                    style={{ width: 40, height: 40, borderRadius: 10 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={ui.heading}>
+                      {vendor?.business_name || 'Pickup vendor'}
+                    </Text>
+                    <Text style={ui.muted}>
+                      {[vendor?.address, vendor?.city]
+                        .filter(Boolean)
+                        .join(', ') || 'View pickup details after confirmation'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={ui.line} />
+                {items.map((item) => (
+                  <View key={item.id} style={{ gap: 6 }}>
+                    <View style={ui.row}>
+                      <AppImage
+                        source={getImageSource(
+                          item.product?.photo_url || item.product?.images?.[0],
+                        )}
+                        style={{ width: 48, height: 48, borderRadius: 10 }}
+                      />
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text style={ui.body}>{item.product?.name}</Text>
+                        <Text style={ui.muted}>
+                          {item.quantity} × {formatCurrency(item.unitPrice)}
+                        </Text>
+                      </View>
+                      <Text style={ui.body}>
+                        {formatCurrency(item.totalPrice)}
+                      </Text>
+                    </View>
+                    {item.product?.pickup_start_time &&
+                      item.product?.pickup_end_time && (
+                        <Text style={ui.muted}>
+                          {getEffectivePickupDay(
+                            item.product.pickup_day,
+                            item.product.pickup_end_time,
+                          )}{' '}
+                          · {formatTime12Hour(item.product.pickup_start_time)}–
+                          {formatTime12Hour(item.product.pickup_end_time)}
+                        </Text>
+                      )}
+                  </View>
+                ))}
+              </Card>
+            );
+          })}
+          {growthConfig.data?.enabled && (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: offersOpen }}
+                onPress={() => setOffersOpen(!offersOpen)}
+                style={ui.between}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={ui.heading}>Offers & SMM Coin</Text>
+                  <Text style={ui.muted}>
+                    {serverQuote?.campaign?.name ||
+                      (appliedCoins
+                        ? `${appliedCoins} coins applied`
+                        : 'Have a code or coins to use?')}
+                  </Text>
+                </View>
+                <Text style={ui.link}>{offersOpen ? 'Hide' : 'Add'}</Text>
+              </Pressable>
+              {offersOpen && (
+                <>
+                  <TextInput
+                    style={ui.input}
+                    placeholder="Promotion code (optional)"
+                    placeholderTextColor={palette.muted}
+                    value={offerCode}
+                    onChangeText={setOfferCode}
+                    autoCapitalize="characters"
+                    maxLength={40}
+                  />
+                  {growthConfig.data.coins_enabled && (
+                    <>
+                      <Text style={ui.muted}>
+                        {rewards.isLoading
+                          ? 'Loading coin balance…'
+                          : rewards.isError
+                            ? 'Balance unavailable. View Rewards to retry.'
+                            : `${rewards.data?.account.available || 0} coins available`}
+                        {rewards.data && growthConfig.data.coin_value_kobo
+                          ? ` · ${formatCurrency((rewards.data.account.available * growthConfig.data.coin_value_kobo) / 100)}`
+                          : ''}
+                      </Text>
+                      <Text style={ui.body}>Coins to use</Text>
+                      <TextInput
+                        accessibilityLabel="Coins to use"
+                        style={ui.input}
+                        value={coinInput}
+                        onChangeText={setCoinInput}
+                        keyboardType="number-pad"
+                        maxLength={12}
+                      />
+                      <Pressable
+                        onPress={() => router.push('/rewards')}
+                        style={{ minHeight: 44, justifyContent: 'center' }}
+                      >
+                        <Text style={ui.link}>
+                          View rewards and redemption details
+                        </Text>
+                      </Pressable>
+                    </>
+                  )}
+                  <Action
+                    secondary
+                    label="Apply to order"
+                    busy={quoteQuery.isFetching}
+                    onPress={() => {
+                      const coins = Number(coinInput);
+                      if (
+                        !Number.isSafeInteger(coins) ||
+                        coins < 0 ||
+                        (rewards.data && coins > rewards.data.account.available)
+                      ) {
+                        toast.warning(
+                          'Invalid coins',
+                          'Enter whole coins within your available balance.',
+                        );
+                        return;
+                      }
+                      const code = offerCode.trim().toUpperCase();
+                      if (code === appliedCode && coins === appliedCoins) {
+                        void quoteQuery.refetch();
+                      } else {
+                        setAppliedCode(code);
+                        setAppliedCoins(coins);
+                      }
+                    }}
+                  />
+                  {(appliedCode || appliedCoins > 0) && (
+                    <Action
+                      secondary
+                      label="Remove offer & coins"
+                      onPress={() => {
+                        setOfferCode('');
+                        setCoinInput('0');
+                        setAppliedCode('');
+                        setAppliedCoins(0);
+                      }}
+                    />
+                  )}{' '}
+                </>
+              )}
+              {quoteQuery.isError && (
+                <>
+                  <Text
+                    accessibilityRole="alert"
+                    style={[ui.muted, { color: palette.red }]}
+                  >
+                    {quoteQuery.error.message}
+                  </Text>
+                  <Action
+                    secondary
+                    label="Refresh total"
+                    onPress={() => void quoteQuery.refetch()}
+                  />
+                </>
+              )}
+            </Card>
+          )}
+          <Card>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: notesOpen }}
+              onPress={() => setNotesOpen(!notesOpen)}
+              style={ui.between}
+            >
+              <Text style={ui.heading}>
+                Order note <Text style={ui.muted}>(optional)</Text>
+              </Text>
+              <Text style={ui.link}>{notesOpen ? 'Hide' : 'Add'}</Text>
+            </Pressable>
+            {notesOpen && (
+              <TextInput
+                style={[ui.input, { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder="Anything the vendor should know?"
+                placeholderTextColor={palette.muted}
+                value={deliveryNotes}
+                onChangeText={setDeliveryNotes}
+                multiline
+                maxLength={500}
+              />
+            )}
+          </Card>
+          <Card>
+            <Text style={ui.heading}>Payment</Text>
+            <Text style={ui.body}>
+              {total === 0
+                ? 'Covered by your offer or SMM Coin'
+                : 'Secure payment with Paystack'}
+            </Text>
+            <Text style={ui.muted}>
+              {total === 0
+                ? 'Confirm your order to reserve your pickup.'
+                : 'Choose from the payment options available in Paystack at the next step.'}
+            </Text>
+          </Card>
+          <Card>
+            <Text style={ui.heading}>Price details</Text>
+            <AmountRow
+              label="Items subtotal"
+              value={formatCurrency(
+                serverQuote ? serverQuote.subtotal_kobo / 100 : subtotal,
+              )}
+            />
+            <AmountRow
+              label="Service fee"
+              value={formatCurrency(
+                serverQuote ? serverQuote.service_fee_kobo / 100 : serviceFee,
+              )}
+            />
+            {!serverQuote && tax > 0 && (
+              <AmountRow label="Tax" value={formatCurrency(tax)} />
+            )}{' '}
+            {!!serverQuote?.discount_kobo && (
+              <AmountRow
+                label="Offer savings"
+                value={`−${formatCurrency(serverQuote.discount_kobo / 100)}`}
+              />
+            )}{' '}
+            {!!serverQuote?.coins_kobo && (
+              <AmountRow
+                label="SMM Coin"
+                value={`−${formatCurrency(serverQuote.coins_kobo / 100)}`}
+              />
+            )}
+            <View style={ui.line} />
+            <AmountRow
+              total
+              label="Total to pay"
+              value={formatCurrency(total)}
+            />
+            {quoteQuery.isFetching && (
+              <Text style={ui.muted}>Confirming your final total…</Text>
+            )}
+            {growthConfig.isError && (
+              <>
+                <Text style={[ui.muted, { color: palette.red }]}>
+                  Unable to confirm current checkout pricing.
+                </Text>
+                <Action
+                  secondary
+                  label="Retry pricing"
+                  onPress={() => void growthConfig.refetch()}
+                />
+              </>
+            )}
+          </Card>
+        </PageScroll>
+        <OutcomeDialog
+          open={!!paymentOutcome}
+          onClose={() => setPaymentOutcome(null)}
+          kind={paymentOutcome?.kind || 'pending'}
+          title={paymentOutcome?.title || ''}
+          message={paymentOutcome?.message || ''}
+          primaryLabel="View order status"
+          onPrimary={() => {
+            setPaymentOutcome(null);
+            router.replace('/orders');
+          }}
+          secondaryLabel="Close"
+          onSecondary={() => setPaymentOutcome(null)}
         />
-      )}
-    </View>
+        <OutcomeDialog
+          open={successDialogOpen}
+          onClose={() => setSuccessDialogOpen(false)}
+          title="Your pickup order is confirmed"
+          message={successMessage}
+          primaryLabel="View order"
+          onPrimary={() => {
+            setSuccessDialogOpen(false);
+            router.replace(
+              successOrderId ? (`/order/${successOrderId}` as any) : '/orders',
+            );
+          }}
+          secondaryLabel="Continue browsing"
+          onSecondary={() => {
+            setSuccessDialogOpen(false);
+            router.replace('/(tabs)');
+          }}
+        />
+
+        {/* Paystack WebView */}
+        {paymentUrl && paymentReference && (
+          <PaystackWebView
+            visible={showPaymentWebView}
+            authorizationUrl={paymentUrl}
+            reference={paymentReference}
+            onClose={handlePaymentClose}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentCancel={handlePaymentCancel}
+          />
+        )}
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }

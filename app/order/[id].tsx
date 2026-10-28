@@ -1,3 +1,10 @@
+import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
+import { Screen, PageScroll, Message } from '@/components/ui/screen-kit';
+import { PickupDetails } from '@/components/orders/pickup-details';
+import { useQuery } from '@tanstack/react-query';
+import { canPay } from '@/lib/order-display';
+import { rateLimitWaitMs } from '@/lib/api/rate-limit';
+import { OutcomeDialog } from '@/components/ui/outcome-dialog';
 import { ReviewForm } from '@/components/reviews';
 import {
   AlertDialog,
@@ -10,107 +17,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { PaystackWebView } from '@/components/ui/paystack-webview';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { useCancelOrder, useReorder, useTrackOrder } from '@/lib/hooks';
-import { useOrders } from '@/lib/hooks/use-orders';
+import { useCancelOrder, useTrackOrder } from '@/lib/hooks';
+
 import { useReviews } from '@/lib/hooks/use-reviews';
 import { useVerifyPayment } from '@/lib/hooks/usePayments';
-import { formatCurrency, getImageSource } from '@/lib/utils';
-import type { DeliveryAddress, Order, OrderItem } from '@/types/api';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import type { Order, OrderItem } from '@/types/api';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RefreshControl } from 'react-native';
 
 // ────────────────────────────────────────────────
 // Helpers
-// ────────────────────────────────────────────────
-
-const parseDeliveryAddress = (address: string | DeliveryAddress | null | undefined): DeliveryAddress | null => {
-  if (!address) {
-    return null;
-  }
-  if (typeof address === 'string') {
-    try {
-      return JSON.parse(address);
-    } catch {
-      return null;
-    }
-  }
-  return address;
-};
-
-const getOrderItems = (order: Order): OrderItem[] => order.orderItems || order.items || [];
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'text-yellow-600 bg-yellow-100',
-  accepted: 'text-blue-600 bg-blue-100',
-  preparing: 'text-purple-600 bg-purple-100',
-  ready: 'text-green-600 bg-green-100',
-  delivered: 'text-green-600 bg-green-100',
-  completed: 'text-emerald-600 bg-emerald-100',
-  cancelled: 'text-red-600 bg-red-100',
-  rejected: 'text-red-600 bg-red-100',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  accepted: 'Accepted',
-  preparing: 'Preparing',
-  ready: 'Ready for Pickup',
-  delivered: 'Picked Up',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  rejected: 'Rejected',
-};
-
-const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  pending: 'text-yellow-600 bg-yellow-100',
-  paid: 'text-green-600 bg-green-100',
-  success: 'text-green-600 bg-green-100',
-  failed: 'text-red-600 bg-red-100',
-  refunded: 'text-gray-600 bg-gray-100',
-  cancelled: 'text-red-600 bg-red-100',
-};
-
-const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  pending: 'Payment Pending',
-  paid: 'Paid',
-  success: 'Paid',
-  failed: 'Payment Failed',
-  refunded: 'Refunded',
-  cancelled: 'Payment Cancelled',
-};
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-};
-
-const getStatusBadgeClass = (status: string): string =>
-  STATUS_COLORS[status] || 'text-gray-600 bg-gray-100';
-
-const getStatusLabel = (status: string): string => STATUS_LABELS[status] || status;
-
-const getPaymentStatusBadgeClass = (status: string): string =>
-  PAYMENT_STATUS_COLORS[status] || 'text-gray-600 bg-gray-100';
-
-const getPaymentStatusLabel = (status: string): string => PAYMENT_STATUS_LABELS[status] || status;
-
-// ────────────────────────────────────────────────
-// Types
 // ────────────────────────────────────────────────
 
 type OrderViewData =
@@ -124,522 +45,8 @@ type OrderViewData =
 // Sub-components
 // ────────────────────────────────────────────────
 
-function OrderHeader({
-  isGroup,
-  orderId,
-  status,
-  onCancelPress,
-  isCancelling,
-}: {
-  isGroup: boolean;
-  orderId: string;
-  status?: string;
-  onCancelPress: () => void;
-  isCancelling: boolean;
-}) {
-  const router = useRouter();
-
-  return (
-    <View className="px-4 py-3 bg-white border-b border-gray-200 flex-row items-center justify-between">
-      <View className="flex-row items-center">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <IconSymbol name="arrow.left" size={24} color="#000" />
-        </Pressable>
-        <Text className="text-xl font-bold">Order Details</Text>
-      </View>
-
-      {status === 'pending' && (
-        <Button
-          onPress={onCancelPress}
-          disabled={isCancelling}
-          className="bg-red-600"
-        >
-          {isCancelling ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-white">Cancel</Text>
-          )}
-        </Button>
-      )}
-    </View>
-  );
-}
-
-function OrderStatusCard({
-  isGroup,
-  groupId,
-  singleOrder,
-  orders,
-}: {
-  isGroup: boolean;
-  groupId?: string;
-  singleOrder?: Order;
-  orders: Order[];
-}) {
-  const displayOrder = isGroup ? orders[0] : singleOrder;
-  if (!displayOrder) return null;
-
-  const uniqueStatuses = isGroup ? [...new Set(orders.map((o) => o.status))] : [displayOrder.status];
-  const vendorCount = isGroup ? new Set(orders.map((o) => o.vendor?.business_name)).size : 1;
-
-  return (
-    <View className="bg-white p-5 mb-4 mx-4 mt-4 rounded-xl shadow-sm">
-      <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-lg font-semibold">
-          {isGroup ? `Group Order ${groupId}` : `Order #${displayOrder.id}`}
-        </Text>
-
-        {!isGroup && (
-          <View className="flex-row gap-2">
-            {displayOrder.status !== 'cancelled' && displayOrder.payment_status && (
-              <View className={`px-3 py-1 rounded-full ${getPaymentStatusBadgeClass(displayOrder.payment_status)}`}>
-                <Text className="text-sm font-medium">{getPaymentStatusLabel(displayOrder.payment_status)}</Text>
-              </View>
-            )}
-            <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(displayOrder.status)}`}>
-              <Text className="text-sm font-medium">{getStatusLabel(displayOrder.status)}</Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {isGroup && (
-        <View className="mb-4">
-          <Text className="text-gray-600 mb-2">
-            {orders.length} order{orders.length !== 1 ? 's' : ''} from {vendorCount} vendor
-            {vendorCount !== 1 ? 's' : ''}
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {/* Show group payment status if available */}
-            {(() => {
-              const hasNonCancelledOrder = orders.some((o) => o.status !== 'cancelled');
-              if (!hasNonCancelledOrder) return null;
-
-              const groupPayment = orders.find(o => o.payment?.order_group_id)?.payment;
-              const paymentStatus = groupPayment?.status || orders[0]?.payment_status;
-              if (paymentStatus) {
-                return (
-                  <View className={`px-3 py-1 rounded-full ${getPaymentStatusBadgeClass(paymentStatus)}`}>
-                    <Text className="text-xs font-medium">{getPaymentStatusLabel(paymentStatus)}</Text>
-                  </View>
-                );
-              }
-              return null;
-            })()}
-            {uniqueStatuses.map((status) => (
-              <View
-                key={status}
-                className={`px-3 py-1 rounded-full ${getStatusBadgeClass(status)}`}
-              >
-                <Text className="text-xs font-medium">{getStatusLabel(status)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      <View className="flex-row items-center mb-2">
-        <IconSymbol name="calendar" size={16} color="#666" />
-        <Text className="ml-2 text-gray-600">Ordered: {formatDate(displayOrder.createdAt)}</Text>
-      </View>
-
-      {displayOrder.status === 'delivered' && (
-        <View className="flex-row items-center mt-1">
-          <IconSymbol name="checkmark.circle.fill" size={16} color="#10b981" />
-          <Text className="ml-2 text-gray-600">Picked Up</Text>
-        </View>
-      )}
-
-    </View>
-  );
-}
-
-function VendorSection({ 
-  order,
-  onReviewPress,
-}: { 
-  order: Order;
-  onReviewPress?: (item: OrderItem) => void;
-}) {
-  const router = useRouter();
-  const canReview = order.status === 'completed' || order.status === 'delivered';
-  const isPaid = order.payment_status === 'paid';
-  
-  return (
-    <View className="bg-white p-5 mb-4 rounded-xl shadow-sm">
-      <Pressable 
-        onPress={() => router.push(`/vendor/${order.vendor_id}` as any)}
-        className="flex-row items-center justify-between"
-      >
-        <View className="flex-row items-center flex-1">
-          <Image
-            source={getImageSource(order.vendor?.logo) || require('@/assets/images/default-profile.jpg')}
-            className="w-12 h-12 rounded-full mr-3"
-            resizeMode="cover"
-          />
-          <View className="flex-1">
-            <Text className="font-semibold text-base">{order.vendor?.business_name || 'Vendor'}</Text>
-            <Text className="text-gray-600 text-sm">{order.vendor?.phone || '—'}</Text>
-          </View>
-        </View>
-
-        <View className="flex-row items-center gap-2">
-          <View className={`px-3 py-1 rounded-full ${getStatusBadgeClass(order.status)}`}>
-            <Text className="text-xs font-medium">{getStatusLabel(order.status)}</Text>
-          </View>
-          <IconSymbol name="chevron.right" size={16} color="#9CA3AF" />
-        </View>
-      </Pressable>
-
-      <View className="border-t border-gray-100 mt-4 pt-4">
-        <Text className="text-sm font-semibold mb-3 text-gray-700">
-          Items ({getOrderItems(order).length})
-        </Text>
-
-        {getOrderItems(order).map((item, idx) => (
-          <View key={item.id}>
-            <Pressable
-              onPress={() => router.push(`/product/${item.product_id}` as any)}
-              className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-50' : ''}`}
-            >
-              <Image
-                source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
-                className="w-14 h-14 rounded-lg mr-3"
-                resizeMode="cover"
-              />
-              <View className="flex-1">
-                <View className="flex-row justify-between items-start mb-1">
-                  <Text className="font-medium flex-1 text-sm pr-2" numberOfLines={2}>
-                    {item.product.name}
-                  </Text>
-                  <Text className="font-semibold text-sm">{formatCurrency(Number(item.price))}</Text>
-                </View>
-                <Text className="text-gray-500 text-xs">Qty: {item.quantity}</Text>
-              </View>
-            </Pressable>
-            
-            {/* Review Button */}
-            {canReview && isPaid && onReviewPress && (
-              <Pressable
-                onPress={() => onReviewPress(item)}
-                className="ml-17 mb-2 flex-row items-center"
-              >
-                <IconSymbol name="star" size={14} color="#F39C12" />
-                <Text className="text-sm text-green-600 font-medium ml-1">
-                  Write a Review
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        ))}
-
-        <View className="flex-row justify-between mt-4 pt-3 border-t border-gray-100">
-          <Text className="text-sm text-gray-600">Order Total</Text>
-          <Text className="font-semibold">{formatCurrency(Number(order.total_amount))}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SingleOrderItems({ 
-  order,
-  onReviewPress,
-}: { 
-  order: Order;
-  onReviewPress?: (item: OrderItem) => void;
-}) {
-  const canReview = order.status === 'completed' || order.status === 'delivered';
-  const isPaid = order.payment_status === 'paid';
-
-  return (
-    <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
-      <Text className="text-lg font-semibold mb-4">Items ({getOrderItems(order).length})</Text>
-
-      {getOrderItems(order).map((item, idx) => (
-        <View key={item.id}>
-          <View
-            className={`flex-row py-3 ${idx < getOrderItems(order).length - 1 ? 'border-b border-gray-100' : ''}`}
-          >
-            <Image
-              source={getImageSource(item.product.photo_url) || require('@/assets/images/default-product.jpg')}
-              className="w-16 h-16 rounded-lg mr-3"
-              resizeMode="cover"
-            />
-            <View className="flex-1">
-              <View className="flex-row justify-between items-start mb-1">
-                <Text className="font-semibold flex-1 pr-2" numberOfLines={2}>
-                  {item.product.name}
-                </Text>
-                <Text className="font-bold">{formatCurrency(Number(item.price))}</Text>
-              </View>
-              <Text className="text-gray-600 text-sm">Qty: {item.quantity}</Text>
-              
-              {/* Review Button */}
-              {canReview && isPaid && onReviewPress && (
-                <Pressable
-                  onPress={() => onReviewPress(item)}
-                  className="mt-2 flex-row items-center"
-                >
-                  <IconSymbol name="star" size={14} color="#F39C12" />
-                  <Text className="text-sm text-green-600 font-medium ml-1">
-                    Write a Review
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function DeliveryAddressCard({ address }: { address: string | DeliveryAddress }) {
-  const parsed = parseDeliveryAddress(address);
-
-  if (!parsed) {
-    return (
-      <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
-        <Text className="text-lg font-semibold mb-3">Delivery Address</Text>
-        <View className="flex-row items-start">
-          <View className="mt-1">
-            <IconSymbol name="location.fill" size={20} color="#666" />
-          </View>
-          <Text className="ml-3 text-gray-700 flex-1">
-            No address provided
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const fullAddress = [
-    parsed.street,
-    parsed.city,
-    typeof parsed.state === 'string' ? parsed.state : parsed.state?.name || '',
-    parsed.postal_code,
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  return (
-    <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
-      <Text className="text-lg font-semibold mb-3">Delivery Address</Text>
-      <View className="flex-row items-start">
-        <View className="mt-1">
-          <IconSymbol name="location.fill" size={20} color="#666" />
-        </View>
-        <Text className="ml-3 text-gray-700 flex-1">
-          {fullAddress || 'No address provided'}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function PaymentSummary({
-  isGroup,
-  orders,
-  groupTotal,
-}: {
-  isGroup: boolean;
-  orders: Order[];
-  groupTotal: string;
-}) {
-  const calculateSubtotal = (order: Order) =>
-    getOrderItems(order).reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
-
-  return (
-    <View className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm">
-      <Text className="text-lg font-semibold mb-4">Payment Summary</Text>
-
-      {isGroup ? (
-        <>
-          {orders.map((order) => (
-            <View
-              key={order.id}
-              className="mb-5 pb-4 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0"
-            >
-              <Text className="text-xs text-gray-500 mb-2">{order.vendor?.business_name}</Text>
-              <View className="flex-row justify-between mb-1.5">
-                <Text className="text-gray-600 text-sm">Subtotal</Text>
-                <Text className="text-sm">{formatCurrency(calculateSubtotal(order))}</Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-gray-600 text-sm">Service Fee</Text>
-                <Text className="text-sm">{formatCurrency(Number(order.service_fee || 0))}</Text>
-              </View>
-            </View>
-          ))}
-
-          <View className="pt-3">
-            <View className="flex-row justify-between mb-4">
-              <Text className="text-lg font-bold">Grand Total</Text>
-              <Text className="text-lg font-bold">{formatCurrency(Number(groupTotal))}</Text>
-            </View>
-            <View className="flex-row items-center">
-              <IconSymbol name="creditcard.fill" size={16} color="#666" />
-              <Text className="ml-2 text-gray-600 uppercase">
-                {orders[0]?.payment_method || '—'}
-              </Text>
-            </View>
-          </View>
-        </>
-      ) : (
-        <SinglePaymentSummary order={orders[0]} />
-      )}
-    </View>
-  );
-}
-
-function SinglePaymentSummary({ order }: { order: Order }) {
-  const subtotal = getOrderItems(order).reduce((s, i) => s + Number(i.price) * i.quantity, 0);
-
-  return (
-    <>
-      <View className="flex-row justify-between mb-2">
-        <Text className="text-gray-600">Subtotal</Text>
-        <Text className="font-medium">{formatCurrency(subtotal)}</Text>
-      </View>
-      <View className="flex-row justify-between mb-4">
-        <Text className="text-gray-600">Service Fee</Text>
-        <Text className="font-medium">{formatCurrency(Number(order.service_fee || 0))}</Text>
-      </View>
-
-      <View className="border-t border-gray-200 pt-4">
-        <View className="flex-row justify-between mb-4">
-          <Text className="text-lg font-bold">Total</Text>
-          <Text className="text-lg font-bold">{formatCurrency(Number(order.total_amount))}</Text>
-        </View>
-        <View className="flex-row items-center">
-          <IconSymbol name="creditcard.fill" size={16} color="#666" />
-          <Text className="ml-2 text-gray-600 uppercase">{order.payment_method || '—'}</Text>
-        </View>
-      </View>
-    </>
-  );
-}
-
-function ActionSection({
-  isGroup,
-  orders,
-  onReorder,
-  isReordering,
-}: {
-  isGroup: boolean;
-  orders: Order[];
-  onReorder: (order?: Order) => void;
-  isReordering: boolean;
-}) {
-  const router = useRouter();
-
-  if (isGroup) {
-    const deliveredOrders = orders.filter((o) => o.status === 'delivered');
-    if (deliveredOrders.length === 0) return null;
-
-    return (
-      <View className="px-4 pb-10">
-        {deliveredOrders.map((order) => (
-          <View key={order.id} className="bg-white rounded-xl p-5 mb-4 shadow-sm">
-            <Text className="text-base font-semibold mb-4">{order.vendor?.business_name}</Text>
-            <Button
-              variant="outline"
-              onPress={() => onReorder(order)}
-              disabled={isReordering}
-            >
-              {isReordering ? (
-                <ActivityIndicator size="small" color="#15785B" />
-              ) : (
-                <Text className="text-primary text-sm">Reorder</Text>
-              )}
-            </Button>
-          </View>
-        ))}
-      </View>
-    );
-  }
-
-  const order = orders[0];
-  if (order.status !== 'delivered') return null;
-
-  return (
-    <View className="px-4 pb-10">
-      <View className="bg-white rounded-xl p-6 shadow-sm">
-        <Text className="text-lg font-semibold mb-2 text-center">Order Again?</Text>
-        <Text className="text-gray-600 text-center mb-5">Add the same items to your cart</Text>
-
-        <Button variant="outline" onPress={() => onReorder()} disabled={isReordering}>
-          {isReordering ? (
-            <View className="flex-row items-center justify-center">
-              <ActivityIndicator size="small" color="#15785B" />
-              <Text className="ml-2 text-primary">Adding to cart...</Text>
-            </View>
-          ) : (
-            <View className="flex-row items-center justify-center">
-              <IconSymbol name="arrow.clockwise" size={18} color="#15785B" />
-              <Text className="ml-2 text-primary">Reorder</Text>
-            </View>
-          )}
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-// Retry Payment Section
-function RetryPaymentSection({
-  order,
-  onRetryPayment,
-  isRetrying,
-  showVendorInfo = false,
-}: {
-  order: Order;
-  onRetryPayment: () => void;
-  isRetrying: boolean;
-  showVendorInfo?: boolean;
-}) {
-  const shouldShowRetry =
-    order.status !== 'cancelled' &&
-    order.payment_status !== 'paid' &&
-    order.payment?.status !== 'success';
-
-  if (!shouldShowRetry) return null;
-
-  return (
-    <View className="pb-4">
-      <View className="bg-white rounded-xl p-6 shadow-sm border-2 border-red-200">
-        {showVendorInfo && order.vendor && (
-          <Text className="text-center text-sm text-gray-600 mb-2">
-            {order.vendor.business_name} - Order #{order.id}
-          </Text>
-        )}
-
-        <Button onPress={onRetryPayment} disabled={isRetrying} className="bg-red-600">
-          {isRetrying ? (
-            <View className="flex-row items-center justify-center">
-              <ActivityIndicator size="small" color="white" />
-              <Text className="ml-2 text-white">Initializing Payment...</Text>
-            </View>
-          ) : (
-            <View className="flex-row items-center justify-center">
-              <IconSymbol name="creditcard.fill" size={18} color="white" />
-              <Text className="ml-2 text-white font-semibold">Retry Payment</Text>
-            </View>
-          )}
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-// ────────────────────────────────────────────────
-// Main Component
-// ────────────────────────────────────────────────
-
 export default function OrderDetailScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   console.log('OrderDetailScreen - Order ID:', id);
@@ -647,8 +54,14 @@ export default function OrderDetailScreen() {
   // If the ID is not a pure number, treat it as a group ID or order_group_id
   const isGroupId = id ? isNaN(Number(id)) : false;
 
-  const { data: ordersList = [], refetch: refetchOrders, isRefetching: isRefetchingOrders } = useOrders();
-
+  const groupQuery = useQuery({
+    queryKey: ['orders', 'group', id],
+    queryFn: () => api.orders.groupDetails(id || ''),
+    enabled: Boolean(isAuthenticated && isGroupId && id),
+    refetchInterval: 30000,
+  });
+  const refetchOrders = groupQuery.refetch;
+  const isRefetchingOrders = groupQuery.isRefetching;
   const {
     data: singleOrder,
     isLoading: isLoadingSingle,
@@ -656,106 +69,66 @@ export default function OrderDetailScreen() {
     error: singleOrderError,
     refetch: refetchSingle,
   } = useTrackOrder(id || '', {
-    enabled: !isGroupId && !!id,
+    enabled: isAuthenticated && !isGroupId && !!id,
   });
 
-  console.log('OrderDetailScreen - Single Order:', { 
-    singleOrder, 
-    isLoadingSingle, 
+  console.log('OrderDetailScreen - Single Order:', {
+    singleOrder,
+    isLoadingSingle,
     error: singleOrderError,
-    isGroupId 
+    isGroupId,
   });
 
   const cancelOrder = useCancelOrder();
-  const reorder = useReorder();
+
   const verifyPayment = useVerifyPayment();
   const { submitReview, submitting } = useReviews();
 
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [paymentNotice, setPaymentNotice] = useState<{
+    kind: 'pending' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = useState(false);
   const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const [retryingPaymentKey, setRetryingPaymentKey] = useState<string | null>(null);
+  const [retryingPaymentKey, setRetryingPaymentKey] = useState<string | null>(
+    null,
+  );
   const isAutoVerifyingRef = useRef(false);
 
   const orderData = useMemo<OrderViewData | null>(() => {
-    console.log('orderData memo - Computing with:', { isGroupId, id, singleOrder, ordersListLength: ordersList.length });
-    
-    if (!isGroupId) {
-      // For non-group IDs, try to get from ordersList first as fallback
-      if (!singleOrder && ordersList.length > 0) {
-        const orderId = Number(id);
-        if (!isNaN(orderId)) {
-          const orderFromList = ordersList.find((item: any) => {
-            if ('orders' in item && Array.isArray(item.orders)) {
-              return item.orders.some((o: Order) => o.id === orderId);
-            }
-            return item.id === orderId;
-          });
-          
-          if (orderFromList) {
-            console.log('orderData memo - Found order in list:', orderFromList);
-            if ('orders' in orderFromList && Array.isArray(orderFromList.orders)) {
-              const foundOrder = orderFromList.orders.find((o: Order) => o.id === orderId);
-              if (foundOrder) {
-                return { type: 'single', order: foundOrder };
-              }
-            } else {
-              return { type: 'single', order: orderFromList as Order };
-            }
-          }
-        }
-      }
+    if (!isGroupId)
       return singleOrder ? { type: 'single', order: singleOrder } : null;
-    }
-
-    // For group IDs, search by order_group_id or single-<id> format
-    console.log('Searching for group ID in orders list...');
-    const match = ordersList.find((item: any) => {
-      const matchesGroupId = item.order_group_id === id;
-      const matchesSingleFormat = `single-${item.id}` === id;
-      if (matchesGroupId || matchesSingleFormat) {
-        console.log('Found match:', { 
-          order_group_id: item.order_group_id, 
-          id: item.id, 
-          matchesGroupId, 
-          matchesSingleFormat 
-        });
-      }
-      return matchesGroupId || matchesSingleFormat;
-    }) as any;
-
-    if (!match) {
-      console.log('No match found. First few items:', ordersList.slice(0, 3).map((item: any) => ({
-        order_group_id: item.order_group_id,
-        id: item.id,
-        hasOrders: 'orders' in item
-      })));
-      return null;
-    }
-
-    // Check if it's a grouped order (has orders array)
-    if ('orders' in match && Array.isArray(match.orders)) {
-      return {
-        type: 'group',
-        group: {
-          order_group_id: match.order_group_id || '',
-          orders: match.orders as Order[],
-          grand_total: match.grand_total || '0',
-        },
-      };
-    }
-
-    return { type: 'single', order: match as Order };
-  }, [isGroupId, id, ordersList, singleOrder]);
+    if (!groupQuery.data?.length) return null;
+    return {
+      type: 'group',
+      group: {
+        order_group_id: id || '',
+        orders: groupQuery.data,
+        grand_total: groupQuery.data
+          .reduce((sum, o) => sum + Number(o.total_amount), 0)
+          .toFixed(2),
+      },
+    };
+  }, [id, isGroupId, singleOrder, groupQuery.data]);
 
   const isGroup = orderData?.type === 'group';
-  const orders = isGroup ? orderData.group.orders : orderData ? [orderData.order] : [];
+  const orders = useMemo(
+    () =>
+      orderData?.type === 'group'
+        ? orderData.group.orders
+        : orderData
+          ? [orderData.order]
+          : [],
+    [orderData],
+  );
   const displayOrder = orders[0];
-  const groupTotal = isGroup ? orderData.group.grand_total : orderData?.order.total_amount || '0';
 
   const refreshOrderData = useCallback(async () => {
     if (isGroupId) {
@@ -775,9 +148,15 @@ export default function OrderDetailScreen() {
     const status = String(result?.status || '').toLowerCase();
 
     if (result?.success === true || status === 'success') return 'success';
-    if (result?.failed === true || status === 'failed' || status === 'reversed') return 'failed';
-    if (result?.pending === true || ['pending', 'ongoing', 'processing', 'queued'].includes(status)) return 'pending';
-    if (status === 'abandoned' || result?.abandoned === true) return 'abandoned';
+    if (result?.failed === true || status === 'failed' || status === 'reversed')
+      return 'failed';
+    if (
+      result?.pending === true ||
+      ['pending', 'ongoing', 'processing', 'queued'].includes(status)
+    )
+      return 'pending';
+    if (status === 'abandoned' || result?.abandoned === true)
+      return 'abandoned';
 
     return status || null;
   }, []);
@@ -793,7 +172,8 @@ export default function OrderDetailScreen() {
     if (!paymentReference) return;
 
     try {
-      const verificationResult = await verifyPayment.mutateAsync(paymentReference);
+      const verificationResult =
+        await verifyPayment.mutateAsync(paymentReference);
 
       if (getVerificationStatus(verificationResult) === 'success') {
         clearPaymentState();
@@ -802,19 +182,38 @@ export default function OrderDetailScreen() {
         return;
       }
 
-      clearPaymentState();
+      setPaymentUrl(null);
+      setPaymentNotice({
+        kind: 'pending',
+        title: 'Checking your payment',
+        message:
+          'Payment is not confirmed yet. Refresh this order before making another payment.',
+      });
       await refreshOrderData();
     } catch (error: any) {
-      clearPaymentState();
-      console.error('[Order Detail] Silent payment verification failed:', error);
+      setPaymentUrl(null);
+      setPaymentNotice({
+        kind: 'pending',
+        title: 'Payment status unavailable',
+        message:
+          'We could not confirm your payment. Refresh the order status before trying again.',
+      });
+      console.error('[Order Detail] Payment verification unavailable:', error);
       await refreshOrderData();
     }
-  }, [clearPaymentState, getVerificationStatus, paymentReference, refreshOrderData, verifyPayment]);
+  }, [
+    clearPaymentState,
+    getVerificationStatus,
+    paymentReference,
+    refreshOrderData,
+    verifyPayment,
+  ]);
 
   const handlePaymentCancel = useCallback(async () => {
     if (paymentReference) {
       try {
-        const verificationResult = await api.payments.verifyPayment(paymentReference);
+        const verificationResult =
+          await api.payments.verifyPayment(paymentReference);
         const status = getVerificationStatus(verificationResult);
 
         if (status === 'success') {
@@ -827,7 +226,12 @@ export default function OrderDetailScreen() {
         if (status === 'failed' || status === 'reversed') {
           clearPaymentState();
           await refreshOrderData();
-          toast.error('Payment Failed', 'Your payment failed. Please try again.');
+          setPaymentNotice({
+            kind: 'error',
+            title: 'Payment unsuccessful',
+            message:
+              'Payment was not completed. Review your order and retry payment when ready.',
+          });
           return;
         }
 
@@ -840,18 +244,40 @@ export default function OrderDetailScreen() {
 
         if (status === 'pending') {
           await refreshOrderData();
-          toast.warning('Payment Pending', 'Your payment is still being confirmed.');
+          setPaymentUrl(null);
+          setPaymentNotice({
+            kind: 'pending',
+            title: 'Confirming payment',
+            message:
+              'Your payment is still being confirmed. Check this order before paying again.',
+          });
           return;
         }
-      } catch (error: any) {
-        console.error('[Order Detail] Silent verification after cancel failed:', error);
+      } catch {
+        setPaymentUrl(null);
+        setPaymentNotice({
+          kind: 'pending',
+          title: 'Payment status unavailable',
+          message:
+            'The payment window closed, but we could not check its final status. Refresh your order before paying again.',
+        });
+        return;
       }
     }
 
     clearPaymentState();
     await refreshOrderData();
-    toast.warning('Payment Cancelled', 'You cancelled the payment.');
-  }, [clearPaymentState, getVerificationStatus, paymentReference, refreshOrderData]);
+    setPaymentNotice({
+      kind: 'pending',
+      title: 'Payment window closed',
+      message: 'Check the order payment status before trying again.',
+    });
+  }, [
+    clearPaymentState,
+    getVerificationStatus,
+    paymentReference,
+    refreshOrderData,
+  ]);
 
   const handleRetryPayment = useCallback(
     async (orderId?: number) => {
@@ -859,20 +285,30 @@ export default function OrderDetailScreen() {
       const retryKey = orderId ? `order-${orderId}` : `group-${String(id)}`;
       setRetryingPaymentKey(retryKey);
 
-      const targetOrder = orderId ? orders.find((o) => o.id === orderId) : displayOrder;
+      const targetOrder = orderId
+        ? orders.find((o) => o.id === orderId)
+        : displayOrder;
 
+      if (!targetOrder || !canPay(targetOrder)) {
+        setRetryingPaymentKey(null);
+        return;
+      }
       if (!targetOrder?.Customer?.email) {
         toast.error('Error', 'Customer email not found');
         setRetryingPaymentKey(null);
         return;
       }
 
-      const paymentGroupId = targetOrder.payment?.order_group_id || targetOrder.order_group_id;
-      const isGroupedPayment = (isGroup && !orderId) || (!!paymentGroupId && !orderId);
+      const paymentGroupId =
+        targetOrder.payment?.order_group_id || targetOrder.order_group_id;
+      const isGroupedPayment =
+        (isGroup && !orderId) || (!!paymentGroupId && !orderId);
 
       if (targetOrder.payment?.reference) {
         try {
-          const verificationResult = await api.payments.verifyPayment(targetOrder.payment.reference);
+          const verificationResult = await api.payments.verifyPayment(
+            targetOrder.payment.reference,
+          );
           const status = getVerificationStatus(verificationResult);
 
           if (status === 'success') {
@@ -883,11 +319,26 @@ export default function OrderDetailScreen() {
             return;
           }
 
-          if (status === 'failed' || status === 'abandoned' || status === 'reversed' || status === 'pending') {
-            // Continue to initialize a fresh payment silently.
+          if (!['failed', 'abandoned', 'reversed'].includes(status || '')) {
+            setPaymentNotice({
+              kind: 'pending',
+              title: 'Payment is still pending',
+              message:
+                'We are waiting for a final payment status. Refresh this order before trying again.',
+            });
+            setRetryingPaymentKey(null);
+            await refreshOrderData();
+            return;
           }
-        } catch (error) {
-          console.error('[Order Detail] Silent verification failed, retrying payment:', error);
+        } catch {
+          setPaymentNotice({
+            kind: 'pending',
+            title: 'Payment status unavailable',
+            message:
+              'We could not verify the previous payment. Please check again before paying.',
+          });
+          setRetryingPaymentKey(null);
+          return;
         }
       }
 
@@ -910,10 +361,17 @@ export default function OrderDetailScreen() {
         setPaymentReference(data.reference);
       } catch (error: any) {
         console.error('[Order Detail] Payment initialization error:', error);
-        const errorMessage = error?.error || error?.response?.data?.message || error?.message || 'Failed to initialize payment';
+        const errorMessage =
+          error?.error ||
+          error?.response?.data?.message ||
+          error?.message ||
+          'Failed to initialize payment';
         const normalizedMessage = String(errorMessage).toLowerCase();
 
-        if (normalizedMessage.includes('already been paid') || normalizedMessage.includes('already paid')) {
+        if (
+          normalizedMessage.includes('already been paid') ||
+          normalizedMessage.includes('already paid')
+        ) {
           toast.success('Payment Verified', 'Order has already been paid');
           await refreshOrderData();
           return;
@@ -924,7 +382,15 @@ export default function OrderDetailScreen() {
         setRetryingPaymentKey(null);
       }
     },
-    [clearPaymentState, displayOrder, id, isGroup, orders, refreshOrderData, verifyPayment],
+    [
+      clearPaymentState,
+      displayOrder,
+      id,
+      isGroup,
+      orders,
+      refreshOrderData,
+      getVerificationStatus,
+    ],
   );
 
   useEffect(() => {
@@ -935,7 +401,12 @@ export default function OrderDetailScreen() {
     const maxAttempts = 40;
 
     const interval = setInterval(() => {
-      if (stopped || isAutoVerifyingRef.current) return;
+      if (
+        stopped ||
+        isAutoVerifyingRef.current ||
+        rateLimitWaitMs(`/payments/verify/${paymentReference}`) > 0
+      )
+        return;
 
       attempts += 1;
       isAutoVerifyingRef.current = true;
@@ -970,7 +441,13 @@ export default function OrderDetailScreen() {
       clearInterval(interval);
       isAutoVerifyingRef.current = false;
     };
-  }, [clearPaymentState, getVerificationStatus, paymentReference, paymentUrl, refreshOrderData]);
+  }, [
+    clearPaymentState,
+    getVerificationStatus,
+    paymentReference,
+    paymentUrl,
+    refreshOrderData,
+  ]);
 
   // Memoize PaystackWebView to prevent unnecessary re-renders
   const paystackWebView = useMemo(
@@ -985,115 +462,56 @@ export default function OrderDetailScreen() {
           onPaymentCancel={handlePaymentCancel}
         />
       ) : null,
-    [paymentUrl, paymentReference, handlePaymentCancel, handlePaymentSuccess]
+    [paymentUrl, paymentReference, handlePaymentCancel, handlePaymentSuccess],
   );
 
-  // Early returns after all hooks
-  if (isGroupId ? ordersList.length === 0 : isLoadingSingle) {
+  if (authLoading || !isAuthenticated) return null;
+  if (isGroupId ? groupQuery.isLoading : isLoadingSingle)
     return (
-      <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
-        <View className="px-4 py-3 bg-white border-b border-gray-200">
-          <Skeleton className="w-32 h-6" />
-        </View>
-        <View className="p-4">
-          <Skeleton className="w-full h-64 rounded-2xl mb-4" />
-          <Skeleton className="w-full h-32 rounded-2xl" />
-        </View>
-      </View>
+      <Screen title="Order details">
+        <PageScroll>
+          <Message title="Loading your order…" />
+        </PageScroll>
+      </Screen>
     );
-  }
-
-  if (!orderData) {
-    const errorMessage = singleOrderError 
-      ? (singleOrderError as any)?.response?.data?.error || (singleOrderError as any)?.message || 'Failed to load order'
-      : 'Order not found';
-    
-    const errorDetails = singleOrderError 
-      ? `Unable to fetch order details from the server`
-      : 'This order does not exist or you do not have permission to view it';
-    
+  if (!orderData)
     return (
-      <View
-        className="flex-1 items-center justify-center bg-gray-50 px-6"
-        style={{ paddingTop: insets.top }}
-      >
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#9CA3AF" />
-        <Text className="text-xl font-semibold mb-2 mt-4">{errorMessage}</Text>
-        <Text className="text-gray-500 text-center mb-2">
-          {errorDetails}
-        </Text>
-        {id && (
-          <Text className="text-gray-400 text-sm text-center mb-4">
-            Order ID: {id}
-          </Text>
-        )}
-        <View className="flex-row gap-3">
-          <Button variant="outline" onPress={() => router.back()}>
-            <IconSymbol name="arrow.left" size={16} color="#000" />
-            <Text className="font-semibold ml-1">Go Back</Text>
-          </Button>
-          {singleOrderError && (
-            <Button onPress={() => refetchSingle()}>
-              <IconSymbol name="arrow.clockwise" size={16} color="#fff" />
-              <Text className="text-white font-semibold ml-1">Retry</Text>
-            </Button>
-          )}
-        </View>
-      </View>
+      <Screen title="Order details">
+        <PageScroll>
+          <Message
+            title="Unable to load this order"
+            body={
+              (isGroupId ? groupQuery.error : singleOrderError)?.message ||
+              'Order not found or access is unavailable.'
+            }
+            onRetry={() => void refreshOrderData()}
+          />
+        </PageScroll>
+      </Screen>
     );
-  }
-
-  const handleCancelRequest = () => {
-    if (displayOrder.status !== 'pending') {
-      toast.warning('Cannot Cancel', 'Only pending orders can be cancelled.');
-      return;
-    }
-    setCancelDialogOpen(true);
-  };
-
   const confirmCancel = async () => {
+    if (!cancelTarget || cancelOrder.isPending) return;
     try {
-      if (orderData.type === 'single') {
-        cancelOrder.mutate(String(orderData.order.id), {
-          onSuccess: () => refetchSingle(),
-        });
-        return;
-      }
-
-      const pendingOrders = orderData.group.orders.filter((order) => order.status === 'pending');
-      if (pendingOrders.length === 0) {
-        toast.warning('Cannot Cancel', 'Only pending orders can be cancelled.');
-        return;
-      }
-
-      await Promise.all(pendingOrders.map((order) => api.orders.cancelOrder(order.id)));
+      await cancelOrder.mutateAsync(String(cancelTarget.id));
       await refreshOrderData();
-
-      toast.success(
-        'Orders Cancelled',
-        pendingOrders.length === 1
-          ? 'Pending order was cancelled successfully.'
-          : `${pendingOrders.length} pending orders were cancelled successfully.`,
-      );
-    } catch (error: any) {
-      const msg =
-        error?.response?.data?.error ??
-        error?.response?.data?.message ??
-        error?.message ??
-        'Failed to cancel order.';
-      toast.error('Cancel Failed', msg);
-    } finally {
       setCancelDialogOpen(false);
+    } catch (error) {
+      toast.error(
+        'Unable to cancel',
+        (error as Error).message || 'Check the order status and try again.',
+      );
     }
   };
-
   const handleReviewPress = (item: OrderItem, order: Order) => {
     setReviewingItem(item);
     setCurrentOrder(order);
     setReviewSheetOpen(true);
   };
 
-  const handleReviewSubmit = async (data: { rating: number; comment: string }) => {
+  const handleReviewSubmit = async (data: {
+    rating: number;
+    comment: string;
+  }) => {
     if (!reviewingItem || !currentOrder) return;
 
     try {
@@ -1111,7 +529,8 @@ export default function OrderDetailScreen() {
     } catch (error: any) {
       console.error('Review submission error:', error);
       // Handle both API error format (error.error) and standard Error (error.message)
-      const errorMessage = error.error || error.message || 'Failed to submit review';
+      const errorMessage =
+        error.error || error.message || 'Failed to submit review';
       toast.error('Error', errorMessage);
     }
   };
@@ -1123,212 +542,80 @@ export default function OrderDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
-      {/* Fixed Header */}
-      <OrderHeader
-        isGroup={isGroup}
-        orderId={id}
-        status={displayOrder.status}
-        onCancelPress={handleCancelRequest}
-        isCancelling={cancelOrder.isPending}
-      />
-
-      {/* Scrollable Content */}
-      <ScrollView
+    <Screen title="Order details">
+      <PageScroll
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor="#15785B"
+            tintColor="#008236"
           />
         }
-        contentContainerStyle={{
-          paddingBottom: 60,
-          flexGrow: 1,
-        }}
-        showsVerticalScrollIndicator={false}
       >
-        <OrderStatusCard
-          isGroup={isGroup}
-          groupId={id}
-          singleOrder={orderData.type === 'single' ? orderData.order : undefined}
+        <PickupDetails
           orders={orders}
+          onCancel={(order) => {
+            setCancelTarget(order);
+            setCancelDialogOpen(true);
+          }}
+          onPay={(order) => void handleRetryPayment(order?.id)}
+          onReview={handleReviewPress}
+          paying={retryingPaymentKey !== null}
+          cancelling={cancelOrder.isPending}
         />
-
-        {isGroup ? (
-          <View className="px-4">
-            {orders.map((order) => (
-              <VendorSection 
-                key={order.id} 
-                order={order} 
-                onReviewPress={(item) => handleReviewPress(item, order)}
-              />
-            ))}
-          </View>
-        ) : (
-          <>
-            {/* Single order vendor info */}
-            <Pressable
-              onPress={() => {
-                if (displayOrder.vendor_id) {
-                  router.push(`/vendor/${displayOrder.vendor_id}` as any);
-                }
-              }}
-              className="bg-white p-5 mb-4 mx-4 rounded-xl shadow-sm"
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <Image
-                    source={
-                      getImageSource(displayOrder.vendor?.logo) ||
-                      require('@/assets/images/default-profile.jpg')
-                    }
-                    className="w-12 h-12 rounded-full mr-3"
-                    resizeMode="cover"
-                  />
-                  <View>
-                    <Text className="font-semibold text-base">
-                      {displayOrder.vendor?.business_name || 'Vendor'}
-                    </Text>
-                    <Text className="text-gray-600">{displayOrder.vendor?.phone || '—'}</Text>
-                  </View>
-                </View>
-                <View className="bg-gray-100 rounded-full p-2.5">
-                  <IconSymbol name="chevron.right" size={18} color="#666" />
-                </View>
-              </View>
-            </Pressable>
-
-            <SingleOrderItems 
-              order={displayOrder} 
-              onReviewPress={(item) => handleReviewPress(item, displayOrder)}
-            />
-          </>
-        )}
-
-        <PaymentSummary isGroup={isGroup} orders={orders} groupTotal={groupTotal} />
-
-        {/* Retry Payment Section - For failed card payments */}
-        {(() => {
-          const nonCancelledOrders = orders.filter((order) => order.status !== 'cancelled');
-          const retryEligibleOrders = nonCancelledOrders.filter(
-            (order) => order.payment_status !== 'paid' && order.payment?.status !== 'success',
-          );
-
-          if (retryEligibleOrders.length === 0) return null;
-
-          if (!isGroup) {
-            return (
-              <View className="px-4">
-                <RetryPaymentSection 
-                  order={displayOrder} 
-                  onRetryPayment={() => handleRetryPayment(displayOrder.id)}
-                  isRetrying={retryingPaymentKey === `order-${displayOrder.id}`}
-                />
-              </View>
-            );
-          }
-
-          if (retryEligibleOrders.length === nonCancelledOrders.length) {
-            return (
-              <View className="px-4">
-                <View className="pb-4">
-                  <View className="bg-white rounded-xl p-6 shadow-sm border-2 border-red-200">
-                    <View className="flex-row items-center justify-center mb-2">
-                      <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#dc2626" />
-                      <Text className="text-lg font-semibold ml-2 text-red-700">Payment Failed</Text>
-                    </View>
-
-                    <Button 
-                      onPress={() => handleRetryPayment()} 
-                      disabled={retryingPaymentKey === `group-${String(id)}`} 
-                      className="bg-red-600"
-                    >
-                      {retryingPaymentKey === `group-${String(id)}` ? (
-                        <View className="flex-row items-center justify-center">
-                          <ActivityIndicator size="small" color="white" />
-                          <Text className="ml-2 text-white">Initializing Payment...</Text>
-                        </View>
-                      ) : (
-                        <View className="flex-row items-center justify-center">
-                          <IconSymbol name="creditcard.fill" size={18} color="white" />
-                          <Text className="ml-2 text-white font-semibold">Retry Payment ({formatCurrency(Number(groupTotal))})</Text>
-                        </View>
-                      )}
-                    </Button>
-                  </View>
-                </View>
-              </View>
-            );
-          }
-
-          // If SOME orders failed payment, show individual retry buttons
-          return (
-            <View className="px-4">
-              {retryEligibleOrders.map((order) => (
-                <View key={order.id} className="mb-4">
-                  <RetryPaymentSection 
-                    order={order} 
-                    onRetryPayment={() => handleRetryPayment(order.id)}
-                    isRetrying={retryingPaymentKey === `order-${order.id}`}
-                    showVendorInfo={true}
-                  />
-                </View>
-              ))}
-            </View>
-          );
-        })()}
-
-        <ActionSection
-          isGroup={isGroup}
-          orders={orders}
-          onReorder={(ord?: Order) => reorder.mutate(ord || displayOrder)}
-          isReordering={reorder.isPending}
-        />
-
-        {/* Extra bottom space */}
-        <View className="h-10" />
-      </ScrollView>
-
+      </PageScroll>
       {/* Cancel Dialog */}
       <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent compact>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Order</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this order? This action cannot be undone.
+              {cancelTarget?.checkout_id
+                ? 'This cancels all unpaid orders in this checkout and releases reserved coins and offers. Payments still awaiting confirmation must be verified first.'
+                : 'Cancel this pending order? This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
               <Text>No</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmCancel} className="bg-red-600">
+            <AlertDialogAction
+              tone="destructive"
+              disabled={cancelOrder.isPending}
+              onPress={confirmCancel}
+              className="bg-red-600"
+            >
               <Text className="text-white">Yes, Cancel</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Success Dialog */}
-      <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Payment Successful!</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your payment has been confirmed. Your order is being processed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onPress={() => {
-              setSuccessDialogOpen(false);
-              router.replace('/orders');
-            }}>
-              <Text className="text-white">Continue</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <OutcomeDialog
+        open={!!paymentNotice}
+        onClose={() => setPaymentNotice(null)}
+        kind={paymentNotice?.kind || 'pending'}
+        title={paymentNotice?.title || ''}
+        message={paymentNotice?.message || ''}
+        primaryLabel="Refresh order status"
+        onPrimary={() => {
+          setPaymentNotice(null);
+          void refreshOrderData();
+        }}
+        secondaryLabel="Close"
+        onSecondary={() => setPaymentNotice(null)}
+      />
+      <OutcomeDialog
+        open={successDialogOpen}
+        onClose={() => setSuccessDialogOpen(false)}
+        title="Payment confirmed"
+        message="Your payment has been confirmed. Check your order for pickup updates."
+        primaryLabel="Back to order"
+        onPrimary={() => {
+          setSuccessDialogOpen(false);
+          void refreshOrderData();
+        }}
+      />
 
       {/* Review Bottom Sheet */}
       <BottomSheet
@@ -1348,6 +635,6 @@ export default function OrderDetailScreen() {
 
       {/* Paystack Payment WebView */}
       {paystackWebView}
-    </View>
+    </Screen>
   );
 }

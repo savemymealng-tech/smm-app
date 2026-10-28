@@ -1,19 +1,20 @@
-import * as Haptics from "expo-haptics";
-import { Image, Platform, Pressable, View } from "react-native";
+import { AppImage as Image } from '@/components/ui/app-image';
+import * as Haptics from 'expo-haptics';
+import { Platform, Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
-import { Text } from "@/components/ui/text";
-import { getImageSource } from "@/lib/utils";
-import type { CartItem as LocalCartItem } from "@/types";
-import type { CartItem } from "@/types/api";
-import { FadeIn } from "react-native-reanimated";
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
+import { Text } from '@/components/ui/text';
+import { getImageSource } from '@/lib/utils';
+import type { CartItem as LocalCartItem } from '@/types';
+import type { CartItem } from '@/types/api';
+import { FadeIn } from 'react-native-reanimated';
 
 interface CartItemCardProps {
   item: CartItem | LocalCartItem;
@@ -34,20 +35,22 @@ export function CartItemCard({
   const quantityScale = useSharedValue(1);
 
   // Handle both API cart (item.product.price) and local cart (item.unitPrice)
-  const price = isAuthenticated 
+  const price = isAuthenticated
     ? parseFloat((item as CartItem).product.price)
     : (item as LocalCartItem).unitPrice;
   const quantity = item.quantity;
-  const totalPrice = isAuthenticated 
+  const totalPrice = isAuthenticated
     ? price * quantity
     : (item as LocalCartItem).totalPrice;
   const product = item.product;
   const quantityAvailable = isAuthenticated
     ? (item as CartItem).product.quantity_available
-    : (product as any).quantityAvailable || (product as any).quantity_available || 999;
+    : (product as any).quantityAvailable ||
+      (product as any).quantity_available ||
+      999;
 
   const handleQuantityChange = (newQuantity: number) => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     quantityScale.value = withSpring(1.2, {}, () => {
@@ -57,7 +60,7 @@ export function CartItemCard({
   };
 
   const handleRemove = () => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     scale.value = withTiming(0.95, { duration: 100 }, () => {
@@ -85,10 +88,18 @@ export function CartItemCard({
           <Image
             source={
               getImageSource(
-                (product as any).photo_url || (product as any).photoUrl || (product as any).images?.[0]
+                (product as any).photo_url ||
+                  (product as any).photoUrl ||
+                  (product as any).images?.[0],
               ) || require('@/assets/images/default-product.jpg')
             }
-            className="w-28 h-28 rounded-l-2xl"
+            fallbackSource={require('@/assets/images/default-product.jpg')}
+            style={{
+              width: 112,
+              height: 112,
+              borderTopLeftRadius: 16,
+              borderBottomLeftRadius: 16,
+            }}
             resizeMode="cover"
           />
         </NativeOnlyAnimatedView>
@@ -105,10 +116,11 @@ export function CartItemCard({
               </Text>
               {(product as any).vendor && (
                 <Text className="text-gray-500 text-xs" numberOfLines={1}>
-                  {(product as any).vendor.business_name || (product as any).vendor.name}
+                  {(product as any).vendor.business_name ||
+                    (product as any).vendor.name}
                 </Text>
               )}
-              
+
               {/* Pickup indicator */}
               {(product as any).available_for_pickup && (
                 <View className="flex-row items-center mt-1">
@@ -144,7 +156,11 @@ export function CartItemCard({
                   quantity <= 1 ? 'bg-gray-200' : 'bg-white active:bg-gray-50'
                 }`}
               >
-                <IconSymbol name="minus" size={14} color={quantity <= 1 ? "#d1d5db" : "#666"} />
+                <IconSymbol
+                  name="minus"
+                  size={14}
+                  color={quantity <= 1 ? '#d1d5db' : '#666'}
+                />
               </Pressable>
               <Animated.View style={animatedQuantityStyle}>
                 <Text className="text-gray-900 font-bold text-base mx-4 min-w-[24px] text-center">
@@ -155,15 +171,15 @@ export function CartItemCard({
                 onPress={() => handleQuantityChange(quantity + 1)}
                 disabled={quantity >= quantityAvailable}
                 className={`w-8 h-8 rounded-full items-center justify-center shadow-sm ${
-                  quantity >= quantityAvailable 
-                    ? 'bg-gray-200' 
+                  quantity >= quantityAvailable
+                    ? 'bg-gray-200'
                     : 'bg-[#1E8449] active:opacity-80'
                 }`}
               >
-                <IconSymbol 
-                  name="plus" 
-                  size={14} 
-                  color={quantity >= quantityAvailable ? "#d1d5db" : "white"} 
+                <IconSymbol
+                  name="plus"
+                  size={14}
+                  color={quantity >= quantityAvailable ? '#d1d5db' : 'white'}
                 />
               </Pressable>
             </View>
@@ -183,4 +199,3 @@ export function CartItemCard({
     </Animated.View>
   );
 }
-

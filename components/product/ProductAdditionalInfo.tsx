@@ -9,9 +9,7 @@ interface ProductAdditionalInfoProps {
   product: Meal;
 }
 
-export function ProductAdditionalInfo({
-  product,
-}: ProductAdditionalInfoProps) {
+export function ProductAdditionalInfo({ product }: ProductAdditionalInfoProps) {
   // Meal type has expiry_date, quantity_available, weight, delivery_fee, available_for_pickup, available_for_delivery, pickup_start_time, pickup_end_time, pickup_day, delivery_time_minutes
   const hasAdditionalInfo =
     product.quantity_available > 0 ||
@@ -32,7 +30,7 @@ export function ProductAdditionalInfo({
       {/* {product.available_for_delivery && (
         <View className="mb-4 pb-4 border-b border-gray-100">
           <View className="flex-row items-center mb-2">
-            <IconSymbol name="shippingbox.fill" size={16} color="#1E8449" />
+            <IconSymbol name="shippingbox.fill" size={16} color="#008236" />
             <Text className="font-semibold text-gray-900 ml-2">
               Available for Delivery
             </Text>
@@ -55,14 +53,20 @@ export function ProductAdditionalInfo({
       {product.available_for_pickup && (
         <View className="mb-4 pb-4 border-b border-gray-100">
           <View className="flex-row items-center mb-2">
-            <IconSymbol name="bag.fill" size={16} color="#1E8449" />
+            <IconSymbol name="bag.fill" size={16} color="#008236" />
             <Text className="font-semibold text-gray-900 ml-2">
               Available for Pickup
             </Text>
           </View>
           {product.pickup_start_time && product.pickup_end_time && (
             <Text className="text-gray-700 ml-6">
-              Pickup {getEffectivePickupDay(product.pickup_day, product.pickup_end_time)}: {formatTime12Hour(product.pickup_start_time)} - {formatTime12Hour(product.pickup_end_time)}
+              Pickup{" "}
+              {getEffectivePickupDay(
+                product.pickup_day,
+                product.pickup_end_time,
+              )}
+              : {formatTime12Hour(product.pickup_start_time)} -{" "}
+              {formatTime12Hour(product.pickup_end_time)}
             </Text>
           )}
         </View>
@@ -71,10 +75,11 @@ export function ProductAdditionalInfo({
       {product.quantity_available > 0 && (
         <View className="mb-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
           <Text className="font-semibold text-gray-900 mb-2">Available</Text>
-          <Text className="text-gray-700">{product.quantity_available} units in stock</Text>
+          <Text className="text-gray-700">
+            {product.quantity_available} units in stock
+          </Text>
         </View>
       )}
     </View>
   );
 }
-

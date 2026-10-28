@@ -25,7 +25,7 @@ export const usePaystackWebView = ({
     if (!visible) return;
     const timer = setTimeout(() => {
       if (isLoading) {
-        console.warn('[Paystack] Stuck detected — forcing success');
+        console.warn('[Paystack] Loading timed out — checking payment status');
         onPaymentSuccess(reference);
       }
     }, 30000);
@@ -72,7 +72,7 @@ export const usePaystackWebView = ({
         return true;
       }
 
-      if (lower.includes('paystack.co/close') || lower.includes('success') || lower.includes('thank-you')) {
+      if (lower.startsWith('https://checkout.paystack.com/close') || lower.startsWith('https://paystack.co/close')) {
         let successReference = reference;
         try {
           const parsed = new URL(url);

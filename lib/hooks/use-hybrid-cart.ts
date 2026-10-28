@@ -1,20 +1,28 @@
+import { toast } from "@/components/ui/toast";
 /**
  * Hybrid Cart: server cart when logged in (single source of truth), local when guest.
  * Checkout uses server cart (use_cart: true) when authenticated.
  */
 
-import type { CartItem as LocalCartItem } from '@/types';
-import type { AddToCartRequest, Cart, Meal, UpdateCartRequest } from '@/types/api';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAtom, useAtomValue } from 'jotai';
-import { useEffect, useMemo, useRef } from 'react';
-import { Alert } from 'react-native';
-import { api } from '../api';
-import { authAtom } from '../atoms/auth';
-import { persistCartAtom } from '../atoms/cart';
+import type { CartItem as LocalCartItem } from "@/types";
+import type {
+  AddToCartRequest,
+  Cart,
+  Meal,
+  UpdateCartRequest,
+} from "@/types/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useMemo, useRef } from "react";
+import { Alert } from "react-native";
+import { api } from "../api";
+import { authAtom } from "../atoms/auth";
+import { persistCartAtom } from "../atoms/cart";
 
 /** Normalize API cart item to shared display shape (id, productId, vendorId, product, quantity, unitPrice, totalPrice) */
-function apiCartToDisplayItems(apiCart: Cart | null | undefined): LocalCartItem[] {
+function apiCartToDisplayItems(
+  apiCart: Cart | null | undefined,
+): LocalCartItem[] {
   if (!apiCart?.items?.length) return [];
   return apiCart.items.map((item: any) => {
     const product = item.product || {};
@@ -22,8 +30,8 @@ function apiCartToDisplayItems(apiCart: Cart | null | undefined): LocalCartItem[
     return {
       id: String(item.id ?? `${item.product_id}-${Date.now()}`),
       productId: String(item.product_id),
-      vendorId: String(product.vendor_id ?? product.vendor?.id ?? ''),
-      product: product as LocalCartItem['product'],
+      vendorId: String(product.vendor_id ?? product.vendor?.id ?? ""),
+      product: product as LocalCartItem["product"],
       quantity: item.quantity,
       customizations: {},
       unitPrice: price,
@@ -42,14 +50,18 @@ export function useHybridCart() {
   const [localCart, setLocalCart] = useAtom(persistCartAtom);
   const queryClient = useQueryClient();
 
-  const { data: apiCart, isLoading: apiLoading, refetch: refetchApiCart } = useQuery({
-    queryKey: ['cart'],
+  const {
+    data: apiCart,
+    isLoading: apiLoading,
+    refetch: refetchApiCart,
+  } = useQuery({
+    queryKey: ["cart"],
     queryFn: async () => {
       try {
         return await api.cart.getCart();
       } catch (error: any) {
         if (error?.response?.status === 404) {
-          return { items: [], total_items: 0, subtotal: '0.00' };
+          return { items: [], total_items: 0, subtotal: "0.00" };
         }
         throw error;
       }
@@ -71,10 +83,13 @@ export function useHybridCart() {
     (async () => {
       try {
         for (const item of localCart) {
-          await api.cart.addToCart({ product_id: Number(item.productId), quantity: item.quantity });
+          await api.cart.addToCart({
+            product_id: Number(item.productId),
+            quantity: item.quantity,
+          });
         }
         setLocalCart([]);
-        queryClient.invalidateQueries({ queryKey: ['cart'] });
+        queryClient.invalidateQueries({ queryKey: ["cart"] });
       } catch (e) {
         hasMergedRef.current = false;
       }
@@ -96,23 +111,23 @@ export function useHybridCart() {
   const deliveryFee = useMemo(() => {
     return displayCart.reduce((sum, item) => {
       const product = item.product;
-      
+
       // Skip if no delivery fee defined
       if (!product?.delivery_fee || !product?.available_for_delivery) {
         return sum;
       }
-      
+
       // Include delivery fee if:
       // 1. Customer explicitly chose delivery, OR
       // 2. Product only supports delivery (not available for pickup)
-      const shouldIncludeDeliveryFee = 
-        item.fulfillment_method === 'delivery' || 
+      const shouldIncludeDeliveryFee =
+        item.fulfillment_method === "delivery" ||
         (product.available_for_delivery && !product.available_for_pickup);
-      
+
       if (shouldIncludeDeliveryFee) {
         return sum + parseFloat(product.delivery_fee);
       }
-      
+
       return sum;
     }, 0);
   }, [displayCart]);
@@ -141,32 +156,45 @@ export function useHybridAddToCart() {
   const apiMutation = useMutation({
     mutationFn: (data: AddToCartRequest) => api.cart.addToCart(data),
     onSuccess: (data) => {
-      queryClient.setQueryData(['cart'], data);
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.setQueryData(["cart"], data);
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.error || error.message || 'Failed to add to cart');
+      toast.error(
+        "Could not add item",
+        error.error || error.message || "Failed to add to cart",
+      );
     },
   });
 
-  const addToLocalCart = (product: Meal, quantity: number, fulfillmentMethod?: 'pickup' | 'delivery') => {
-    setLocalCart((prev) => {
-      const existingIndex = prev.findIndex((item) => Number(item.productId) === product.id);
+  const addToLocalCart = async (
+    product: Meal,
+    quantity: number,
+    fulfillmentMethod?: "pickup" | "delivery",
+  ) => {
+    await setLocalCart((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => Number(item.productId) === product.id,
+      );
       const price = parseFloat(product.price);
-      
+
       // Determine if fulfillment choice is required
-      const requiresChoice = product.available_for_pickup && product.available_for_delivery;
-      
+      const requiresChoice =
+        product.available_for_pickup && product.available_for_delivery;
+
       // Auto-select fulfillment method if only one option available
       let finalFulfillmentMethod = fulfillmentMethod;
       if (!finalFulfillmentMethod) {
         if (product.available_for_delivery && !product.available_for_pickup) {
-          finalFulfillmentMethod = 'delivery';
-        } else if (product.available_for_pickup && !product.available_for_delivery) {
-          finalFulfillmentMethod = 'pickup';
+          finalFulfillmentMethod = "delivery";
+        } else if (
+          product.available_for_pickup &&
+          !product.available_for_delivery
+        ) {
+          finalFulfillmentMethod = "pickup";
         }
       }
-      
+
       if (existingIndex !== -1) {
         return prev.map((item, i) =>
           i === existingIndex
@@ -174,10 +202,12 @@ export function useHybridAddToCart() {
                 ...item,
                 quantity: item.quantity + quantity,
                 totalPrice: item.unitPrice * (item.quantity + quantity),
-                fulfillment_method: finalFulfillmentMethod ?? item.fulfillment_method,
-                requires_fulfillment_choice: requiresChoice && !finalFulfillmentMethod,
+                fulfillment_method:
+                  finalFulfillmentMethod ?? item.fulfillment_method,
+                requires_fulfillment_choice:
+                  requiresChoice && !finalFulfillmentMethod,
               }
-            : item
+            : item,
         );
       }
       const newItem: LocalCartItem = {
@@ -201,17 +231,38 @@ export function useHybridAddToCart() {
     mutate: (data: AddToCartRequest & { product?: Meal }) => {
       if (data.product) {
         if (authState.isAuthenticated) {
-          apiMutation.mutate({ 
-            product_id: data.product_id, 
-            quantity: data.quantity,
-            fulfillment_method: data.fulfillment_method 
-          }, {
-            // onSuccess: () => toast.success('Added to Cart', 'Item added to cart'), // Removed per user request
-          });
+          apiMutation.mutate(
+            {
+              product_id: data.product_id,
+              quantity: data.quantity,
+              fulfillment_method: data.fulfillment_method,
+            },
+            {
+              // onSuccess: () => toast.success('Added to Cart', 'Item added to cart'), // Removed per user request
+            },
+          );
         } else {
           addToLocalCart(data.product, data.quantity, data.fulfillment_method);
         }
       }
+    },
+    mutateAsync: async (data: AddToCartRequest & { product: Meal }) => {
+      if (authState.isAuthenticated)
+        return apiMutation.mutateAsync({
+          product_id: data.product_id,
+          quantity: data.quantity,
+          fulfillment_method: data.fulfillment_method,
+        });
+      const existing = localCart
+        .filter((item) => Number(item.productId) === data.product_id)
+        .reduce((sum, item) => sum + item.quantity, 0);
+      if (existing + data.quantity > data.product.quantity_available)
+        throw new Error("This quantity is no longer available");
+      await addToLocalCart(
+        data.product,
+        data.quantity,
+        data.fulfillment_method,
+      );
     },
     isPending: apiMutation.isPending,
     isSuccess: apiMutation.isSuccess,
@@ -230,41 +281,52 @@ export function useHybridUpdateCart() {
   const apiMutation = useMutation({
     mutationFn: (data: UpdateCartRequest) => api.cart.updateCart(data),
     onSuccess: (data) => {
-      queryClient.setQueryData(['cart'], data);
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.setQueryData(["cart"], data);
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.error || error.message || 'Failed to update cart');
+      Alert.alert(
+        "Error",
+        error.error || error.message || "Failed to update cart",
+      );
     },
   });
 
   return {
-    mutate: (data: { product_id?: number; item_id?: string; quantity: number; fulfillment_method?: 'pickup' | 'delivery' }) => {
+    mutate: (data: {
+      product_id?: number;
+      item_id?: string;
+      quantity: number;
+      fulfillment_method?: "pickup" | "delivery";
+    }) => {
       if (data.quantity <= 0) {
         // Handled as remove by caller
         return;
       }
       if (authState.isAuthenticated && data.product_id) {
-        apiMutation.mutate({ 
-          product_id: data.product_id, 
+        apiMutation.mutate({
+          product_id: data.product_id,
           quantity: data.quantity,
-          fulfillment_method: data.fulfillment_method 
+          fulfillment_method: data.fulfillment_method,
         });
       } else {
         const itemId = data.item_id ?? `${data.product_id}-`;
         setLocalCart((prev) =>
           prev.map((item) => {
-            const match = item.id === itemId || (data.product_id && Number(item.productId) === data.product_id);
+            const match =
+              item.id === itemId ||
+              (data.product_id && Number(item.productId) === data.product_id);
             if (match) {
-              return { 
-                ...item, 
-                quantity: data.quantity, 
+              return {
+                ...item,
+                quantity: data.quantity,
                 totalPrice: item.unitPrice * data.quantity,
-                fulfillment_method: data.fulfillment_method ?? item.fulfillment_method,
+                fulfillment_method:
+                  data.fulfillment_method ?? item.fulfillment_method,
               };
             }
             return item;
-          })
+          }),
         );
       }
     },
@@ -281,13 +343,17 @@ export function useHybridRemoveFromCart() {
   const queryClient = useQueryClient();
 
   const apiMutation = useMutation({
-    mutationFn: (productId: number) => api.cart.removeFromCart({ product_id: productId }),
+    mutationFn: (productId: number) =>
+      api.cart.removeFromCart({ product_id: productId }),
     onSuccess: (data) => {
-      queryClient.setQueryData(['cart'], data);
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.setQueryData(["cart"], data);
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.error || error.message || 'Failed to remove item');
+      Alert.alert(
+        "Error",
+        error.error || error.message || "Failed to remove item",
+      );
     },
   });
 
@@ -314,11 +380,18 @@ export function useHybridClearCart() {
   const apiMutation = useMutation({
     mutationFn: () => api.cart.clearCart(),
     onSuccess: () => {
-      queryClient.setQueryData(['cart'], { items: [], total_items: 0, subtotal: '0.00' });
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.setQueryData(["cart"], {
+        items: [],
+        total_items: 0,
+        subtotal: "0.00",
+      });
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.error || error.message || 'Failed to clear cart');
+      Alert.alert(
+        "Error",
+        error.error || error.message || "Failed to clear cart",
+      );
     },
   });
 

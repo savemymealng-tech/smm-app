@@ -50,11 +50,14 @@ async function data<T>(path: string, body?: unknown): Promise<T> {
       error?: string;
       message?: string;
     };
-    throw new Error(
-      cause.response?.data?.error ||
-        cause.error ||
-        cause.message ||
-        'Unable to load offers',
+    throw Object.assign(
+      new Error(
+        cause.response?.data?.error ||
+          cause.error ||
+          cause.message ||
+          'Unable to load offers',
+      ),
+      error,
     );
   }
 }
@@ -63,6 +66,13 @@ export const growthApi = {
   quote: (body: { use_cart: true; campaign_code?: string; coins?: number }) =>
     data<CheckoutQuote>('/growth/quote', body),
   rewards: () => data<Rewards>('/growth/rewards'),
+  activity: (page: number) =>
+    data<{
+      data: Rewards['entries'];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(`/growth/coin-activity?page=${page}&limit=20`),
   release: (id: string) =>
     data(`/growth/checkouts/${encodeURIComponent(id)}/release`, {}),
 };

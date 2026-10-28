@@ -1,13 +1,22 @@
-import { router } from "expo-router";
-import { Dimensions, Image, Pressable, View } from "react-native";
+import { AppImage as Image } from '@/components/ui/app-image';
+import { ratingLabel } from '@/lib/product-display';
+import { router } from 'expo-router';
+import { Dimensions, Pressable, View } from 'react-native';
 
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Text } from "@/components/ui/text";
-import { Colors } from "@/constants/theme";
-import { calculateDistance, formatCurrency, formatDistance, formatTime12Hour, getEffectivePickupDay, getImageSource } from "@/lib/utils";
-import type { Meal } from "@/types/api";
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Text } from '@/components/ui/text';
+import { Colors } from '@/constants/theme';
+import {
+  calculateDistance,
+  formatCurrency,
+  formatDistance,
+  formatTime12Hour,
+  getEffectivePickupDay,
+  getImageSource,
+} from '@/lib/utils';
+import type { Meal } from '@/types/api';
 
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 export const PRODUCT_CARD_WIDTH = width > 0 ? (width - 48) / 2 : 160; // 2 columns with padding, fallback to 160
 
 interface ProductCardProps {
@@ -25,9 +34,13 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
   }
 
   const price = parseFloat(item.price);
-  const originalPrice = item.original_price ? parseFloat(item.original_price) : null;
+  const originalPrice = item.original_price
+    ? parseFloat(item.original_price)
+    : null;
   const hasDiscount = originalPrice && originalPrice > price;
-  const discountPercent = hasDiscount ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+  const discountPercent = hasDiscount
+    ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    : 0;
 
   // Calculate distance if user location and vendor location are available
   let distance: string | null = null;
@@ -39,7 +52,7 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
         userLocation.latitude,
         userLocation.longitude,
         vendorLat,
-        vendorLng
+        vendorLng,
       );
       distance = formatDistance(distanceInMeters);
     }
@@ -52,8 +65,12 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
     >
       <View className="relative">
         <Image
-          source={getImageSource(item.photo_url) || require('@/assets/images/default-product.jpg')}
-          className="w-full h-40"
+          source={
+            getImageSource(item.photo_url) ||
+            require('@/assets/images/default-product.jpg')
+          }
+          fallbackSource={require('@/assets/images/default-product.jpg')}
+          style={{ width: '100%', height: 160 }}
           resizeMode="cover"
         />
         {hasDiscount && (
@@ -95,24 +112,25 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
                   color={Colors.light.tint}
                 />
                 <Text className="text-xs text-gray-600 ml-1">
-                  {parseFloat(item.average_rating).toFixed(1)}
+                  {ratingLabel(item.average_rating)}
                 </Text>
               </>
             )}
           </View>
         </View>
-        {item.available_for_pickup && item.pickup_start_time && item.pickup_end_time && (
-          <View className="flex-row items-center mb-2">
-            <IconSymbol
-              name="clock"
-              size={12}
-              color={Colors.light.tint}
-            />
-            <Text className="text-xs text-gray-600 ml-1">
-              Pickup {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}: {formatTime12Hour(item.pickup_start_time)} - {formatTime12Hour(item.pickup_end_time)}
-            </Text>
-          </View>
-        )}
+        {item.available_for_pickup &&
+          item.pickup_start_time &&
+          item.pickup_end_time && (
+            <View className="flex-row items-center mb-2">
+              <IconSymbol name="clock" size={12} color={Colors.light.tint} />
+              <Text className="text-xs text-gray-600 ml-1">
+                Pickup{' '}
+                {getEffectivePickupDay(item.pickup_day, item.pickup_end_time)}:{' '}
+                {formatTime12Hour(item.pickup_start_time)} -{' '}
+                {formatTime12Hour(item.pickup_end_time)}
+              </Text>
+            </View>
+          )}
         {distance && (
           <View className="flex-row items-center mb-2">
             <IconSymbol
@@ -120,9 +138,7 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
               size={12}
               color={Colors.light.tint}
             />
-            <Text className="text-xs text-gray-600 ml-1">
-              {distance} away
-            </Text>
+            <Text className="text-xs text-gray-600 ml-1">{distance} away</Text>
           </View>
         )}
         <View className="flex-row items-center justify-between">
@@ -147,4 +163,3 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
     </Pressable>
   );
 }
-

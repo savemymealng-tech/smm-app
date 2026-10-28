@@ -1,3 +1,4 @@
+import { isRateLimited } from '@/lib/api/rate-limit';
 import { api } from '@/lib/api';
 import type { Order, PlaceOrderRequest, SubmitReviewRequest } from '@/types/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,7 +43,7 @@ export function useTrackOrder(orderId: string, options?: { enabled?: boolean }) 
     enabled: options?.enabled !== undefined 
       ? options.enabled && isValidOrderId 
       : isValidOrderId,
-    retry: 2, // Retry failed requests twice
+    retry: (count, error) => !isRateLimited(error) && count < 2, // Retry failed requests twice
     refetchInterval: 30000, // Refetch every 30 seconds for real-time tracking
     staleTime: 5000, // Consider data fresh for 5 seconds
   });

@@ -1,3 +1,4 @@
+import { isRateLimited } from '@/lib/api/rate-limit';
 import { atom } from 'jotai'
 import type { User } from '../../types'
 import { authApi } from '../api/auth'
@@ -89,7 +90,11 @@ export const initAuthAtom = atom(null, async (get, set) => {
           accessToken: newToken,
           refreshToken: newRefreshToken,
         })
-      } catch {
+      } catch (error) {
+        if (isRateLimited(error)) {
+          set(authAtom, { user: null, isAuthenticated: true, isLoading: false, accessToken, refreshToken });
+          return;
+        }
         // Refresh token itself expired or revoked → user must log in again
         await tokenManager.clearTokens()
         set(authAtom, {

@@ -1,22 +1,11 @@
 /**
- * Global alert notification system.
- *
- * Keeps the existing `toast.success/error/warning/info` API,
- * but renders messages with AlertDialog instead of toast banners.
+ * Non-blocking, dismissible notification banners with the existing toast API.
  */
 
 import * as React from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './alert-dialog';
 import { IconSymbol } from './icon-symbol';
 import { Text } from './text';
 
@@ -40,7 +29,9 @@ interface ToastContextValue {
   dismissAll: () => void;
 }
 
-const ToastContext = React.createContext<ToastContextValue | undefined>(undefined);
+const ToastContext = React.createContext<ToastContextValue | undefined>(
+  undefined,
+);
 
 type ToastListener = (toast: ToastData) => void;
 const toastListeners: Set<ToastListener> = new Set();
@@ -63,67 +54,15 @@ export const toast = {
     emitToast({ type: 'info', title, message }),
 };
 
-const dialogConfig: Record<
-  ToastType,
-  {
-    icon: string;
-    iconColor: string;
-    iconBg: string;
-    accentBg: string;
-    titleColor: string;
-    descriptionColor: string;
-    buttonBg: string;
-    buttonTextColor: string;
-    buttonText: string;
-  }
-> = {
-  success: {
-    icon: 'checkmark.circle.fill',
-    iconColor: '#16a34a',
-    iconBg: 'bg-green-100',
-    accentBg: 'bg-green-600',
-    titleColor: 'text-[#166534]',
-    descriptionColor: 'text-[#166534]/80',
-    buttonBg: 'bg-green-600',
-    buttonTextColor: 'text-white',
-    buttonText: 'Continue',
-  },
-  error: {
-    icon: 'xmark.circle.fill',
-    iconColor: '#dc2626',
-    iconBg: 'bg-red-100',
-    accentBg: 'bg-red-600',
-    titleColor: 'text-[#991B1B]',
-    descriptionColor: 'text-[#991B1B]/80',
-    buttonBg: 'bg-red-600',
-    buttonTextColor: 'text-white',
-    buttonText: 'Close',
-  },
-  warning: {
-    icon: 'exclamationmark.triangle.fill',
-    iconColor: '#d97706',
-    iconBg: 'bg-amber-100',
-    accentBg: 'bg-amber-500',
-    titleColor: 'text-[#92400E]',
-    descriptionColor: 'text-[#92400E]/80',
-    buttonBg: 'bg-amber-600',
-    buttonTextColor: 'text-white',
-    buttonText: 'Understood',
-  },
-  info: {
-    icon: 'info.circle.fill',
-    iconColor: '#2563eb',
-    iconBg: 'bg-blue-100',
-    accentBg: 'bg-blue-600',
-    titleColor: 'text-[#1E3A8A]',
-    descriptionColor: 'text-[#1E3A8A]/80',
-    buttonBg: 'bg-blue-600',
-    buttonTextColor: 'text-white',
-    buttonText: 'OK',
-  },
+const dialogConfig: Record<ToastType, { icon: string; iconColor: string }> = {
+  success: { icon: 'checkmark.circle.fill', iconColor: '#008236' },
+  error: { icon: 'exclamationmark.triangle.fill', iconColor: '#b91c1c' },
+  warning: { icon: 'exclamationmark.triangle.fill', iconColor: '#b45309' },
+  info: { icon: 'info.circle.fill', iconColor: '#2563eb' },
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
   const [queue, setQueue] = React.useState<ToastData[]>([]);
   const [active, setActive] = React.useState<ToastData | null>(null);
 
@@ -143,23 +82,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const success = React.useCallback(
-    (title: string, message?: string) => showToast({ type: 'success', title, message }),
-    [showToast]
+    (title: string, message?: string) =>
+      showToast({ type: 'success', title, message }),
+    [showToast],
   );
 
   const error = React.useCallback(
-    (title: string, message?: string) => showToast({ type: 'error', title, message }),
-    [showToast]
+    (title: string, message?: string) =>
+      showToast({ type: 'error', title, message }),
+    [showToast],
   );
 
   const warning = React.useCallback(
-    (title: string, message?: string) => showToast({ type: 'warning', title, message }),
-    [showToast]
+    (title: string, message?: string) =>
+      showToast({ type: 'warning', title, message }),
+    [showToast],
   );
 
   const info = React.useCallback(
-    (title: string, message?: string) => showToast({ type: 'info', title, message }),
-    [showToast]
+    (title: string, message?: string) =>
+      showToast({ type: 'info', title, message }),
+    [showToast],
   );
 
   React.useEffect(() => {
@@ -186,47 +129,80 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [active]);
 
   const value = React.useMemo(
-    () => ({ toast: showToast, success, error, warning, info, dismiss, dismissAll }),
-    [showToast, success, error, warning, info, dismiss, dismissAll]
+    () => ({
+      toast: showToast,
+      success,
+      error,
+      warning,
+      info,
+      dismiss,
+      dismissAll,
+    }),
+    [showToast, success, error, warning, info, dismiss, dismissAll],
   );
 
+  React.useEffect(() => {
+    if (!active) return;
+    const timer = setTimeout(
+      handleCloseActive,
+      active.duration ?? (active.type === 'error' ? 7000 : 4000),
+    );
+    return () => clearTimeout(timer);
+  }, [active, handleCloseActive]);
   const config = active ? dialogConfig[active.type] : null;
-
   return (
     <ToastContext.Provider value={value}>
       {children}
-
       {active && config && (
-        <AlertDialog open={true} onOpenChange={(open) => !open && handleCloseActive()}>
-          <AlertDialogContent className="overflow-hidden rounded-3xl border border-gray-200 bg-white p-0">
-            <View className={`h-1.5 w-full ${config.accentBg}`} />
-
-            <View className="px-6 py-6">
-              <AlertDialogHeader className="items-center">
-                <View className={`mb-1 h-14 w-14 items-center justify-center rounded-full ${config.iconBg}`}>
-                  <IconSymbol name={config.icon as any} size={27} color={config.iconColor} />
-                </View>
-                <AlertDialogTitle className={`text-center text-[22px] font-bold tracking-tight ${config.titleColor}`}>
-                  {active.title}
-                </AlertDialogTitle>
-                {active.message ? (
-                  <AlertDialogDescription className={`mt-0.5 text-center text-[15px] leading-6 ${config.descriptionColor}`}>
-                    {active.message}
-                  </AlertDialogDescription>
-                ) : null}
-              </AlertDialogHeader>
-
-              <AlertDialogFooter className="mt-5">
-                <AlertDialogAction
-                  onPress={handleCloseActive}
-                  className={`w-full rounded-2xl ${config.buttonBg}`}
-                >
-                  <Text className={`font-semibold ${config.buttonTextColor}`}>{config.buttonText}</Text>
-                </AlertDialogAction>
-              </AlertDialogFooter>
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: insets.top + 12,
+            left: 16,
+            right: 16,
+            zIndex: 9999,
+            elevation: 30,
+          }}
+        >
+          <Pressable
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`${active.title}. ${active.message || ''}. Tap to dismiss.`}
+            onPress={handleCloseActive}
+            className="flex-row items-start rounded-2xl border border-gray-200 bg-white p-4"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              padding: 16,
+              borderRadius: 18,
+              backgroundColor: '#fff',
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              shadowColor: '#000',
+              shadowOpacity: 0.12,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 4 },
+            }}
+          >
+            <IconSymbol
+              name={config.icon as any}
+              size={24}
+              color={active.type === 'success' ? '#008236' : config.iconColor}
+            />
+            <View style={{ flex: 1, marginHorizontal: 12 }}>
+              <Text className="font-semibold text-gray-900">
+                {active.title}
+              </Text>
+              {!!active.message && (
+                <Text className="text-sm text-gray-600 mt-1">
+                  {active.message}
+                </Text>
+              )}
             </View>
-          </AlertDialogContent>
-        </AlertDialog>
+            <Text className="text-gray-400">✕</Text>
+          </Pressable>
+        </View>
       )}
     </ToastContext.Provider>
   );

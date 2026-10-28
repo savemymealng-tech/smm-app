@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 /**
  * API Configuration
  * Centralized configuration for API base URL and endpoints
@@ -7,12 +8,15 @@ import { Platform } from 'react-native';
 
 // Get localhost equivalent based on platform
 const getLocalhost = (): string => {
-  // Android emulator uses 10.0.2.2 to access host machine's localhost
-  // iOS simulator and web can use localhost directly
-  if (Platform.OS === 'android') {
-    return '192.168.1.157';
+  const metroHost = Constants.expoConfig?.hostUri;
+  if (metroHost) {
+    try {
+      return new URL(`http://${metroHost}`).hostname;
+    } catch {
+      /* Emulator fallback below. */
+    }
   }
-  return 'localhost';
+  return Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 };
 
 // Default API base URL - can be overridden via environment variables
@@ -21,11 +25,13 @@ const getApiBaseUrl = (): string => {
   // IMPORTANT: Use your Node API server port (e.g. 3000), NOT 8081 (Expo/Metro).
   if (__DEV__) {
     const localhost = getLocalhost();
-    const url = process.env.EXPO_PUBLIC_API_URL || `http://${localhost}:6001/api/v1`;
+    const url =
+      process.env.EXPO_PUBLIC_API_URL || `http://${localhost}:6001/api/v1`;
     console.log('🔧 API Base URL (Development):', url);
     return url;
   }
-  const url = process.env.EXPO_PUBLIC_API_URL || "https://api.savemymeal.com/api/v1";
+  const url =
+    process.env.EXPO_PUBLIC_API_URL || 'https://api.savemymeal.com/api/v1';
   console.log('🔧 API Base URL (Production):', url);
   return url;
 };
@@ -48,14 +54,14 @@ export const API_CONFIG = {
       RESET_PASSWORD: '/auth/reset-password',
       REFRESH: '/auth/refresh',
     },
-    
+
     // Meals/Products
     MEALS: {
       BROWSE: '/meals',
       BY_ID: (id: number) => `/meals/${id}`,
       BY_CATEGORY: (categoryId: number) => `/meals/category/${categoryId}`,
     },
-    
+
     // Vendors
     VENDORS: {
       LIST: '/vendors',
@@ -64,14 +70,14 @@ export const API_CONFIG = {
       NEARBY: '/customers/vendors/nearby',
       SEARCH: '/customers/vendors/search',
     },
-    
+
     // Featured Content
     FEATURED: {
       CATEGORIES: '/featured/categories',
       PRODUCTS: '/featured/products',
       VENDORS: '/featured/vendors',
     },
-    
+
     // Cart
     CART: {
       GET: '/customers/cart',
@@ -80,7 +86,7 @@ export const API_CONFIG = {
       REMOVE: '/customers/cart/item',
       CLEAR: '/customers/cart',
     },
-    
+
     // Orders
     ORDERS: {
       PLACE: '/customers/orders',
@@ -88,14 +94,14 @@ export const API_CONFIG = {
       BY_ID: (id: number) => `/customers/orders/${id}`,
       CANCEL: (id: number) => `/customers/orders/${id}/cancel`,
     },
-    
+
     // Payments
     PAYMENTS: {
       INITIALIZE: '/payments/initialize',
       VERIFY: (reference: string) => `/payments/verify/${reference}`,
       HISTORY: (orderId: number) => `/payments/history/${orderId}`,
     },
-    
+
     // User Profile
     PROFILE: {
       GET: '/customers/profile',
@@ -103,7 +109,7 @@ export const API_CONFIG = {
       DELETE: '/customers/profile',
       PICTURE: '/customers/profile/picture',
     },
-    
+
     // Addresses
     ADDRESSES: {
       LIST: '/customers/addresses',
@@ -113,14 +119,15 @@ export const API_CONFIG = {
       DELETE: (id: number) => `/customers/addresses/${id}`,
       SET_DEFAULT: (id: number) => `/customers/addresses/${id}/default`,
     },
-    
+
     // Locations
     LOCATIONS: {
       SEARCH: '/locations/search',
       COUNTRIES: '/locations/countries',
-      STATES_BY_COUNTRY: (countryId: number) => `/locations/countries/${countryId}/states`,
+      STATES_BY_COUNTRY: (countryId: number) =>
+        `/locations/countries/${countryId}/states`,
     },
-    
+
     // Contact
     CONTACT: {
       SUBMIT: '/contact',
@@ -130,4 +137,3 @@ export const API_CONFIG = {
     BANNERS: '/banners',
   },
 };
-

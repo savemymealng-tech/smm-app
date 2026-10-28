@@ -1,17 +1,21 @@
-import { api } from '@/lib/api';
-import type { NearbyVendorsParams, SearchVendorsParams } from '@/types/api';
-import { useQuery } from '@tanstack/react-query';
+import { useAtomValue } from "jotai";
+import { locationAtom } from "@/lib/atoms/location";
+import { useBrowsingArea } from "./use-browsing-area";
+import { api } from "@/lib/api";
+import type { NearbyVendorsParams, SearchVendorsParams } from "@/types/api";
+import { useQuery } from "@tanstack/react-query";
 
 /**
  * Hook to fetch all vendors
  * @param limit - Max number of results (default: 100)
  */
 export function useAllVendors(limit: number = 100) {
+  const area = useBrowsingArea();
   return useQuery({
-    queryKey: ['vendors', 'all', limit],
+    queryKey: ["vendors", "all", limit, area],
     queryFn: async () => {
-      const vendors = await api.vendors.listVendors({ limit });
-      console.log('📋 All vendors:', vendors.length);
+      const vendors = await api.vendors.listVendors({ limit, ...area });
+      console.log("📋 All vendors:", vendors.length);
       return vendors;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -26,14 +30,17 @@ export function useAllVendors(limit: number = 100) {
  * @param limit - Max number of results (default: 20)
  */
 export function useNearbyVendors(
-  latitude: number | null, 
-  longitude: number | null, 
+  latitude: number | null,
+  longitude: number | null,
   radius: number = 10,
-  limit: number = 20
+  limit: number = 20,
 ) {
+  const location = useAtomValue(locationAtom);
+  const city = location?.coords ? undefined : location?.city;
   return useQuery({
-    queryKey: ['vendors', 'nearby', latitude, longitude, radius, limit],
+    queryKey: ["vendors", "nearby", latitude, longitude, radius, limit, city],
     queryFn: async () => {
+      if (city) return api.vendors.searchVendors({ city, limit });
       if (latitude === null || longitude === null) {
         return [];
       }
@@ -46,10 +53,10 @@ export function useNearbyVendors(
       };
 
       const vendors = await api.vendors.getNearbyVendors(params);
-      console.log('📍 Nearby vendors:', vendors.length);
+      console.log("📍 Nearby vendors:", vendors.length);
       return vendors;
     },
-    enabled: latitude !== null && longitude !== null,
+    enabled: !!city || (latitude !== null && longitude !== null),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -62,13 +69,13 @@ export function useNearbyVendors(
  * @param limit - Max number of results (default: 50)
  */
 export function useSearchVendors(
-  city: string, 
-  latitude?: number, 
-  longitude?: number, 
-  limit: number = 50
+  city: string,
+  latitude?: number,
+  longitude?: number,
+  limit: number = 50,
 ) {
   return useQuery({
-    queryKey: ['vendors', 'search', city, latitude, longitude, limit],
+    queryKey: ["vendors", "search", city, latitude, longitude, limit],
     queryFn: async () => {
       if (!city) {
         return [];
@@ -82,7 +89,7 @@ export function useSearchVendors(
       };
 
       const vendors = await api.vendors.searchVendors(params);
-      console.log('🔍 Search vendors in', city, ':', vendors.length);
+      console.log("🔍 Search vendors in", city, ":", vendors.length);
       return vendors;
     },
     enabled: !!city,
@@ -96,7 +103,7 @@ export function useSearchVendors(
  */
 export function useVendor(id: string) {
   return useQuery({
-    queryKey: ['vendors', id],
+    queryKey: ["vendors", id],
     queryFn: () => api.vendors.getVendorById(Number(id)),
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 minutes

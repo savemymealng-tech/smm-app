@@ -3,26 +3,36 @@
  * Handles vendor discovery and search per SaveMyMeal API Guide v2.0.0
  */
 
-import type { NearbyVendorsParams, SearchVendorsParams, Vendor } from '@/types/api';
-import apiClient, { ApiResponse } from './client';
-import { API_CONFIG } from './config';
+import type {
+  NearbyVendorsParams,
+  SearchVendorsParams,
+  Vendor,
+} from "@/types/api";
+import apiClient, { ApiResponse } from "./client";
+import { API_CONFIG } from "./config";
 
 export const vendorsApi = {
   /**
    * List All Vendors
    * GET /vendors
    */
-  async listVendors(params?: { limit?: number }): Promise<Vendor[]> {
+  async listVendors(params?: {
+    limit?: number;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
+    radius?: number;
+  }): Promise<Vendor[]> {
     const response = await apiClient.get<ApiResponse<Vendor[]>>(
       API_CONFIG.ENDPOINTS.VENDORS.LIST,
-      { params }
+      { params },
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
-    throw new Error(response.data.error || 'Failed to fetch vendors');
+
+    throw new Error(response.data.error || "Failed to fetch vendors");
   },
 
   /**
@@ -32,14 +42,14 @@ export const vendorsApi = {
   async getNearbyVendors(params: NearbyVendorsParams): Promise<Vendor[]> {
     const response = await apiClient.get<ApiResponse<Vendor[]>>(
       API_CONFIG.ENDPOINTS.VENDORS.NEARBY,
-      { params }
+      { params },
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
-    throw new Error(response.data.error || 'Failed to fetch nearby vendors');
+
+    throw new Error(response.data.error || "Failed to fetch nearby vendors");
   },
 
   /**
@@ -49,14 +59,14 @@ export const vendorsApi = {
   async searchVendors(params: SearchVendorsParams): Promise<Vendor[]> {
     const response = await apiClient.get<ApiResponse<Vendor[]>>(
       API_CONFIG.ENDPOINTS.VENDORS.SEARCH,
-      { params }
+      { params },
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
-    throw new Error(response.data.error || 'Failed to search vendors');
+
+    throw new Error(response.data.error || "Failed to search vendors");
   },
 
   /**
@@ -65,14 +75,14 @@ export const vendorsApi = {
    */
   async getVendorById(id: number): Promise<Vendor> {
     const response = await apiClient.get<ApiResponse<Vendor>>(
-      API_CONFIG.ENDPOINTS.VENDORS.BY_ID(id)
+      API_CONFIG.ENDPOINTS.VENDORS.BY_ID(id),
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
-    throw new Error(response.data.error || 'Failed to fetch vendor details');
+
+    throw new Error(response.data.error || "Failed to fetch vendor details");
   },
 
   /**
@@ -81,14 +91,13 @@ export const vendorsApi = {
    */
   async getVendorProducts(vendorId: number): Promise<any> {
     const response = await apiClient.get<any>(
-      API_CONFIG.ENDPOINTS.VENDORS.PRODUCTS(vendorId)
+      API_CONFIG.ENDPOINTS.VENDORS.PRODUCTS(vendorId),
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
-    throw new Error(response.data.error || 'Failed to fetch vendor products');
+
+    throw new Error(response.data.error || "Failed to fetch vendor products");
   },
 };
-

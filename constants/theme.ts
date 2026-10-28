@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 
 // Brand Colors
 const ORANGE = "#F39C12";
-const GREEN = "#1E8449";
+const GREEN = "#008236";
 
 const tintColorLight = GREEN;
 

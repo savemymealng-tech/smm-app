@@ -1,289 +1,200 @@
+import { useState } from 'react';
+import { Text, Linking, Share, Platform } from 'react-native';
+import { router } from 'expo-router';
+import Constants from 'expo-constants';
+import { useSetAtom } from 'jotai';
 import {
-  AppInfo,
-  MenuItem,
-  SettingsHeader,
-  SettingsSection,
-} from '@/components/settings';
+  UserRound,
+  KeyRound,
+  Mail,
+  FileText,
+  ShieldCheck,
+  Star,
+  Share2,
+  Trash2,
+} from 'lucide-react-native';
+import {
+  Screen,
+  PageScroll,
+  Card,
+  MenuRow,
+  ui,
+} from '@/components/ui/screen-kit';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { Text } from '@/components/ui/text';
+import { Text as DialogText } from '@/components/ui/text';
 import { toast } from '@/components/ui/toast';
-import { useDeleteAccount, useProfile } from '@/lib/hooks/use-profile';
+import { api } from '@/lib/api';
+import { passwordResetContextAtom } from '@/lib/atoms/auth';
+import { useProfile, useDeleteAccount } from '@/lib/hooks/use-profile';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
-  const { data: user, isLoading } = useProfile();
-  const deleteAccountMutation = useDeleteAccount();
-  
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [notifications, setNotifications] = useState({
-    orderUpdates: true,
-    promotions: true,
-    newVendors: false,
-    recommendations: true
-  });
-
-  if (authLoading || !isAuthenticated) return null;
-
-  const handleChangePassword = () => {
-    setPasswordDialogOpen(true);
-  };
-
-  const confirmChangePassword = () => {
-    setPasswordDialogOpen(false);
-    toast.success('Email Sent', 'Password reset link sent to your email!');
-  };
-
-  const handleDeleteAccount = () => {
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDeleteAccount = async () => {
+  const { isAuthenticated, isLoading } = useProtectedRoute();
+  const { data: user } = useProfile();
+  const deletion = useDeleteAccount();
+  const setResetContext = useSetAtom(passwordResetContextAtom);
+  const [confirm, setConfirm] = useState(false);
+  const [reset, setReset] = useState(false);
+  const [sending, setSending] = useState(false);
+  async function open(url: string) {
     try {
-      await deleteAccountMutation.mutateAsync();
-      setDeleteDialogOpen(false);
-      toast.success('Account Deleted', 'Your account has been deleted successfully.');
-      router.replace('/login');
-    } catch (err: any) {
-      const msg = err?.error || err?.message || 'Failed to delete account. Please try again.';
-      toast.error('Delete Failed', msg);
+      await Linking.openURL(url);
+    } catch {
+      toast.error(
+        'Unable to open link',
+        'Please try again or email support@savemymeal.com.',
+      );
     }
-  };
-
-  const settingSections: Array<{ title: string; items: MenuItem[] }> = [
-    {
-      title: 'Account',
-      items: [
-        {
-          icon: 'person.fill',
-          label: 'Edit Profile',
-          onPress: () => router.push('/edit-profile'),
-          showArrow: true
-        },
-        {
-          icon: 'key.fill',
-          label: 'Change Password',
-          onPress: handleChangePassword,
-          showArrow: true
-        },
-        {
-          icon: 'location.fill',
-          label: 'Manage Addresses',
-          onPress: () => router.push('/addresses'),
-          showArrow: true
-        },
-        {
-          icon: 'creditcard.fill',
-          label: 'Payment Methods',
-          onPress: () => router.push('/payments'),
-          showArrow: true
-        }
-      ]
-    },
-    {
-      title: 'Notifications',
-      items: [
-        {
-          icon: 'bell.fill',
-          label: 'Order Updates',
-          onPress: () => setNotifications({ ...notifications, orderUpdates: !notifications.orderUpdates }),
-          showSwitch: true,
-          switchValue: notifications.orderUpdates
-        },
-        {
-          icon: 'tag.fill',
-          label: 'Promotions & Offers',
-          onPress: () => setNotifications({ ...notifications, promotions: !notifications.promotions }),
-          showSwitch: true,
-          switchValue: notifications.promotions
-        },
-        {
-          icon: 'storefront.fill',
-          label: 'New Vendors',
-          onPress: () => setNotifications({ ...notifications, newVendors: !notifications.newVendors }),
-          showSwitch: true,
-          switchValue: notifications.newVendors
-        },
-        {
-          icon: 'star.fill',
-          label: 'Recommendations',
-          onPress: () => setNotifications({ ...notifications, recommendations: !notifications.recommendations }),
-          showSwitch: true,
-          switchValue: notifications.recommendations
-        }
-      ]
-    },
-    {
-      title: 'Support',
-      items: [
-        {
-          icon: 'questionmark.circle.fill',
-          label: 'Help Center',
-          onPress: () => toast.info('Help Center', 'Contact support at help@savemymeal.com'),
-          showArrow: true
-        },
-        {
-          icon: 'envelope.fill',
-          label: 'Contact Us',
-          onPress: () => toast.info('Contact Us', 'Email: support@savemymeal.com'),
-          showArrow: true
-        },
-        {
-          icon: 'doc.text.fill',
-          label: 'Terms of Service',
-          onPress: () => Linking.openURL('https://savemymeal.com/terms'),
-          showArrow: true
-        },
-        {
-          icon: 'hand.raised.fill',
-          label: 'Privacy Policy',
-          onPress: () => Linking.openURL('https://savemymeal.com/privacy'),
-          showArrow: true
-        }
-      ]
-    },
-    {
-      title: 'App',
-      items: [
-        {
-          icon: 'info.circle.fill',
-          label: 'About',
-          onPress: () => toast.info('About', 'SaveMyMeal v1.0.0'),
-          showArrow: true
-        },
-        {
-          icon: 'star.fill',
-          label: 'Rate App',
-          onPress: () => toast.success('Thank You!', 'Thanks for using our app!'),
-          showArrow: true
-        },
-        {
-          icon: 'square.and.arrow.up.fill',
-          label: 'Share App',
-          onPress: () => toast.info('Share', 'Download SaveMyMeal for the best food delivery!'),
-          showArrow: true
-        },
-        {
-          icon: 'building.2.fill',
-          label: 'Become a Partner',
-          onPress: () => {
-            const webUrl = 'https://savemymeal.com/signup';
-            Linking.openURL(webUrl);
-          },
-          showArrow: true
-        }
-      ]
-    },
-    {
-      title: 'Danger Zone',
-      items: [
-        {
-          icon: 'trash.fill',
-          label: 'Delete Account',
-          onPress: handleDeleteAccount,
-          showArrow: true,
-          textColor: 'text-red-600'
-        }
-      ]
-    }
-  ];
-
-  // Show loading state while fetching profile
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-white items-center justify-center" style={{ paddingTop: insets.top }}>
-        <ActivityIndicator size="large" color="#15785B" />
-        <Text className="text-gray-500 mt-4">Loading settings...</Text>
-      </View>
-    );
   }
-
+  async function password() {
+    if (sending) return;
+    setSending(true);
+    try {
+      if (!user?.email)
+        throw new Error('Add an email address to your profile first.');
+      await api.auth.forgotPassword(user.email);
+      setResetContext({ email: user.email, code: null });
+      setReset(false);
+      router.push('/verify-reset-code');
+    } catch (error) {
+      toast.error('Could not send code', (error as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+  async function remove() {
+    try {
+      await deletion.mutateAsync();
+      setConfirm(false);
+      router.replace('/login');
+    } catch (error) {
+      toast.error(
+        'Unable to delete account',
+        (error as Error).message || 'Please try again.',
+      );
+    }
+  }
+  if (isLoading || !isAuthenticated) return null;
   return (
-    <View className="flex flex-col flex-1 bg-white" style={{ paddingTop: insets.top }}>
-      <SettingsHeader />
-
-      <ScrollView className="flex flex-col" showsVerticalScrollIndicator={false}>
-        <View className="px-4 py-6">
-          {settingSections.map((section) => (
-            <SettingsSection
-              key={section.title}
-              title={section.title}
-              items={section.items}
-            />
-          ))}
-
-          <AppInfo />
-        </View>
-      </ScrollView>
-
-      {/* <EditProfileSheet
-        visible={showEditProfile}
-        onClose={() => setShowEditProfile(false)}
-        profileData={profileData}
-        onProfileDataChange={setProfileData}
-      /> */}
-
-      {/* Change Password Dialog */}
-      <AlertDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <AlertDialogContent>
+    <Screen title="Settings">
+      <PageScroll>
+        <Card>
+          <Text style={ui.heading}>Account</Text>
+          <MenuRow
+            icon={UserRound}
+            label="Edit profile"
+            onPress={() => router.push('/edit-profile')}
+          />
+          <MenuRow
+            icon={KeyRound}
+            label={sending ? 'Sending reset code…' : 'Change password'}
+            detail="Verify a code sent to your email"
+            onPress={() => !sending && setReset(true)}
+          />
+        </Card>
+        <Card>
+          <Text style={ui.heading}>Support & legal</Text>
+          <MenuRow
+            icon={Mail}
+            label="Contact support"
+            detail="support@savemymeal.com"
+            onPress={() => void open('mailto:support@savemymeal.com')}
+          />
+          <MenuRow
+            icon={FileText}
+            label="Terms of service"
+            onPress={() => void open('https://savemymeal.com/terms')}
+          />
+          <MenuRow
+            icon={ShieldCheck}
+            label="Privacy policy"
+            onPress={() => void open('https://savemymeal.com/privacy')}
+          />
+        </Card>
+        <Card>
+          <Text style={ui.heading}>Savemymeal</Text>
+          <MenuRow
+            icon={Star}
+            label="Rate the app"
+            onPress={() =>
+              void open(
+                Platform.OS === 'ios'
+                  ? 'https://apps.apple.com/app/id6795679400?action=write-review'
+                  : 'https://play.google.com/store/apps/details?id=com.savemymeal.app',
+              )
+            }
+          />
+          <MenuRow
+            icon={Share2}
+            label="Share Savemymeal"
+            detail="Help someone discover their next meal"
+            onPress={() =>
+              void Share.share({
+                message:
+                  'Discover great meals for pickup on Savemymeal. https://savemymeal.com',
+              }).catch(() => {})
+            }
+          />
+          <Text style={ui.muted}>
+            Version {Constants.expoConfig?.version || '1.0.0'} · Pickup orders,
+            securely paid through Paystack.
+          </Text>
+        </Card>
+        <Card>
+          <MenuRow
+            icon={Trash2}
+            label="Delete account"
+            detail="Permanently delete your account"
+            danger
+            onPress={() => setConfirm(true)}
+          />
+        </Card>
+      </PageScroll>
+      <ConfirmDialog
+        busy={sending}
+        open={reset}
+        onClose={() => setReset(false)}
+        title="Change your password"
+        message={`We will send a verification code to ${user?.email || 'your email'}.`}
+        primaryLabel={sending ? 'Sending…' : 'Send reset code'}
+        onPrimary={() => void password()}
+        secondaryLabel="Cancel"
+        onSecondary={() => setReset(false)}
+      />
+      <AlertDialog open={confirm} onOpenChange={setConfirm}>
+        <AlertDialogContent compact>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change Password</AlertDialogTitle>
+            <AlertDialogTitle>Delete account?</AlertDialogTitle>
             <AlertDialogDescription>
-              A password reset link will be sent to your email address.
+              This permanently deletes your account. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
-              <Text>Cancel</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmChangePassword}>
-              <Text className="text-white">Send Link</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Account Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Account</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete your account? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Text>Cancel</Text>
+              <DialogText>Keep account</DialogText>
             </AlertDialogCancel>
             <AlertDialogAction
-              onPress={confirmDeleteAccount}
-              className="bg-red-500"
-              disabled={deleteAccountMutation.isPending}
+              tone="destructive"
+              disabled={deletion.isPending}
+              onPress={() => void remove()}
             >
-              <Text className="text-white">
-                {deleteAccountMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Text>
+              <DialogText>
+                {deletion.isPending ? 'Deleting…' : 'Delete account'}
+              </DialogText>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </View>
+    </Screen>
   );
 }

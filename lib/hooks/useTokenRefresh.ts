@@ -1,3 +1,4 @@
+import { isRateLimited } from '@/lib/api/rate-limit';
 /**
  * Token Refresh Hook
  * Implements automatic token refresh every 50 minutes
@@ -43,6 +44,7 @@ export function useTokenRefresh() {
       } catch (error) {
         console.error('❌ Token refresh failed:', error);
         
+        if (isRateLimited(error)) return;
         // Only logout if token is actually expired
         const currentToken = await tokenManager.getAccessToken();
         if (isTokenExpired(currentToken)) {

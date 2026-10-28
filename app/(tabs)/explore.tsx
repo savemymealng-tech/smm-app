@@ -1,338 +1,382 @@
-import { useLocalSearchParams } from "expo-router";
-import { useAtom } from "jotai";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
-import { useDebounce } from "use-debounce";
-
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useCategories } from '@/lib/hooks/use-categories';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useAtom } from 'jotai';
 import {
-    EmptyState,
-    FilterPanel,
-    ProductsSection,
-    VendorsSection,
-} from "@/components/explore";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
-import { Colors } from "@/constants/theme";
-import { locationRadiusAtom, useLocationFilterAtom } from "@/lib/atoms/locationFilter";
-import { useBrowseMealsInfinite, useFeaturedCategories, useFeaturedVendors, useNearbyVendors } from "@/lib/hooks";
-import { useLocation } from "@/lib/hooks/useLocation";
-import type { Vendor } from "@/types";
-import type { FeaturedVendor } from "@/types/api";
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDebounce } from 'use-debounce';
+import { Text } from '@/components/ui/text';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { BrowsingLocation } from '@/components/ui/browsing-location';
+import { FilterPanel } from '@/components/explore/FilterPanel';
+import { ProductCard } from '@/components/explore/ProductCard';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useBrowseMealsInfinite } from '@/lib/hooks';
+import { useLocation } from '@/lib/hooks/useLocation';
+import {
+  locationRadiusAtom,
+  useLocationFilterAtom,
+} from '@/lib/atoms/locationFilter';
+import type { BrowseMealsParams, Meal } from '@/types/api';
 
+const empty = {
+  category: null as string | null,
+  rating: null as number | null,
+  min: null as number | null,
+  max: null as number | null,
+  sort: 'created_at',
+};
 export default function ExploreScreen() {
-  const params = useLocalSearchParams<{
+  const route = useLocalSearchParams<{
     q?: string;
     category?: string;
     nearby_vendors?: string;
     all_vendors?: string;
-    all_products?: string;
   }>();
-
-  // Determine view mode
-  const viewMode = params.nearby_vendors === "true" 
-    ? "nearby_vendors" 
-    : params.all_vendors === "true" 
-    ? "all_vendors" 
-    : "products";
-
-  const [searchQuery, setSearchQuery] = useState(params.q || "");
-  const [debouncedSearchQuery] = useDebounce(searchQuery, 500);
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(
-    params.category || null
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const { height: windowHeight } = useWindowDimensions();
+  const [sceneHeight, setSceneHeight] = useState(0);
+  // The navigator normally reserves bar space; only add the portion overlapping the scene.
+  const bottomClearance =
+    16 +
+    (sceneHeight
+      ? Math.max(0, tabBarHeight - Math.max(0, windowHeight - sceneHeight))
+      : 0);
+  const { location } = useLocation();
+  const [query, setQuery] = useState(route.q || '');
+  const [search] = useDebounce(query, 400);
+  const [filters, setFilters] = useState({
+    ...empty,
+    category: route.category || null,
+  });
+  const [draft, setDraft] = useState(filters);
+  const [near, setNear] = useAtom(useLocationFilterAtom);
+  const [radius, setRadius] = useAtom(locationRadiusAtom);
+  const [draftNear, setDraftNear] = useState(near);
+  const [draftRadius, setDraftRadius] = useState(radius);
+  const [open, setOpen] = useState(false);
+  const [notice, setNotice] = useState('');
+  const { data: categories } = useCategories();
+  useEffect(() => {
+    setQuery(route.q || '');
+  }, [route.q]);
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, category: route.category || null }));
+  }, [route.category]);
+  useEffect(() => {
+    if (route.nearby_vendors === 'true' || route.all_vendors === 'true')
+      router.replace(
+        `/vendors?filter=${route.nearby_vendors === 'true' ? 'nearby' : 'all'}`,
+      );
+  }, [route.nearby_vendors, route.all_vendors]);
+  const scoped = near && !!(location?.coords || location?.city);
+  const params = useMemo(
+    () =>
+      ({
+        search,
+        category_id: filters.category ? Number(filters.category) : undefined,
+        vendor_rating_min: filters.rating ?? undefined,
+        min_price: filters.min ?? undefined,
+        max_price: filters.max ?? undefined,
+        ...(scoped
+          ? location?.coords
+            ? {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                radius,
+              }
+            : { city: location?.city }
+          : {}),
+        sort_by:
+          filters.sort === 'distance' && !location?.coords
+            ? 'created_at'
+            : filters.sort,
+      }) as BrowseMealsParams,
+    [search, filters, scoped, location, radius],
   );
-  const [minRating, setMinRating] = useState<number | null>(null);
-  const [minPrice, setMinPrice] = useState<number | null>(null);
-  const [maxPrice, setMaxPrice] = useState<number | null>(null);
-  const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([]);
-
-  // Location filtering state
-  const [useLocationFilter, setUseLocationFilter] = useAtom(useLocationFilterAtom);
-  const [locationRadius, setLocationRadius] = useAtom(locationRadiusAtom);
-
-  const { data: categories } = useFeaturedCategories();
-
-  // Get location for nearby vendors and filtering
-  const { location, isLoading: isLoadingLocation } = useLocation();
-
-  // Fetch featured vendors for "all vendors" view
-  const { 
-    data: allVendors, 
-    isLoading: loadingAllVendors, 
-    refetch: refetchAllVendors 
-  } = useFeaturedVendors();
-
-  // Fetch nearby vendors for "nearby vendors" view
-  const {
-    data: nearbyVendors,
-    isLoading: loadingNearbyVendors,
-    refetch: refetchNearbyVendors,
-  } = useNearbyVendors(
-    location?.coords.latitude ?? null,
-    location?.coords.longitude ?? null,
-    10,
-    50
+  const result = useBrowseMealsInfinite(params);
+  const products = useMemo(
+    () => [
+      ...new Map(
+        (
+          result.data?.pages
+            .flatMap((page) => page.data)
+            .filter((item): item is Meal => !!item) || []
+        ).map((item) => [item.id, item]),
+      ).values(),
+    ],
+    [result.data],
   );
-
-  const browseParams = useMemo(() => {
-    const params: any = {};
-    
-    if (debouncedSearchQuery) {
-      params.search = debouncedSearchQuery;
-    }
-    if (selectedCategory) {
-      // Convert category to number if it's a string
-      params.category_id = typeof selectedCategory === 'string' ? Number(selectedCategory) : selectedCategory;
-    }
-    if (minRating) {
-      params.vendor_rating_min = minRating;
-    }
-    if (minPrice !== null) {
-      params.min_price = minPrice;
-    }
-    if (maxPrice !== null) {
-      params.max_price = maxPrice;
-    }
-    if (dietaryPreferences.length > 0) {
-      params.dietary_preferences = dietaryPreferences.join(',');
-    }
-    
-    // Add location params when location filter is enabled and location is available
-    if (useLocationFilter && location?.coords) {
-      params.latitude = location.coords.latitude;
-      params.longitude = location.coords.longitude;
-      params.radius = locationRadius;
-      params.sort_by = 'distance'; // Sort by distance when location filter is active
-    }
-    
-    return params;
-  }, [
-    debouncedSearchQuery, 
-    selectedCategory, 
-    minRating, 
-    minPrice, 
-    maxPrice, 
-    dietaryPreferences,
-    useLocationFilter,
-    location?.coords,
-    locationRadius
-  ]);
-
-  const {
-    data: mealsData,
-    isLoading: loadingMeals,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch: refetchMeals,
-    isRefetching,
-  } = useBrowseMealsInfinite(browseParams);
-
-  // Flatten all pages into a single array
-  const meals = useMemo(() => {
-    return (mealsData?.pages.flatMap(page => page.data).filter(Boolean) || []) as any[];
-  }, [mealsData]);
-  
-  // Use actual product count instead of backend total (backend has data inconsistency)
-  const totalResults = meals.length;
-
-  // Determine what to display
-  const isLoading = viewMode === "nearby_vendors" 
-    ? loadingNearbyVendors 
-    : viewMode === "all_vendors" 
-    ? loadingAllVendors 
-    : loadingMeals;
-
-  const refetch = viewMode === "nearby_vendors"
-    ? refetchNearbyVendors
-    : viewMode === "all_vendors"
-    ? refetchAllVendors
-    : refetchMeals;
-
-  const vendors = viewMode === "nearby_vendors" 
-    ? nearbyVendors 
-    : viewMode === "all_vendors" 
-    ? allVendors 
-    : [];
-
-  const showVendors = viewMode === "nearby_vendors" || viewMode === "all_vendors";
-  const showProducts = viewMode === "products";
-
-  // Type assertion to handle vendor union type
-  const vendorsToDisplay = vendors as (Vendor | FeaturedVendor)[];
-
-  // Convert FeaturedCategory to Category type for FilterPanel
-  const convertedCategories = useMemo(() => 
-    categories?.map(cat => ({
-      id: String(cat.id),
-      name: cat.name,
-      slug: cat.name.toLowerCase().replace(/\s+/g, '-'),
-    })) || [],
-    [categories]
-  );
-
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (selectedCategory) count++;
-    if (minRating) count++;
-    if (minPrice !== null || maxPrice !== null) count++;
-    if (dietaryPreferences.length > 0) count++;
-    if (useLocationFilter) count++; // Count location filter as active
-    return count;
-  }, [selectedCategory, minRating, minPrice, maxPrice, dietaryPreferences, useLocationFilter]);
-
+  const total = result.data?.pages[0]?.total ?? 0;
+  const chips = [
+    filters.category && {
+      label:
+        categories?.find((c) => String(c.id) === filters.category)?.name ||
+        'Category',
+      clear: () => setFilters((f) => ({ ...f, category: null })),
+    },
+    filters.rating && {
+      label: `${filters.rating}+ stars`,
+      clear: () => setFilters((f) => ({ ...f, rating: null })),
+    },
+    (filters.min !== null || filters.max !== null) && {
+      label: 'Price range',
+      clear: () => setFilters((f) => ({ ...f, min: null, max: null })),
+    },
+    scoped && {
+      label: location?.coords ? `Within ${radius} km` : location?.city,
+      clear: () => setNear(false),
+    },
+  ].filter(Boolean) as { label: string; clear: () => void }[];
   return (
-    <View className="flex-1 bg-white">
-      <View className="px-4 pt-10 pb-2">
-        <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-3">
-          <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
-          <TextInput
-            placeholder={
-              showVendors 
-                ? "Search for vendors..." 
-                : "Search for items..."
-            }
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            className="flex-1 ml-3 text-base"
-            placeholderTextColor="#6b7280"
-            style={{ color: '#111827' }}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <IconSymbol name="xmark.circle.fill" size={20} color="#9ca3af" />
-            </Pressable>
-          )}
-        </View>
-        
-        {showProducts && (
-          <View className="flex-row items-center mt-3">
+    <View
+      className="flex-1 bg-gray-50"
+      style={{ flex: 1, paddingTop: insets.top }}
+      onLayout={(event) => setSceneHeight(event.nativeEvent.layout.height)}
+    >
+      <View className="bg-white pb-3">
+        <BrowsingLocation />
+        <View className="px-4 flex-row items-center gap-3">
+          <View className="flex-1 flex-row items-center rounded-2xl bg-gray-100 px-3">
+            <IconSymbol name="magnifyingglass" size={18} color="#6b7280" />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search products"
+              returnKeyType="search"
+              className="flex-1 p-3 text-gray-900"
+            />
             <Pressable
-              onPress={() => setShowFilters(!showFilters)}
-              className={`flex-row items-center px-4 py-2 rounded-full mr-2 ${
-                activeFiltersCount > 0 ? 'bg-[#1E8449]' : 'bg-gray-100'
-              }`}
+              accessibilityLabel="Clear search"
+              onPress={() => setQuery('')}
             >
-              <IconSymbol 
-                name="slider.horizontal.3" 
-                size={16} 
-                color={activeFiltersCount > 0 ? '#fff' : '#111'} 
-              />
-              <Text className={`ml-2 font-medium ${
-                activeFiltersCount > 0 ? 'text-white' : 'text-gray-700'
-              }`}>
-                Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
-              </Text>
+              <Text className="text-gray-500">{query ? '✕' : ''}</Text>
             </Pressable>
-            
-            <Text className="text-sm text-gray-500 ml-2">
-              {totalResults} {totalResults === 1 ? 'result' : 'results'}
-            </Text>
           </View>
-        )}
-
-        {showVendors && (
-          <View className="flex-row items-center mt-3">
-            <Text className="text-sm text-gray-500">
-              {vendors?.length || 0} {viewMode === "nearby_vendors" ? "nearby" : ""} {vendors?.length === 1 ? 'vendor' : 'vendors'}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {showFilters && showProducts && (
-        <View className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <FilterPanel
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-            minRating={minRating}
-            onRatingChange={setMinRating}
-            categories={convertedCategories}
-            minPrice={minPrice}
-            maxPrice={maxPrice}
-            onPriceChange={(min, max) => {
-              setMinPrice(min);
-              setMaxPrice(max);
+          <Pressable
+            accessibilityLabel="Open product filters"
+            onPress={() => {
+              setDraft(filters);
+              setDraftNear(near && !!location);
+              setDraftRadius(radius);
+              setNotice('');
+              setOpen(true);
             }}
-            dietaryPreferences={dietaryPreferences}
-            onDietaryChange={setDietaryPreferences}
-            useLocationFilter={useLocationFilter}
-            onLocationFilterChange={setUseLocationFilter}
-            locationRadius={locationRadius}
-            onRadiusChange={setLocationRadius}
-            currentAddress={location?.address}
-            isLoadingLocation={isLoadingLocation}
-          />
+            className="bg-[#008236] rounded-2xl p-3"
+          >
+            <IconSymbol name="slider.horizontal.3" size={22} color="white" />
+          </Pressable>
         </View>
-      )}
-
-      {isLoading && (!mealsData && !vendors) ? (
-        <View className="p-4">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="w-full h-24 rounded-2xl mb-4" />
+        <View className="flex-row flex-wrap px-4 mt-2 gap-2">
+          {chips.map((chip) => (
+            <Pressable
+              key={chip.label}
+              onPress={chip.clear}
+              className="bg-green-50 rounded-full px-3 py-2"
+            >
+              <Text className="text-xs text-[#008236]">{chip.label} ×</Text>
+            </Pressable>
           ))}
         </View>
-      ) : (
-        <ScrollView
-          className="flex-1"
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={Colors.light.tint}
+        <Text className="px-4 mt-2 text-sm text-gray-500">
+          {result.isLoading ? 'Finding products…' : `${total} products`}
+          {!scoped ? ' · All areas' : ''}
+        </Text>
+      </View>
+      <FlatList
+        style={{ flex: 1 }}
+        data={products}
+        keyExtractor={(item) => String(item.id)}
+        numColumns={2}
+        columnWrapperStyle={{ gap: 12 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: bottomClearance }}
+        renderItem={({ item }) => (
+          <View style={{ flex: 1, maxWidth: '50%' }}>
+            <ProductCard
+              item={item}
+              userLocation={scoped ? location?.coords : undefined}
             />
-          }
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          {showVendors && <VendorsSection vendors={vendorsToDisplay} userLocation={location?.coords} />}
-          {showProducts && <ProductsSection products={meals} userLocation={location?.coords} />}
-
-          {/* Load More Button for infinite scrolling */}
-          {showProducts && hasNextPage && !isLoading && (
-            <View className="px-4 mt-4 mb-6">
+          </View>
+        )}
+        refreshing={result.isRefetching && !result.isFetchingNextPage}
+        onRefresh={() => {
+          void result.refetch();
+        }}
+        onEndReached={() => {
+          if (
+            result.hasNextPage &&
+            !result.isFetchingNextPage &&
+            !result.isError
+          )
+            void result.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.4}
+        ListEmptyComponent={
+          <View className="items-center py-16">
+            <Text className="text-lg font-semibold">
+              {result.isError
+                ? 'Could not load products'
+                : result.isLoading
+                  ? 'Loading products…'
+                  : 'No products found'}
+            </Text>
+            <Text className="text-gray-500 text-center mt-2">
+              {result.isError
+                ? 'Check your connection and try again.'
+                : 'Try another area, search or fewer filters.'}
+            </Text>
+            {result.isError && (
               <Pressable
-                onPress={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-                className="bg-primary/10 rounded-2xl py-4 px-6 flex-row items-center justify-center border-2 border-primary/20"
+                onPress={() => {
+                  void result.refetch();
+                }}
+                className="p-4"
               >
-                {isFetchingNextPage ? (
-                  <>
-                    <ActivityIndicator size="small" color="#15785B" />
-                    <Text className="text-primary font-semibold ml-3">Loading more...</Text>
-                  </>
-                ) : (
-                  <>
-                    <IconSymbol name="arrow.down.circle.fill" size={20} color="#15785B" />
-                    <Text className="text-primary font-semibold ml-2">
-                      Load More Products
-                    </Text>
-                  </>
-                )}
+                <Text className="text-[#008236] font-semibold">Try again</Text>
               </Pressable>
-              <Text className="text-center text-xs text-gray-500 mt-2">
-                Showing {meals.length} of {totalResults} products
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          result.isFetchingNextPage ? (
+            <ActivityIndicator color="#008236" />
+          ) : result.isError && products.length > 0 ? (
+            <Pressable
+              onPress={() => {
+                void (result.isFetchNextPageError
+                  ? result.fetchNextPage()
+                  : result.refetch());
+              }}
+              className="p-4"
+            >
+              <Text className="text-center text-[#008236]">
+                Unable to load products. Tap to retry.
               </Text>
-            </View>
-          )}
-
-          {!isLoading && showProducts && totalResults === 0 && (
-            <EmptyState hasSearchQuery={!!debouncedSearchQuery} />
-          )}
-          
-          {!isLoading && showVendors && (!vendors || vendors.length === 0) && (
-            <View className="px-4 py-12 items-center">
-              <IconSymbol name="storefront" size={48} color="#9ca3af" />
-              <Text className="text-gray-500 text-center mt-4 text-base">
-                {viewMode === "nearby_vendors" 
-                  ? "No vendors found nearby" 
-                  : "No vendors available at the moment"}
+            </Pressable>
+          ) : null
+        }
+      />
+      <BottomSheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        title="Filter products"
+        description="Choose what you’d like to find."
+      >
+        <View style={{ flex: 1, paddingHorizontal: 20 }}>
+          <FilterPanel
+            selectedCategory={draft.category}
+            onCategoryChange={(category) =>
+              setDraft((f) => ({ ...f, category }))
+            }
+            minRating={draft.rating}
+            onRatingChange={(rating) => setDraft((f) => ({ ...f, rating }))}
+            categories={categories?.map((c) => ({
+              id: String(c.id),
+              name: c.name,
+              slug: c.name,
+            }))}
+            minPrice={draft.min}
+            maxPrice={draft.max}
+            onPriceChange={(min, max) => setDraft((f) => ({ ...f, min, max }))}
+            useLocationFilter={draftNear}
+            onLocationFilterChange={setDraftNear}
+            locationRadius={draftRadius}
+            onRadiusChange={setDraftRadius}
+            currentAddress={location?.address}
+            hasCoordinates={!!location?.coords}
+            sort={draft.sort}
+            onSortChange={(sort) => setDraft((f) => ({ ...f, sort }))}
+            allowDistanceSort={!!location?.coords && draftNear}
+          />
+          {!!notice && <Text className="text-red-700 text-sm">{notice}</Text>}
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 12,
+              paddingTop: 10,
+              paddingBottom: insets.bottom + 10,
+              borderTopWidth: 1,
+              borderTopColor: '#e5e7eb',
+              backgroundColor: '#fff',
+            }}
+          >
+            <Pressable
+              onPress={() => {
+                setDraft(empty);
+                setDraftNear(false);
+                setDraftRadius(10);
+                setNotice('');
+              }}
+              accessibilityRole="button"
+              style={{
+                width: 84,
+                minHeight: 44,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#d1d5db',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 10,
+              }}
+            >
+              <Text
+                style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}
+              >
+                Reset
               </Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (
+                  [draft.min, draft.max].some(
+                    (x) => x !== null && (!Number.isFinite(x) || x < 0),
+                  ) ||
+                  (draft.min !== null &&
+                    draft.max !== null &&
+                    draft.min > draft.max)
+                ) {
+                  setNotice('Enter a valid price range.');
+                  return;
+                }
+                if (draftNear && !location) {
+                  setNotice(
+                    'Choose an area above before filtering by location.',
+                  );
+                  return;
+                }
+                setFilters(draft);
+                setNear(draftNear);
+                setRadius(draftRadius);
+                setOpen(false);
+              }}
+              accessibilityRole="button"
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 12,
+                backgroundColor: '#008236',
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>
+                Apply filters
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheet>
     </View>
   );
 }

@@ -1,18 +1,22 @@
-import { api } from '@/lib/api';
-import type { BrowseMealsParams } from '@/types/api';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useAtomValue } from "jotai";
+import { locationAtom } from "@/lib/atoms/location";
+import { api } from "@/lib/api";
+import type { BrowseMealsParams } from "@/types/api";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 export function useBrowseMeals(params?: BrowseMealsParams) {
   return useQuery({
-    queryKey: ['meals', 'browse', params],
+    queryKey: ["meals", "browse", params],
     queryFn: () => api.meals.browseMeals(params),
     enabled: true,
   });
 }
 
-export function useBrowseMealsInfinite(params?: Omit<BrowseMealsParams, 'page'>) {
+export function useBrowseMealsInfinite(
+  params?: Omit<BrowseMealsParams, "page">,
+) {
   return useInfiniteQuery({
-    queryKey: ['meals', 'browse-infinite', params],
+    queryKey: ["meals", "browse-infinite", params],
     queryFn: ({ pageParam = 1 }) => {
       return api.meals.browseMeals({ ...params, page: pageParam, limit: 20 });
     },
@@ -29,7 +33,7 @@ export function useBrowseMealsInfinite(params?: Omit<BrowseMealsParams, 'page'>)
 
 export function useMeal(id: string) {
   return useQuery({
-    queryKey: ['meals', id],
+    queryKey: ["meals", id],
     queryFn: () => api.meals.getMealById(Number(id)),
     enabled: !!id,
   });
@@ -46,29 +50,31 @@ export function useNearbyMeals(
   latitude: number | null,
   longitude: number | null,
   radius: number = 10,
-  limit: number = 20
+  limit: number = 20,
 ) {
+  const location = useAtomValue(locationAtom);
+  const city = location?.coords ? undefined : location?.city;
   return useQuery({
-    queryKey: ['meals', 'nearby', latitude, longitude, radius, limit],
+    queryKey: ["meals", "nearby", latitude, longitude, radius, limit, city],
     queryFn: async () => {
-      if (latitude === null || longitude === null) {
+      if ((latitude === null || longitude === null) && !city) {
         return [];
       }
 
       const params: BrowseMealsParams = {
-        latitude,
-        longitude,
-        radius,
+        ...(latitude !== null && longitude !== null
+          ? { latitude, longitude, radius }
+          : { city }),
         limit,
-        sort_by: 'distance',
+        sort_by: city ? "created_at" : "distance",
         available_only: true,
       };
 
       const result = await api.meals.browseMeals(params);
-      console.log('📍 Nearby meals:', result.data?.length || 0);
+      console.log("📍 Nearby meals:", result.data?.length || 0);
       return result.data || [];
     },
-    enabled: latitude !== null && longitude !== null,
+    enabled: !!city || (latitude !== null && longitude !== null),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

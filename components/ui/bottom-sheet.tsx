@@ -1,11 +1,12 @@
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useRef } from 'react';
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
+  Pressable,
   PanResponder,
   Platform,
   StyleSheet,
@@ -13,9 +14,9 @@ import {
   View,
 } from "react-native";
 
-import { Text } from './text';
+import { Text } from "./text";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
 
 type Props = {
@@ -30,7 +31,7 @@ export function BottomSheet({
   visible,
   onClose,
   children,
-  title = 'Categories',
+  title = "Categories",
   description,
 }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -57,7 +58,7 @@ export function BottomSheet({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -95,9 +96,14 @@ export function BottomSheet({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="none">
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <View style={styles.container}>
@@ -123,24 +129,35 @@ export function BottomSheet({
               style={styles.gradient}
             >
               {/* Handle - pan responder only here so content (e.g. ScrollView) can scroll */}
-              <View style={styles.handleContainer} {...panResponder.panHandlers}>
+              <View
+                style={styles.handleContainer}
+                {...panResponder.panHandlers}
+              >
                 <View style={styles.handle} />
               </View>
 
               {/* Header */}
               <View style={styles.header}>
                 <View style={styles.headerContent}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text variant="h3" className="text-gray-900 font-bold">
                       {title}
                     </Text>
-                     {description && <View className="flex-row items-center mt-1">
+                    {description && (
+                      <View className="flex-row items-center mt-1">
                         <Text className="text-sm text-gray-600 mt-1">
                           {description}
                         </Text>
-                      </View>}
+                      </View>
+                    )}
                   </View>
-                 
+                  <Pressable
+                    accessibilityLabel="Close sheet"
+                    onPress={onClose}
+                    style={{ padding: 8 }}
+                  >
+                    <Text className="text-gray-500 text-xl">×</Text>
+                  </Pressable>
                 </View>
               </View>
 

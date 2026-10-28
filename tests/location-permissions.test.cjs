@@ -39,8 +39,13 @@ function fixture(status = 'granted', services = true) {
   const hook = load('lib/hooks/useLocation.ts', {
     'expo-location': native,
     '../locationAccess': access,
-    '../atoms/location': { locationAtom: {} },
-    jotai: { useAtom: () => [state.location, (value) => { state.location = value; }] },
+    '../atoms/location': { locationAtom: 'location', locationReadyAtom: 'ready', locationRevisionAtom: 'revision', initializeLocationAtom: 'init', selectBrowsingLocationAtom: 'select' },
+    jotai: {
+      useAtom: () => [state.location, (value) => { state.location = value; }],
+      useAtomValue: () => true,
+      useSetAtom: (key) => key === 'select' ? value => { state.location = value; state.revision = (state.revision || 0) + 1; } : () => {},
+      useStore: () => ({ get: key => key === 'location' ? state.location : state.revision || 0 }),
+    },
     react: {
       useCallback: (fn) => fn,
       useRef: (current) => ({ current }),
@@ -150,4 +155,20 @@ test('concurrent permission actions share one native request', async () => {
   const { state, access } = fixture('undetermined');
   await Promise.all([access.getLocationAccess(true), access.getLocationAccess(true)]);
   assert.equal(state.prompts, 1);
+});
+
+test('manual city survives automatic refresh and denied permission', async () => {
+  const { state, hook } = fixture('denied');
+  state.location = { city: 'Ibadan', address: 'Ibadan', source: 'manual', timestamp: 1 };
+  await hook.refreshLocation();
+  assert.equal(state.location.city, 'Ibadan');
+  assert.equal(state.positions, 0);
+});
+test('choosing another area while GPS is pending discards stale GPS result', async () => {
+  const { state, hook } = fixture();
+  const pending = hook.requestLocation();
+  state.location = { city: 'Abuja', source: 'manual', timestamp: 1 };
+  state.revision = 1;
+  await pending;
+  assert.equal(state.location.city, 'Abuja');
 });

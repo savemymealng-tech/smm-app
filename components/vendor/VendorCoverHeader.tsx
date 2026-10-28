@@ -1,10 +1,11 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Dimensions, Image, Modal, Pressable, View } from "react-native";
+import { AppImage as Image } from '@/components/ui/app-image';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Dimensions, Modal, Pressable, View } from 'react-native';
 
-import { getImageSource } from "@/lib/utils";
+import { getImageSource } from '@/lib/utils';
 
-import { IconSymbol } from "@/components/ui/icon-symbol";
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 type VendorCoverHeaderProps = {
   coverImage?: string;
@@ -16,12 +17,14 @@ export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
   const router = useRouter();
   const [previewVisible, setPreviewVisible] = useState(false);
 
-  const imageSource = getImageSource(coverImage) || require('@/assets/images/default-profile.jpg');
-  console.log("VendorCoverHeader coverImage:", imageSource);
+  const imageSource =
+    getImageSource(coverImage) ||
+    require('@/assets/images/default-profile.jpg');
+  console.log('VendorCoverHeader coverImage:', imageSource);
 
   return (
     <>
-      <View 
+      <View
         className="bg-gray-200 z-10"
         style={{
           position: 'absolute',
@@ -32,15 +35,19 @@ export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
           height: 120,
         }}
       >
-        <Pressable onPress={() => setPreviewVisible(true)} style={{ width: '100%', height: '100%' }}>
+        <Pressable
+          onPress={() => setPreviewVisible(true)}
+          style={{ width: '100%', height: '100%' }}
+        >
           <Image
             source={imageSource}
+            fallbackSource={require('@/assets/images/default-profile.jpg')}
             style={{ width: '100%', height: '100%' }}
             resizeMode="cover"
           />
         </Pressable>
         {/* Gradient Overlay */}
-        <View 
+        <View
           style={{
             position: 'absolute',
             bottom: 0,
@@ -69,10 +76,11 @@ export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
         <View className="flex-1 bg-black">
           <Image
             source={imageSource}
+            fallbackSource={require('@/assets/images/default-profile.jpg')}
             style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
             resizeMode="contain"
           />
-          
+
           <Pressable
             onPress={() => setPreviewVisible(false)}
             className="absolute top-12 right-4 bg-white/20 rounded-full p-3"
@@ -84,4 +92,3 @@ export function VendorCoverHeader({ coverImage }: VendorCoverHeaderProps) {
     </>
   );
 }
-

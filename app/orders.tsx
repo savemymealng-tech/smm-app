@@ -1,429 +1,217 @@
-import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
 import {
-  Image,
+  formatMoney as formatCurrency,
+  paymentLabel,
+  isPaid,
+  statusLabel,
+  orderPayable,
+} from '@/lib/order-display';
+import { useState } from 'react';
+import {
+  Text,
+  View,
   Pressable,
+  FlatList,
   RefreshControl,
-  ScrollView,
-  View
+  ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
-
-import { useOrders } from '@/lib/hooks/use-orders';
+import { router } from 'expo-router';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import {
+  Screen,
+  Card,
+  Action,
+  Message,
+  Badge,
+  ui,
+  palette,
+} from '@/components/ui/screen-kit';
+import { AppImage } from '@/components/ui/app-image';
+import { api } from '@/lib/api';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
-import { useReorder } from '@/lib/hooks/useOrders';
-import { formatCurrency, getImageSource } from '@/lib/utils';
-
-import type { Order } from '@/types/api';
-
-// ────────────────────────────────────────────────
-// Types (aligned with your backend response)
-// ────────────────────────────────────────────────
-
-type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
-
-interface OrderGroup {
-  order_group_id: string;
-  orders: Order[];
-  total_orders: number;
-  grand_total: string;
-  created_at: string;
-  all_statuses: OrderStatus[];
-  payment_method?: string;
-}
-
-type DisplayGroup = OrderGroup;
-
-// Status mappings
-type FilterStatus = 'all' | 'active' | OrderStatus;
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: 'Pending',
-  accepted: 'Accepted',
-  preparing: 'Preparing',
-  ready: 'Ready',
-  delivered: 'Received',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  rejected: 'Rejected',
-};
-
-const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  pending: 'text-yellow-700 bg-yellow-50 border-yellow-200',
-  paid: 'text-green-700 bg-green-50 border-green-200',
-  success: 'text-green-700 bg-green-50 border-green-200',
-  failed: 'text-red-700 bg-red-50 border-red-200',
-  refunded: 'text-gray-700 bg-gray-50 border-gray-200',
-  cancelled: 'text-red-700 bg-red-50 border-red-200',
-};
-
-const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  pending: 'Payment Pending',
-  paid: 'Paid',
-  success: 'Paid',
-  failed: 'Payment Failed',
-  refunded: 'Refunded',
-  cancelled: 'Payment Cancelled',
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: 'text-yellow-600 bg-yellow-100',
-  accepted: 'text-blue-600 bg-blue-100',
-  preparing: 'text-orange-600 bg-orange-100',
-  ready: 'text-purple-600 bg-purple-100',
-  delivered: 'text-green-600 bg-green-100',
-  completed: 'text-emerald-600 bg-emerald-100',
-  cancelled: 'text-red-600 bg-red-100',
-  rejected: 'text-red-600 bg-red-100',
-};
-
-// ────────────────────────────────────────────────
-// Main Component
-// ────────────────────────────────────────────────
-
+import { getImageSource } from '@/lib/utils';
 export default function OrdersScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
-
-  const { data: rawItems = [], isLoading, isRefetching, refetch } = useOrders();
-  const { mutate: reorder, isPending: isReordering } = useReorder();
-
-  const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('all');
-
-  const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
-
+  const [tab, setTab] = useState<'all' | 'progress' | 'past'>('all');
+  const history = useInfiniteQuery({
+    queryKey: ['orders', 'history', tab],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => api.orders.historyPage(tab, pageParam),
+    getNextPageParam: (p) => (p.page < p.totalPages ? p.page + 1 : undefined),
+    enabled: isAuthenticated,
+  });
+  const counts = history.data?.pages[0].counts;
+  const rows = [
+    ...new Map(
+      (history.data?.pages.flatMap((p) => p.data) || []).map((item) => [
+        'orders' in item ? `group:${item.order_group_id}` : `single:${item.id}`,
+        item,
+      ]),
+    ).values(),
+  ];
   if (authLoading || !isAuthenticated) return null;
-
-  // ────────────────────────────────────────────────
-  // Normalize API response → unified groups
-  // ────────────────────────────────────────────────
-
-  const displayGroups = useMemo<DisplayGroup[]>(() => {
-    return rawItems.map((item: any) => {
-      // It's already a group
-      if ('order_group_id' in item && 'orders' in item && Array.isArray(item.orders)) {
-        return item as DisplayGroup;
-      }
-
-      // It's a single order → wrap it as a group of 1
-      return {
-        order_group_id: `single-${item.id}`,
-        orders: [item],
-        total_orders: 1,
-        grand_total: item.total_amount || '0.00',
-        created_at: item.createdAt,
-        all_statuses: [item.status],
-        payment_method: item.payment_method,
-      };
-    });
-  }, [rawItems]);
-
-  // ────────────────────────────────────────────────
-  // Filter + counts
-  // ────────────────────────────────────────────────
-
-  const filterCounts = useMemo(() => {
-    const counts: Record<'all' | OrderStatus | 'active', number> = {
-      all: displayGroups.length,
-      pending: 0,
-      accepted: 0,
-      preparing: 0,
-      ready: 0,
-      delivered: 0,
-      completed: 0,
-      cancelled: 0,
-      rejected: 0,
-      active: 0,
-    };
-
-    displayGroups.forEach((group) => {
-      group.all_statuses.forEach((status) => {
-        if (status in counts) {
-          counts[status as OrderStatus]++;
-        }
-      });
-    });
-
-    // "active" represents orders that are being prepared or ready
-    counts.active = displayGroups.filter((g) =>
-      g.all_statuses.some((s) => ['accepted', 'preparing', 'ready'].includes(s))
-    ).length;
-
-    return counts;
-  }, [displayGroups]);
-
-  const visibleGroups = useMemo(() => {
-    if (selectedFilter === 'all') return displayGroups;
-
-    if (selectedFilter === 'active') {
-      return displayGroups.filter((g) =>
-        g.all_statuses.some((s) => ['accepted', 'preparing', 'ready'].includes(s))
-      );
-    }
-
-    return displayGroups.filter((g) => g.all_statuses.includes(selectedFilter));
-  }, [displayGroups, selectedFilter]);
-
-  // ────────────────────────────────────────────────
-  // Helpers
-  // ────────────────────────────────────────────────
-
-  const getStatusBadgeClass = (status: OrderStatus) =>
-    STATUS_COLORS[status] ?? 'text-gray-600 bg-gray-100';
-
-  const getStatusLabel = (status: OrderStatus) =>
-    STATUS_LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
-
-  const getPaymentStatusBadgeClass = (status: string) =>
-    PAYMENT_STATUS_COLORS[status] || 'text-gray-700 bg-gray-50 border-gray-200';
-
-  const getPaymentStatusLabel = (status: string) =>
-    PAYMENT_STATUS_LABELS[status] || status;
-
-  const formatOrderDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-
-  // ────────────────────────────────────────────────
-  // Render helpers
-  // ────────────────────────────────────────────────
-
-  const OrderSkeleton = () => (
-    <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-gray-100">
-      <View className="flex-row justify-between mb-3">
-        <Skeleton className="h-5 w-32 rounded" />
-        <Skeleton className="h-5 w-24 rounded" />
-      </View>
-      <View className="flex-row items-center mb-3">
-        <Skeleton className="w-12 h-12 rounded-lg mr-3" />
-        <Skeleton className="h-6 w-40 rounded" />
-      </View>
-      <Skeleton className="h-5 w-28 rounded mb-3" />
-      <Skeleton className="h-10 w-full rounded" />
-    </View>
-  );
-
-  const EmptyState = () => (
-    <View className="flex-1 items-center justify-center px-8 py-20">
-      <IconSymbol name="bag.fill" size={80} color="#d1d5db" />
-      <Text className="text-2xl font-semibold mt-6 mb-3 text-gray-800">
-        No orders yet
-      </Text>
-      <Text className="text-gray-500 text-center leading-6 mb-10">
-        {selectedFilter === 'all'
-          ? "You haven't placed any orders.\nStart exploring vendors near you!"
-          : `No ${getStatusLabel(selectedFilter as OrderStatus).toLowerCase()} orders found.`}
-      </Text>
-      {selectedFilter === 'all' && (
-        <Button size="lg" onPress={() => router.push('/(tabs)')} className="px-12">
-          Browse Vendors
-        </Button>
-      )}
-    </View>
-  );
-
-  // ────────────────────────────────────────────────
-  // Main UI
-  // ────────────────────────────────────────────────
-
   return (
-    <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="bg-white border-b border-gray-200 px-4 py-3.5">
-        <View className="flex-row items-center">
-          <Pressable onPress={() => router.back()} className="mr-3 p-1">
-            <IconSymbol name="arrow.left" size={24} color="#111827" />
-          </Pressable>
-          <Text className="text-xl font-bold text-gray-900">My Orders</Text>
-        </View>
-      </View>
-
-      {/* Filter Chips */}
-      <View className="bg-white border-b border-gray-200 px-4 py-3">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View className="flex-row gap-2.5 py-1">
-            {[
-              { key: 'all' as const, label: 'All' },
-              { key: 'active' as const, label: 'Active' },
-              { key: 'delivered' as const, label: 'Received' },
-              { key: 'cancelled' as const, label: 'Cancelled' },
-            ].map(({ key, label }) => {
-              const isActive = selectedFilter === key;
-              const count = filterCounts[key];
-
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => setSelectedFilter(key)}
-                  className={`px-5 py-2.5 rounded-full border ${
-                    isActive
-                      ? 'bg-green-700 border-green-700'
-                      : 'bg-gray-100 border-gray-200'
-                  }`}
-                >
-                  <Text
-                    className={`font-medium text-sm ${
-                      isActive ? 'text-white' : 'text-gray-700'
-                    }`}
-                  >
-                    {label} {count > 0 && `(${count})`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Content */}
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={handleRefresh}
-            tintColor="#15785B"
-          />
-        }
-        contentContainerStyle={{ 
-          paddingHorizontal: 16, 
-          paddingTop: 20, 
-          paddingBottom: insets.bottom + 80 
+    <Screen title="Orders">
+      <View
+        style={{
+          flexDirection: 'row',
+          padding: 12,
+          gap: 6,
+          backgroundColor: '#fff',
         }}
       >
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <OrderSkeleton key={i} />)
-        ) : visibleGroups.length > 0 ? (
-          visibleGroups.map((group) => {
-              const isSingle = group.total_orders === 1;
-              const firstOrder = group.orders[0];
-              const uniqueStatuses = [...new Set(group.all_statuses)];
-
-              return (
-                <Pressable
-                  key={group.order_group_id}
-                  onPress={() => {
-                    if (isSingle) {
-                      router.push(`/order/${firstOrder.id}` as any);
-                    } else {
-                      router.push(`/order/${group.order_group_id}` as any);
-                    }
-                  }}
-
-                  className="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-gray-100 active:opacity-95"
-                >
-                  {/* Date + Grand Total */}
-                  <View className="flex-row justify-between items-center mb-3">
-                    <Text className="text-gray-600 text-sm">
-                      {formatOrderDate(group.created_at)}
-                    </Text>
-                    <Text className="font-bold text-base text-gray-900">
-                      {formatCurrency(Number(group.grand_total))}
-                    </Text>
-                  </View>
-
-                  <View className="mb-2">
-                    <Text className="text-xs text-gray-500">
-                      {isSingle ? `Order #${firstOrder.id}` : `Group ${group.order_group_id}`}
-                    </Text>
-                  </View>
-
-                  {/* Vendor Info / Count */}
-                  {isSingle ? (
-                    <View className="flex-row items-center mb-3">
-                      <Image
-                        source={
-                          getImageSource(firstOrder.vendor?.logo) ||
-                          require('@/assets/images/default-profile.jpg')
-                        }
-                        className="w-12 h-12 rounded-lg mr-3 bg-gray-100"
-                        resizeMode="cover"
-                      />
-                      <Text className="font-semibold text-base flex-1" numberOfLines={1}>
-                        {firstOrder.vendor?.business_name ?? 'Unknown Vendor'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View className="flex-row items-center mb-3">
-                      <View className="bg-gray-100 rounded-full px-3.5 py-1 mr-2.5">
-                        <Text className="text-xs font-medium text-gray-700">
-                          {group.total_orders} vendors
-                        </Text>
-                      </View>
-                      <Text className="text-gray-600 text-sm">Multiple vendors</Text>
-                    </View>
-                  )}
-
-                  {/* Status Badges */}
-                  <View className="flex-row flex-wrap gap-1.5 mb-4">
-                    {/* Show payment status for both single and group orders */}
-                    {(() => {
-                      if (isSingle && firstOrder.payment_status) {
-                        return (
-                          <View
-                            className={`px-3 py-1 rounded-full border ${getPaymentStatusBadgeClass(firstOrder.payment_status)}`}
-                          >
-                            <Text className="text-xs font-medium">
-                              {getPaymentStatusLabel(firstOrder.payment_status)}
-                            </Text>
-                          </View>
-                        );
-                      } else if (!isSingle) {
-                        // For grouped orders, check for group payment status
-                        const groupPayment = group.orders.find((o: any) => o.payment?.order_group_id)?.payment;
-                        const paymentStatus = groupPayment?.status || group.orders[0]?.payment_status;
-                        if (paymentStatus) {
-                          return (
-                            <View
-                              className={`px-3 py-1 rounded-full border ${getPaymentStatusBadgeClass(paymentStatus)}`}
-                            >
-                              <Text className="text-xs font-medium">
-                                {getPaymentStatusLabel(paymentStatus)}
-                              </Text>
-                            </View>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
-                    {uniqueStatuses.map((status) => (
-                      <View
-                        key={status}
-                        className={`px-3 py-1 rounded-full ${getStatusBadgeClass(status)}`}
-                      >
-                        <Text className="text-xs font-medium">
-                          {getStatusLabel(status)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Quick hint */}
-                  <View className="flex-row items-center justify-end">
-                    <Text className="text-primary text-sm font-medium mr-1">
-                      View details
-                    </Text>
-                    <IconSymbol name="chevron.right" size={16} color="#3b82f6" />
-                  </View>
-                </Pressable>
-              );
-            })
+        {(['all', 'progress', 'past'] as const).map((t) => (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t }}
+            key={t}
+            onPress={() => setTab(t)}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 10,
+              backgroundColor: tab === t ? '#eaf7ee' : '#f5f7f6',
+            }}
+          >
+            <Text style={tab === t ? ui.link : ui.muted}>
+              {t === 'progress' ? 'In progress' : t === 'past' ? 'Past' : 'All'}
+              {counts ? ` (${counts[t]})` : ''}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <FlatList
+        data={rows}
+        keyExtractor={(item) =>
+          'orders' in item
+            ? `group:${item.order_group_id}`
+            : `single:${item.id}`
+        }
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 40,
+          gap: 14,
+          flexGrow: 1,
+        }}
+        refreshControl={
+          <RefreshControl
+            tintColor={palette.green}
+            refreshing={history.isRefetching && !history.isFetchingNextPage}
+            onRefresh={() => void history.refetch()}
+          />
+        }
+        ListEmptyComponent={
+          history.isLoading ? (
+            <ActivityIndicator color={palette.green} />
+          ) : history.isError ? (
+            <Message
+              title="Unable to load orders"
+              body={history.error.message}
+              onRetry={() => void history.refetch()}
+            />
           ) : (
-            <EmptyState />
-          )}
-      </ScrollView>
-    </View>
+            <Message
+              title={
+                tab === 'progress'
+                  ? 'No orders in progress'
+                  : 'No orders here yet'
+              }
+              body="Your meals and pickup updates will appear here."
+            />
+          )
+        }
+        renderItem={({ item }) => {
+          const orders = 'orders' in item ? item.orders : [item];
+          const first = orders[0];
+          const grouped = 'orders' in item;
+          const total = orders.reduce((sum, o) => sum + orderPayable(o), 0);
+          const statuses = [...new Set(orders.map((o) => o.status))];
+          const allPaid = orders.every(isPaid);
+          const items = orders.flatMap((o) => o.orderItems || o.items || []);
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View order ${first.id}`}
+              onPress={() =>
+                router.push(
+                  `/order/${grouped ? encodeURIComponent(item.order_group_id) : first.id}` as any,
+                )
+              }
+            >
+              <Card>
+                <View style={ui.row}>
+                  <AppImage
+                    source={getImageSource(first.vendor?.logo)}
+                    fallbackSource={require('@/assets/images/default-profile.jpg')}
+                    style={{ width: 48, height: 48, borderRadius: 12 }}
+                  />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={ui.heading}>
+                      {grouped
+                        ? `${orders.length} vendors`
+                        : first.vendor?.business_name || 'Your order'}
+                    </Text>
+                    <Text style={ui.muted}>
+                      {new Date(
+                        grouped ? item.created_at : first.createdAt,
+                      ).toLocaleDateString()}{' '}
+                      · {items.reduce((s, i) => s + i.quantity, 0)} items
+                    </Text>
+                  </View>
+                  <Text style={ui.heading}>{formatCurrency(total)}</Text>
+                </View>
+                <View style={[ui.row, { flexWrap: 'wrap' }]}>
+                  <Badge
+                    label={
+                      statuses.length === 1
+                        ? statusLabel(statuses[0])
+                        : 'Multiple pickup statuses'
+                    }
+                  />
+                  <Badge
+                    neutral={!allPaid}
+                    label={
+                      allPaid
+                        ? 'Paid'
+                        : orders.every(
+                              (o) => paymentLabel(o) === paymentLabel(first),
+                            )
+                          ? paymentLabel(first)
+                          : 'View payment status'
+                    }
+                  />
+                </View>
+                {grouped &&
+                  orders.map((o) => (
+                    <View key={o.id} style={ui.between}>
+                      <Text numberOfLines={1} style={[ui.muted, { flex: 1 }]}>
+                        {o.vendor?.business_name || 'Vendor'}
+                      </Text>
+                      <Text style={ui.muted}>{statusLabel(o.status)}</Text>
+                    </View>
+                  ))}
+                <Text style={ui.link}>View order details →</Text>
+              </Card>
+            </Pressable>
+          );
+        }}
+        ListFooterComponent={
+          history.isError && rows.length ? (
+            <Message
+              title="Could not load more orders"
+              onRetry={() => void history.fetchNextPage()}
+            />
+          ) : history.hasNextPage ? (
+            <Action
+              secondary
+              busy={history.isFetchingNextPage}
+              label="Load more orders"
+              onPress={() => void history.fetchNextPage()}
+            />
+          ) : null
+        }
+      />
+    </Screen>
   );
 }

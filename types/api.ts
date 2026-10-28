@@ -112,6 +112,7 @@ export interface Meal {
 }
 
 export interface BrowseMealsParams {
+  category_id?: number;
   search?: string;
   city?: string;
   state?: string;
@@ -129,7 +130,13 @@ export interface BrowseMealsParams {
   expiring_soon?: boolean;
   vendor_id?: number;
   vendor_rating_min?: number;
-  sort_by?: 'price_asc' | 'price_desc' | 'rating' | 'distance' | 'expiry_date' | 'created_at';
+  sort_by?:
+    | 'price_asc'
+    | 'price_desc'
+    | 'rating'
+    | 'distance'
+    | 'expiry_date'
+    | 'created_at';
   sort_order?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -236,6 +243,8 @@ export interface DeliveryAddress {
 }
 
 export interface OrderItem {
+  has_review?: boolean;
+  fulfillment_method?: 'pickup' | 'delivery' | null;
   id: number;
   order_id: number;
   product_id: number;
@@ -248,6 +257,8 @@ export interface OrderItem {
   product: {
     id: number;
     vendor_id: number;
+    pickup_start_time?: string;
+    pickup_end_time?: string;
     name: string;
     description: string;
     price: string;
@@ -268,6 +279,11 @@ export interface OrderItem {
 }
 
 export interface Order {
+  checkout_id?: string;
+  pricing_snapshot?: { payable_kobo?: number } | null;
+  subtotal_kobo?: number | null;
+  discount_kobo?: number;
+  coin_kobo?: number;
   id: number;
   customer_id: number;
   vendor_id: number;
@@ -276,8 +292,23 @@ export interface Order {
   delivery_fee: string;
   service_fee: string;
   delivery_address: DeliveryAddress | string;
-  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'completed' | 'cancelled' | 'rejected';
-  payment_method: 'card' | 'cash_on_delivery' | 'wallet' | 'cash' | 'transfer';
+  status:
+    | 'pending'
+    | 'accepted'
+    | 'preparing'
+    | 'ready'
+    | 'delivered'
+    | 'completed'
+    | 'cancelled'
+    | 'rejected';
+  payment_method:
+    | 'card'
+    | 'cash_on_delivery'
+    | 'wallet'
+    | 'cash'
+    | 'transfer'
+    | 'smm_coin'
+    | 'promotion';
   payment_status?: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
   payment?: {
     id: number;

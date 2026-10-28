@@ -1,26 +1,27 @@
-import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import * as Linking from "expo-linking";
-import { Stack, useRouter } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
-import { Provider as JotaiProvider } from "jotai";
-import { useEffect } from "react";
-import "react-native-reanimated";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import "../global.css";
+import { isRateLimited } from '@/lib/api/rate-limit';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as Linking from 'expo-linking';
+import { Stack, useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { Provider as JotaiProvider } from 'jotai';
+import { useEffect } from 'react';
+import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import '../global.css';
 
-import { ToastProvider } from "@/components/ui/toast";
-import { initAuthAtom, initCartAtom } from "@/lib/atoms";
-import { useTokenRefresh } from "@/lib/hooks";
-import { PortalHost } from "@rn-primitives/portal";
-import { useSetAtom } from "jotai";
+import { ToastProvider } from '@/components/ui/toast';
+import { initAuthAtom, initCartAtom } from '@/lib/atoms';
+import { useTokenRefresh } from '@/lib/hooks';
+import { PortalHost } from '@rn-primitives/portal';
+import { useSetAtom } from 'jotai';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  anchor: '(tabs)',
 };
 
 const queryClient = new QueryClient({
@@ -28,7 +29,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
-      retry: 1,
+      retry: (failureCount, error) => !isRateLimited(error) && failureCount < 1,
     },
   },
 });
@@ -49,18 +50,49 @@ function AppProviders() {
               <Stack.Screen name="orders" options={{ headerShown: false }} />
               <Stack.Screen name="vendors" options={{ headerShown: false }} />
               <Stack.Screen name="settings" options={{ headerShown: false }} />
-              <Stack.Screen name="vendor/[id]" options={{ headerShown: false }} />
-              <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
-              <Stack.Screen name="category/[id]" options={{ headerShown: false }} />
-              <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
-              <Stack.Screen name="order/[id]/review" options={{ headerShown: false }} />
-              <Stack.Screen name="add-address" options={{ headerShown: false }} />
-              <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-              <Stack.Screen name="my-reviews" options={{ headerShown: false }} />
+              <Stack.Screen name="rewards" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="vendor/[id]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="product/[id]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="category/[id]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="order/[id]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="order/[id]/review"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="add-address"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="edit-profile"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="my-reviews"
+                options={{ headerShown: false }}
+              />
               <Stack.Screen name="redirect" options={{ headerShown: false }} />
-              <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
-              <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+              <Stack.Screen
+                name="verify-otp"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="reset-password"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             </Stack>
             <StatusBar style="dark" backgroundColor="#ffffff" />
             <PortalHost />
@@ -75,7 +107,7 @@ function InitAtoms() {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
   const router = useRouter();
-  
+
   // Initialize automatic token refresh
   useTokenRefresh();
 
@@ -96,7 +128,10 @@ function InitAtoms() {
         if (targetPath) {
           router.replace({
             pathname: '/redirect',
-            params: { path: targetPath, ...(targetParams ? { params: targetParams } : {}) },
+            params: {
+              path: targetPath,
+              ...(targetParams ? { params: targetParams } : {}),
+            },
           });
         }
       }
@@ -108,7 +143,9 @@ function InitAtoms() {
     });
 
     // Warm start: deep link while app is already running
-    const subscription = Linking.addEventListener('url', (event) => handleUrl(event.url));
+    const subscription = Linking.addEventListener('url', (event) =>
+      handleUrl(event.url),
+    );
     return () => subscription.remove();
   }, []);
 

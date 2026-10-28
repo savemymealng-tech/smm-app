@@ -1,14 +1,23 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useAtom } from "jotai";
 import { useMemo } from "react";
-import { Dimensions, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import {
+  Dimensions,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProductCard } from "@/components/explore/ProductCard";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { locationRadiusAtom, useLocationFilterAtom } from "@/lib/atoms/locationFilter";
+import {
+  locationRadiusAtom,
+  useLocationFilterAtom,
+} from "@/lib/atoms/locationFilter";
 import { useCategory } from "@/lib/hooks/use-categories";
 import { useCategoryProducts } from "@/lib/hooks/use-products";
 import { useLocation } from "@/lib/hooks/useLocation";
@@ -21,7 +30,7 @@ export default function CategoryScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: category, isLoading: loadingCategory } = useCategory(id);
-  
+
   // Get location and location filter settings
   const { location } = useLocation();
   const [useLocationFilter] = useAtom(useLocationFilterAtom);
@@ -29,15 +38,17 @@ export default function CategoryScreen() {
 
   // Build location params for category products query
   const locationParams = useMemo(() => {
-    if (!useLocationFilter || !location?.coords) {
+    if (!useLocationFilter || !location) {
       return undefined;
     }
-    return {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      radius: locationRadius,
-    };
-  }, [useLocationFilter, location?.coords, locationRadius]);
+    return location.coords
+      ? {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          radius: locationRadius,
+        }
+      : { city: location.city };
+  }, [useLocationFilter, location, locationRadius]);
 
   const {
     data: products,
@@ -45,22 +56,21 @@ export default function CategoryScreen() {
     refetch,
     isRefetching,
     error,
-  } = useCategoryProducts(id || '', locationParams);
-  
+  } = useCategoryProducts(id || "", locationParams);
+
   // Debug logging
-  console.log('==== CATEGORY PAGE DEBUG ====');
-  console.log('Category ID:', id);
-  console.log('Products type:', typeof products);
-  console.log('Products is array?:', Array.isArray(products));
-  console.log('Products data:', products);
-  console.log('Products length:', products?.length);
-  console.log('Loading Products:', loadingProducts);
-  console.log('Loading Category:', loadingCategory);
-  console.log('Error:', error);
-  console.log('============================');
+  console.log("==== CATEGORY PAGE DEBUG ====");
+  console.log("Category ID:", id);
+  console.log("Products type:", typeof products);
+  console.log("Products is array?:", Array.isArray(products));
+  console.log("Products data:", products);
+  console.log("Products length:", products?.length);
+  console.log("Loading Products:", loadingProducts);
+  console.log("Loading Category:", loadingCategory);
+  console.log("Error:", error);
+  console.log("============================");
 
   return (
-    
     <View className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="bg-white px-4 pt-10 pb-4 flex-row items-center border-b border-gray-100">
@@ -128,16 +138,23 @@ export default function CategoryScreen() {
               </View>
               <View className="px-4 flex-row flex-wrap justify-between">
                 {products.map((product: any, index: number) => {
-                  console.log(`Rendering product ${index}:`, product.id, product.name);
+                  console.log(
+                    `Rendering product ${index}:`,
+                    product.id,
+                    product.name,
+                  );
                   return (
-                    <View 
-                      key={product.id} 
-                      style={{ 
+                    <View
+                      key={product.id}
+                      style={{
                         width: CARD_WIDTH,
-                        marginBottom: 16 
+                        marginBottom: 16,
                       }}
                     >
-                      <ProductCard item={product} userLocation={location?.coords} />
+                      <ProductCard
+                        item={product}
+                        userLocation={location?.coords}
+                      />
                     </View>
                   );
                 })}
@@ -145,12 +162,18 @@ export default function CategoryScreen() {
             </View>
           ) : error ? (
             <View className="flex-1 items-center justify-center py-20 px-4">
-              <IconSymbol name="exclamationmark.triangle.fill" size={48} color="#ef4444" />
+              <IconSymbol
+                name="exclamationmark.triangle.fill"
+                size={48}
+                color="#ef4444"
+              />
               <Text className="text-xl font-semibold text-gray-700 mt-4 mb-2">
                 Error loading products
               </Text>
               <Text className="text-sm text-gray-500 text-center">
-                {error instanceof Error ? error.message : 'Something went wrong'}
+                {error instanceof Error
+                  ? error.message
+                  : "Something went wrong"}
               </Text>
             </View>
           ) : (
@@ -169,4 +192,3 @@ export default function CategoryScreen() {
     </View>
   );
 }
-

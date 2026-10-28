@@ -7,47 +7,47 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { NativeOnlyAnimatedView } from "@/components/ui/native-only-animated-view";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
-import { Colors } from "@/constants/theme";
+} from '@/components/ui/alert-dialog';
+import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Text } from '@/components/ui/text';
+import { Colors } from '@/constants/theme';
 import {
   useHybridCart,
   useHybridClearCart,
   useHybridRemoveFromCart,
-  useHybridUpdateCart
-} from "@/lib/hooks/use-hybrid-cart";
-import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Platform, RefreshControl, ScrollView, View } from "react-native";
-import { FadeInDown, SlideOutDown } from "react-native-reanimated";
+  useHybridUpdateCart,
+} from '@/lib/hooks/use-hybrid-cart';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { FadeInDown, SlideOutDown } from 'react-native-reanimated';
 import {
   SafeAreaView,
   useSafeAreaInsets,
-} from "react-native-safe-area-context";
+} from 'react-native-safe-area-context';
 
 import {
   CartEmptyState,
   CartHeader,
   CartItemCard,
   CartSummary,
-} from "@/components/cart";
+} from '@/components/cart';
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { 
-    cart, 
-    totalItems, 
-    subtotal, 
-    deliveryFee, 
-    serviceFee, 
-    tax, 
-    isLoading, 
-    isAuthenticated, 
-    refetch 
+  const {
+    cart,
+    totalItems,
+    subtotal,
+    deliveryFee,
+    serviceFee,
+    tax,
+    isLoading,
+    isAuthenticated,
+    refetch,
   } = useHybridCart();
   const updateCartMutation = useHybridUpdateCart();
   const removeFromCartMutation = useHybridRemoveFromCart();
@@ -57,11 +57,14 @@ export default function CartScreen() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const [itemToRemove, setItemToRemove] = useState<{ id: string; productId: number } | null>(null);
+  const [itemToRemove, setItemToRemove] = useState<{
+    id: string;
+    productId: number;
+  } | null>(null);
 
   // Calculate total from values (server provides fees, or they're 0)
   const total = subtotal + deliveryFee + serviceFee + tax;
-  
+
   const totals = {
     subtotal,
     deliveryFee,
@@ -71,7 +74,7 @@ export default function CartScreen() {
   };
 
   const handleRemoveItem = (id: string, productId: number) => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setItemToRemove({ id, productId });
@@ -86,49 +89,57 @@ export default function CartScreen() {
     setItemToRemove(null);
   };
 
-  const handleUpdateQuantity = (id: string, quantity: number, productId?: number) => {
+  const handleUpdateQuantity = (
+    id: string,
+    quantity: number,
+    productId?: number,
+  ) => {
     if (quantity < 1) {
       handleRemoveItem(id, productId || 0);
       return;
     }
-    
+
     // Always pass item_id for local cart, and product_id for API sync
     updateCartMutation.mutate({ item_id: id, product_id: productId, quantity });
   };
 
-  const handleUpdateFulfillmentMethod = (id: string, method: 'pickup' | 'delivery', productId?: number) => {
-    if (Platform.OS !== "web") {
+  const handleUpdateFulfillmentMethod = (
+    id: string,
+    method: 'pickup' | 'delivery',
+    productId?: number,
+  ) => {
+    if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    
+
     // Find the current item to get its quantity
-    const currentItem = cart.find(item => item.id === id);
+    const currentItem = cart.find((item) => item.id === id);
     if (currentItem) {
-      updateCartMutation.mutate({ 
-        item_id: id, 
-        product_id: productId, 
+      updateCartMutation.mutate({
+        item_id: id,
+        product_id: productId,
         quantity: currentItem.quantity,
-        fulfillment_method: method 
+        fulfillment_method: method,
       });
     }
   };
 
   const handleCheckout = () => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
+
     // Check if user is logged in
     if (!isAuthenticated) {
       setLoginDialogOpen(true);
       return;
     }
-    
-    router.push("/checkout");
+
+    router.push('/checkout');
   };
 
   const handleClearCart = () => {
-    if (Platform.OS !== "web") {
+    if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
     setClearDialogOpen(true);
@@ -157,11 +168,11 @@ export default function CartScreen() {
       <SafeAreaView className="flex-1 bg-gray-50">
         <CartHeader itemCount={0} onBack={() => router.back()} />
         <View
-          style={{ height: "100%" }}
+          style={{ height: '100%' }}
           className="flex-1 justify-center items-center"
         >
           <CartEmptyState
-            onBackToExplore={() => router.push("/(tabs)/explore")}
+            onBackToExplore={() => router.push('/(tabs)/explore')}
           />
         </View>
       </SafeAreaView>
@@ -169,21 +180,24 @@ export default function CartScreen() {
   }
 
   // Group items by vendor - handle both API and local cart structures
-  const itemsByVendor = cart.reduce((acc, item: any) => {
-    // API cart structure: item.product.vendor
-    // Local cart structure: item.product.vendor
-    const vendor = item.product?.vendor;
-    const vendorId = vendor?.id || 0;
-    
-    if (!acc[vendorId]) {
-      acc[vendorId] = {
-        vendor: vendor || { id: 0, business_name: 'Unknown Vendor' },
-        items: [],
-      };
-    }
-    acc[vendorId].items.push(item);
-    return acc;
-  }, {} as Record<string, { vendor: any; items: any[] }>);
+  const itemsByVendor = cart.reduce(
+    (acc, item: any) => {
+      // API cart structure: item.product.vendor
+      // Local cart structure: item.product.vendor
+      const vendor = item.product?.vendor;
+      const vendorId = vendor?.id || 0;
+
+      if (!acc[vendorId]) {
+        acc[vendorId] = {
+          vendor: vendor || { id: 0, business_name: 'Unknown Vendor' },
+          items: [],
+        };
+      }
+      acc[vendorId].items.push(item);
+      return acc;
+    },
+    {} as Record<string, { vendor: any; items: any[] }>,
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -212,7 +226,8 @@ export default function CartScreen() {
                   {vendorGroup.vendor.business_name}
                 </Text>
                 <Text className="text-sm text-gray-500 ml-2">
-                  ({vendorGroup.items.length} {vendorGroup.items.length === 1 ? 'item' : 'items'})
+                  ({vendorGroup.items.length}{' '}
+                  {vendorGroup.items.length === 1 ? 'item' : 'items'})
                 </Text>
               </View>
 
@@ -234,8 +249,12 @@ export default function CartScreen() {
                       item={item}
                       isAuthenticated={isAuthenticated}
                       onRemove={() => handleRemoveItem(itemId, productId)}
-                      onUpdateQuantity={(quantity) => handleUpdateQuantity(itemId, quantity, productId)}
-                      onUpdateFulfillmentMethod={(method) => handleUpdateFulfillmentMethod(itemId, method, productId)}
+                      onUpdateQuantity={(quantity) =>
+                        handleUpdateQuantity(itemId, quantity, productId)
+                      }
+                      onUpdateFulfillmentMethod={(method) =>
+                        handleUpdateFulfillmentMethod(itemId, method, productId)
+                      }
                     />
                   </NativeOnlyAnimatedView>
                 );
@@ -253,9 +272,11 @@ export default function CartScreen() {
 
       {/* Remove Item Dialog */}
       <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent compact>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Item?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">
+              Remove Item?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-base text-gray-600 pt-1">
               Are you sure you want to remove this item from your cart?
             </AlertDialogDescription>
@@ -264,7 +285,11 @@ export default function CartScreen() {
             <AlertDialogCancel className="flex-1">
               <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmRemoveItem} className="flex-1 bg-red-500">
+            <AlertDialogAction
+              tone="destructive"
+              onPress={confirmRemoveItem}
+              className="flex-1 bg-red-500"
+            >
               <Text className="text-white font-semibold">Remove</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -273,9 +298,11 @@ export default function CartScreen() {
 
       {/* Clear Cart Dialog */}
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent compact>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">Clear Cart?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">
+              Clear Cart?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-base text-gray-600 pt-1">
               Are you sure you want to remove all items from your cart?
             </AlertDialogDescription>
@@ -284,8 +311,12 @@ export default function CartScreen() {
             <AlertDialogCancel className="flex-1">
               <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction onPress={confirmClearCart} className="flex-1 bg-red-500">
-              <Text className="text-white font-semibold">Clear All</Text>
+            <AlertDialogAction
+              tone="destructive"
+              onPress={confirmClearCart}
+              className="flex-1 bg-red-500"
+            >
+              <Text className="text-white font-semibold">Clear cart</Text>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -299,14 +330,15 @@ export default function CartScreen() {
               🔐 Login Required
             </AlertDialogTitle>
             <AlertDialogDescription className="text-base text-gray-600 pt-1">
-              You need to be logged in to proceed with checkout. Your cart items will be saved and synced once you login!
+              You need to be logged in to proceed with checkout. Your cart items
+              will be saved and synced once you login!
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="flex-1">
               <Text className="text-gray-700">Cancel</Text>
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onPress={() => {
                 setLoginDialogOpen(false);
                 router.push('/login');
