@@ -4,12 +4,10 @@ import { api } from "../api";
 export function useProducts(vendorId?: string, categoryId?: string) {
   return useQuery({
     queryKey: ["products", vendorId, categoryId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (vendorId) {
         // Get products from specific vendor
-        const result = await api.vendors.getVendorProducts(Number(vendorId));
-        console.log("Vendor products result:", result);
-        return result;
+        return api.vendors.getVendorProducts(Number(vendorId), signal);
       } else if (categoryId) {
         // Get products by category using the dedicated endpoint
         const result = await api.meals.getMealsByCategory(Number(categoryId));

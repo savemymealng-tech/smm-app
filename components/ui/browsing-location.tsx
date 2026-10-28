@@ -28,7 +28,8 @@ type Area = {
 };
 export function BrowsingLocation({
   onSelected,
-}: { onSelected?: () => void } = {}) {
+  filterActive,
+}: { onSelected?: () => void; filterActive?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery] = useDebounce(query.trim(), 450);
@@ -142,11 +143,17 @@ export function BrowsingLocation({
       >
         <IconSymbol name="location.fill" size={18} color="#008236" />
         <View className="flex-1 mx-2">
-          <Text className="text-xs text-gray-500">Browse pickup near</Text>
+          <Text className="text-xs text-gray-500">
+            {filterActive === false
+              ? 'Location filter off'
+              : 'Browsing location'}
+          </Text>
           <Text className="font-semibold text-gray-900" numberOfLines={1}>
-            {location?.address ||
-              location?.city ||
-              (location?.coords ? 'Current location' : 'Choose an area')}
+            {filterActive === false
+              ? 'All areas'
+              : location?.address ||
+                location?.city ||
+                (location?.coords ? 'Current location' : 'Choose an area')}
           </Text>
         </View>
         <IconSymbol name="chevron.down" size={16} color="#008236" />

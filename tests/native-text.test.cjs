@@ -24,9 +24,11 @@ vm.runInNewContext(
   }).outputText,
   { exports: vendorDisplay },
 );
-function load(file) {
+function load(file, browsingLocation = null) {
   const exports = {};
   const mocks = {
+    jotai: { useAtomValue: () => browsingLocation },
+    '@/lib/atoms/location': { locationAtom: {} },
     react: { ...React, useState: (v) => [v, () => {}] },
     'react/jsx-runtime': require('react/jsx-runtime'),
     'lucide-react-native': {
@@ -176,4 +178,52 @@ test('checkout and order-detail containers do not contain stray literal text nod
     }
     walk(source);
   }
+});
+
+function textContent(node) {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textContent).join('');
+  if (typeof node.type === 'function')
+    return textContent(node.type(node.props));
+  return textContent(node.props?.children);
+}
+test('product cards use the shared browsing location when a list does not supply coordinates', () => {
+  const component = load('components/product/ProductCard.tsx', {
+    coords: { latitude: 0, longitude: 0 },
+  }).ProductCard;
+  const item = {
+    id: 1,
+    name: 'Meal',
+    price: '80',
+    original_price: '100',
+    quantity_available: 5,
+    vendor: { latitude: '0', longitude: '0' },
+  };
+  const node = component({ item });
+  const image = node.props.children[0];
+  assert.match(textContent(image), /0 away/);
+  assert.match(textContent(image), /20% off/);
+  assert.doesNotMatch(textContent(node.props.children[1]), /away/);
+  assert.doesNotMatch(
+    textContent(
+      component({ item, userLocation: { latitude: 1, longitude: 1 } }),
+    ),
+    /\b0 away/,
+  );
+});
+test('product cards hide unknown distance and preserve API kilometres as a fallback', () => {
+  const component = load('components/product/ProductCard.tsx').ProductCard;
+  const item = {
+    id: 1,
+    name: 'Meal',
+    price: '100',
+    quantity_available: 5,
+    vendor: { latitude: '', longitude: null },
+  };
+  assert.doesNotMatch(textContent(component({ item })), /away|NaN/);
+  assert.match(
+    textContent(component({ item: { ...item, distance: '1.5' } })),
+    /1500 away/,
+  );
 });

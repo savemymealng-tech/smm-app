@@ -1,122 +1,58 @@
-import { Dimensions, FlatList, View } from "react-native";
-
-import { ProductCard } from "@/components/explore/ProductCard";
-import { Text } from "@/components/ui/text";
-import { Meal } from "@/types/api";
-
-const { width: screenWidth } = Dimensions.get("window");
-const CARD_WIDTH = (screenWidth - 48) / 2; // 2 columns with padding (16px on each side + 16px gap)
+import { useState } from "react";
+import { Text, View, useWindowDimensions } from "react-native";
+import { ProductCard } from "@/components/product/ProductCard";
+import { palette } from "@/components/ui/screen-kit";
+import type { Meal } from "@/types/api";
 
 type VendorProductsSectionProps = {
   products: Meal[];
-  productsByCategory: Record<string, Meal[]>;
-  categories: string[];
-  selectedCategory: string | null;
-  userLocation?: {
-    latitude: number;
-    longitude: number;
-  } | null;
+  label: string;
+  userLocation?: { latitude: number; longitude: number } | null;
 };
 
 export function VendorProductsSection({
   products,
-  productsByCategory,
-  categories,
-  selectedCategory,
+  label,
   userLocation,
 }: VendorProductsSectionProps) {
-  if (selectedCategory) {
-    // Show filtered products for selected category
-    const filteredProducts = products.filter(
-      (p) => p && p.categories?.some(c => c.name === selectedCategory) && p.id
-    );
-
-    return (
-      <View className="mb-4">
-        <Text className="text-xl font-bold text-gray-900 mb-4">
-          {selectedCategory}
-        </Text>
-        <FlatList
-          data={filteredProducts}
-          renderItem={({ item }) => {
-            if (!item || !item.id) return <View />;
-            return (
-              <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-                <ProductCard item={item} userLocation={userLocation} />
-              </View>
-            );
-          }}
-          keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
-          numColumns={2}
-          scrollEnabled={false}
-          columnWrapperStyle={{ justifyContent: "space-between" }}
-          contentContainerStyle={{ paddingBottom: 8 }}
-        />
-      </View>
-    );
-  }
-
-  // Show grouped by category if no category is selected
-  if (categories.length > 1) {
-    // Filter out empty categories first
-    const nonEmptyCategories = categories.filter(
-      (category) => productsByCategory[category] && productsByCategory[category].length > 0
-    );
-
-    return (
-      <>
-        {nonEmptyCategories.map((category) => {
-          const categoryProducts = productsByCategory[category];
-
-          return (
-            <View key={category} className="mb-6">
-              <Text className="text-xl font-bold text-gray-900 mb-4">
-                {category}
-              </Text>
-              <FlatList
-                data={categoryProducts}
-                renderItem={({ item }) => {
-                  if (!item || !item.id) return <View />;
-                  return (
-                    <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-                      <ProductCard item={item} userLocation={userLocation} />
-                    </View>
-                  );
-                }}
-                keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
-                numColumns={2}
-                scrollEnabled={false}
-                columnWrapperStyle={{ justifyContent: "space-between" }}
-                contentContainerStyle={{ paddingBottom: 8 }}
-              />
-            </View>
-          );
-        })}
-      </>
-    );
-  }
-
-  // Show all products in a single grid if only one category
+  const { width } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState(0);
+  const cardWidth = ((containerWidth || width - 32) - 12) / 2;
   return (
-    <View className="mb-4">
-      <Text className="text-xl font-bold text-gray-900 mb-4">Menu</Text>
-      <FlatList
-        data={products.filter((p) => p && p.id)}
-        renderItem={({ item }) => {
-          if (!item || !item.id) return <View />;
-          return (
-            <View style={{ width: CARD_WIDTH, marginBottom: 16 }}>
-              <ProductCard item={item} userLocation={userLocation} />
-            </View>
-          );
+    <View
+      style={{ marginBottom: 16 }}
+      onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 12,
         }}
-        keyExtractor={(item, index) => String(item?.id) || `product-${index}`}
-        numColumns={2}
-        scrollEnabled={false}
-        columnWrapperStyle={{ justifyContent: "space-between" }}
-        contentContainerStyle={{ paddingBottom: 8 }}
-      />
+      >
+        <Text
+          style={{
+            flex: 1,
+            fontSize: 16,
+            fontWeight: "700",
+            color: palette.ink,
+          }}
+        >
+          {label}
+        </Text>
+        <Text style={{ fontSize: 12, color: palette.muted }}>
+          {products.length} {products.length === 1 ? "item" : "items"}
+        </Text>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        {products.map((item) => (
+          <View key={item.id} style={{ width: cardWidth }}>
+            <ProductCard item={item} userLocation={userLocation} />
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
-

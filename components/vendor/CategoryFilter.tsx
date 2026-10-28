@@ -1,66 +1,92 @@
-import { Pressable, ScrollView, View } from "react-native";
-
-import { Text } from "@/components/ui/text";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { palette } from "@/components/ui/screen-kit";
+import type { VendorMenuCategory } from "@/lib/vendor-menu";
 
 type CategoryFilterProps = {
-  categories: string[];
+  categories: VendorMenuCategory[];
+  total: number;
   selectedCategory: string | null;
   onSelectCategory: (category: string | null) => void;
 };
 
 export function CategoryFilter({
   categories,
+  total,
   selectedCategory,
   onSelectCategory,
 }: CategoryFilterProps) {
-  if (categories.length <= 1) {
-    return null;
-  }
-
+  if (!categories.length) return null;
+  const tabs = [{ key: null, label: "All", count: total }, ...categories];
   return (
-    <View className="mb-4">
+    <View
+      style={{
+        marginBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: palette.border,
+      }}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingRight: 16 }}
+        contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
       >
-        <Pressable
-          onPress={() => onSelectCategory(null)}
-          className={`mr-2 px-4 py-2 rounded-full border-2 ${
-            selectedCategory === null
-              ? "bg-primary border-primary"
-              : "bg-white border-gray-200"
-          }`}
-        >
-          <Text
-            className={`font-semibold text-sm ${
-              selectedCategory === null ? "text-white" : "text-gray-700"
-            }`}
-          >
-            All
-          </Text>
-        </Pressable>
-        {categories.map((category) => (
-          <Pressable
-            key={category}
-            onPress={() => onSelectCategory(category)}
-            className={`mr-2 px-4 py-2 rounded-full border-2 ${
-              selectedCategory === category
-                ? "bg-primary border-primary"
-                : "bg-white border-gray-200"
-            }`}
-          >
-            <Text
-              className={`font-semibold text-sm ${
-                selectedCategory === category ? "text-white" : "text-gray-700"
-              }`}
+        {tabs.map((category) => {
+          const selected = selectedCategory === category.key;
+          return (
+            <Pressable
+              key={category.key ?? "all"}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${category.label}, ${category.count} items`}
+              onPress={() => onSelectCategory(category.key)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 7,
+                minHeight: 44,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                backgroundColor: selected ? palette.green : "#fff",
+                borderColor: selected ? palette.green : palette.border,
+                opacity: pressed ? 0.8 : 1,
+              })}
             >
-              {category}
-            </Text>
-          </Pressable>
-        ))}
+              <Text
+                numberOfLines={1}
+                style={{
+                  maxWidth: 170,
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: selected ? "#fff" : palette.ink,
+                }}
+              >
+                {category.label}
+              </Text>
+              <View
+                style={{
+                  borderRadius: 6,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  backgroundColor: selected
+                    ? "rgba(255,255,255,0.18)"
+                    : palette.greenSurface,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: selected ? "#fff" : palette.green,
+                  }}
+                >
+                  {category.count}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
 }
-

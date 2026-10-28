@@ -1,12 +1,14 @@
 import { productDiscount } from "@/lib/product-display";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { Star } from "lucide-react-native";
+import { useAtomValue } from "jotai";
+import { locationAtom } from "@/lib/atoms/location";
+import { vendorDistanceMeters } from "@/lib/vendor-display";
+import { MapPin, Star } from "lucide-react-native";
 import { AppImage } from "@/components/ui/app-image";
 import { palette } from "@/components/ui/screen-kit";
 import { formatMoney } from "@/lib/order-display";
 import {
-  calculateDistance,
   formatDistance,
   formatTime12Hour,
   getEffectivePickupDay,
@@ -32,23 +34,13 @@ export function ProductCard({
   const rating = Number(item.vendor?.rating);
   const hasRating = Number.isFinite(rating) && rating > 0 && rating <= 5;
   const lowStock = item.quantity_available > 0 && item.quantity_available <= 5;
-  const lat = Number(item.vendor?.latitude),
-    lng = Number(item.vendor?.longitude);
+  const browsingLocation = useAtomValue(locationAtom);
+  const distanceMeters = vendorDistanceMeters(
+    { ...item.vendor, distance: item.distance ?? item.vendor?.distance },
+    userLocation ?? browsingLocation?.coords,
+  );
   const distance =
-    userLocation &&
-    item.vendor?.latitude != null &&
-    item.vendor?.longitude != null &&
-    Number.isFinite(lat) &&
-    Number.isFinite(lng)
-      ? formatDistance(
-          calculateDistance(
-            userLocation.latitude,
-            userLocation.longitude,
-            lat,
-            lng,
-          ),
-        )
-      : null;
+    distanceMeters === null ? null : formatDistance(distanceMeters);
   const window =
     item.pickup_start_time && item.pickup_end_time
       ? `${formatTime12Hour(item.pickup_start_time)}–${formatTime12Hour(item.pickup_end_time)}`
@@ -56,7 +48,7 @@ export function ProductCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.name}, ${formatMoney(price)}${unavailable ? ", currently unavailable" : ""}. View pickup details`}
+      accessibilityLabel={`${item.name}, ${formatMoney(price)}${distance ? `, ${distance} away` : ""}${unavailable ? ", currently unavailable" : ""}. View pickup details`}
       onPress={() => router.push(`/product/${item.id}` as any)}
       style={({ pressed }) => [styles.card, { opacity: pressed ? 0.88 : 1 }]}
     >
@@ -70,21 +62,31 @@ export function ProductCard({
           }}
           resizeMode="cover"
         />
-        {discount.hasDiscount && (
-          <View style={styles.offer}>
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: 11,
-                lineHeight: 15,
-                fontWeight: "700",
-                color: palette.orangeInk,
-              }}
-            >
-              {discount.label}
-            </Text>
-          </View>
-        )}
+        <View pointerEvents="none" style={styles.badges}>
+          {discount.hasDiscount && (
+            <View style={styles.offer}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  fontSize: 11,
+                  lineHeight: 15,
+                  fontWeight: "700",
+                  color: palette.orangeInk,
+                }}
+              >
+                {discount.label}
+              </Text>
+            </View>
+          )}
+          {!!distance && (
+            <View style={styles.distance}>
+              <MapPin size={11} color={palette.green} />
+              <Text numberOfLines={1} style={styles.distanceText}>
+                {distance} away
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
       <View style={styles.body}>
         {!!item.pack_id && (
@@ -123,7 +125,6 @@ export function ProductCard({
             {window || "View collection details"}
           </Text>
         </View>
-        {!!distance && <Text style={styles.secondary}>{distance} away</Text>}
         <View style={styles.bottom}>
           {unavailable ? (
             <Text
@@ -226,16 +227,42 @@ const styles = StyleSheet.create({
     gap: 5,
     flexWrap: "wrap",
   },
-  offer: {
+  badges: {
     position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
     zIndex: 2,
-    elevation: 2,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 5,
+  },
+  distance: {
+    marginLeft: "auto",
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    minHeight: 24,
+    maxWidth: "100%",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: "#fff",
+  },
+  distanceText: {
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "600",
+    color: palette.green,
+    flexShrink: 1,
+  },
+  offer: {
     minWidth: 56,
     minHeight: 24,
     alignItems: "center",
     justifyContent: "center",
-    left: 8,
-    bottom: 8,
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 4,

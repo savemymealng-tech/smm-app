@@ -7,6 +7,7 @@ import type {
   NearbyVendorsParams,
   SearchVendorsParams,
   Vendor,
+  Meal,
 } from "@/types/api";
 import apiClient, { ApiResponse } from "./client";
 import { API_CONFIG } from "./config";
@@ -89,15 +90,30 @@ export const vendorsApi = {
    * Get Products by Vendor ID
    * GET /vendors/:vendorId/products
    */
-  async getVendorProducts(vendorId: number): Promise<any> {
-    const response = await apiClient.get<any>(
-      API_CONFIG.ENDPOINTS.VENDORS.PRODUCTS(vendorId),
-    );
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error || "Failed to fetch vendor products");
+  async getVendorProducts(
+    vendorId: number,
+    signal?: AbortSignal,
+  ): Promise<Meal[]> {
+    const products = new Map<number, Meal>();
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const response = await apiClient.get<
+        ApiResponse<Meal[]> & { totalPages?: number }
+      >(API_CONFIG.ENDPOINTS.VENDORS.PRODUCTS(vendorId), {
+        params: { page, limit: 50 },
+        signal,
+      });
+      const body = response.data;
+      if (!body.success || !Array.isArray(body.data)) {
+        throw new Error(body.error || "Failed to fetch vendor products");
+      }
+      for (const product of body.data) products.set(product.id, product);
+      totalPages = Number(body.totalPages) || 1;
+      // Stop if the catalog shrinks between requests.
+      if (!body.data.length) break;
+      page += 1;
+    } while (page <= totalPages);
+    return Array.from(products.values());
   },
 };

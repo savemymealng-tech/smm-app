@@ -1,3 +1,4 @@
+import { exploreScope } from '@/lib/explore-scope';
 import { SlidersHorizontal } from 'lucide-react-native';
 import { formatMoney } from '@/lib/order-display';
 import { Action, Message, palette } from '@/components/ui/screen-kit';
@@ -95,7 +96,11 @@ export default function ExploreScreen() {
       setFilters({ ...empty, category: route.category || null });
     }
   }, [route.scope, route.reset, route.q, route.category, setNear]);
-  const scoped = near && !!(location?.coords || location?.city);
+  const areaScope = useMemo(
+    () => exploreScope(near, location, radius),
+    [near, location, radius],
+  );
+  const scoped = areaScope.active;
   const params = useMemo(
     () =>
       ({
@@ -104,21 +109,13 @@ export default function ExploreScreen() {
         vendor_rating_min: filters.rating ?? undefined,
         min_price: filters.min ?? undefined,
         max_price: filters.max ?? undefined,
-        ...(scoped
-          ? location?.coords
-            ? {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                radius,
-              }
-            : { city: location?.city }
-          : {}),
+        ...areaScope.params,
         sort_by:
           filters.sort === 'distance' && (!location?.coords || !scoped)
             ? 'created_at'
             : filters.sort,
       }) as BrowseMealsParams,
-    [search, filters, scoped, location, radius],
+    [search, filters, scoped, location, areaScope],
   );
   const result = useBrowseMealsInfinite(params);
   const scopeKey = JSON.stringify(params);
@@ -175,7 +172,7 @@ export default function ExploreScreen() {
       clear: () => setFilters((f) => ({ ...f, min: null, max: null })),
     },
     scoped && {
-      label: location?.coords ? `Within ${radius} km` : location?.city,
+      label: areaScope.filterLabel!,
       clear: () => setNear(false),
     },
   ].filter(Boolean) as { label: string; clear: () => void }[];
@@ -186,7 +183,10 @@ export default function ExploreScreen() {
       onLayout={(event) => setSceneHeight(event.nativeEvent.layout.height)}
     >
       <View className="bg-white pb-3">
-        <BrowsingLocation onSelected={() => setNear(true)} />
+        <BrowsingLocation
+          filterActive={scoped}
+          onSelected={() => setNear(true)}
+        />
         <View
           style={{
             paddingHorizontal: 16,
@@ -340,11 +340,7 @@ export default function ExploreScreen() {
                 : `${total} ${total === 1 ? 'product' : 'products'}`}
             </Text>
             <Text style={{ fontSize: 11, color: palette.muted, marginTop: 2 }}>
-              {scoped
-                ? location?.coords
-                  ? `Selected area · ${radius} km radius`
-                  : `In ${location?.city}`
-                : 'Across all areas'}
+              {areaScope.label}
             </Text>
           </View>
           <Pressable
@@ -369,7 +365,7 @@ export default function ExploreScreen() {
             style={{ paddingHorizontal: 16, paddingVertical: 6 }}
           >
             <Text style={{ fontSize: 12, color: palette.green }}>
-              Show products in {location.city || 'my selected area'}
+              Filter to {location.city || 'my selected area'}
             </Text>
           </Pressable>
         )}
@@ -387,10 +383,7 @@ export default function ExploreScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: bottomClearance }}
         renderItem={({ item }) => (
           <View style={{ width: Math.max(0, (windowWidth - 44) / 2) }}>
-            <ProductCard
-              item={item}
-              userLocation={scoped ? location?.coords : undefined}
-            />
+            <ProductCard item={item} userLocation={location?.coords} />
           </View>
         )}
         refreshing={refreshing}

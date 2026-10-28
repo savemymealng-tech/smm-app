@@ -1,11 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { RatingDisplay, ReviewList } from '@/components/reviews';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
+import { RatingDisplay, ReviewList } from "@/components/reviews";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
 import {
   CategoryFilter,
   VendorCoverHeader,
@@ -13,20 +13,24 @@ import {
   VendorInfoCard,
   VendorLoadingState,
   VendorProductsSection,
-} from '@/components/vendor';
-import { useProducts } from '@/lib/hooks/use-products';
-import { useVendorReviews } from '@/lib/hooks/use-reviews';
-import { useVendor } from '@/lib/hooks/use-vendors';
-import { useLocation } from '@/lib/hooks/useLocation';
+} from "@/components/vendor";
+import { useProducts } from "@/lib/hooks/use-products";
+import { useVendorReviews } from "@/lib/hooks/use-reviews";
+import { useVendor } from "@/lib/hooks/use-vendors";
+import { buildVendorMenu } from "@/lib/vendor-menu";
+import { useLocation } from "@/lib/hooks/useLocation";
 
 export default function VendorDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: vendor, isLoading: isLoadingVendor } = useVendor(id || '');
-  const { data: products, isLoading: isLoadingProducts } = useProducts(
-    id || '',
-  );
+  const { data: vendor, isLoading: isLoadingVendor } = useVendor(id || "");
+  const {
+    data: products,
+    isLoading: isLoadingProducts,
+    isError: productsError,
+    refetch: refetchProducts,
+  } = useProducts(id || "");
   const { location } = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -42,6 +46,18 @@ export default function VendorDetailScreen() {
     loadMore,
     refresh,
   } = useVendorReviews(id ? parseInt(id) : 0);
+
+  const menu = useMemo(() => buildVendorMenu(products), [products]);
+  const activeCategory = menu.categories.find(
+    (category) => category.key === selectedCategory,
+  );
+  const visibleProducts = activeCategory
+    ? menu.productsByCategory.get(activeCategory.key) || []
+    : menu.products;
+  useEffect(() => {
+    setSelectedCategory(null);
+    setShowAllReviews(false);
+  }, [id]);
 
   if (isLoadingVendor) {
     return <VendorLoadingState />;
@@ -64,26 +80,6 @@ export default function VendorDetailScreen() {
     );
   }
 
-  // Group products by category
-  const productsByCategory = useMemo(() => {
-    if (!products || !Array.isArray(products)) return {};
-    const grouped: Record<string, typeof products> = {};
-    products.forEach((product) => {
-      // Get category name from categories array (first category if multiple)
-      const categoryName = product.categories?.[0]?.name || 'Other';
-      if (!grouped[categoryName]) {
-        grouped[categoryName] = [];
-      }
-      grouped[categoryName].push(product);
-    });
-    return grouped;
-  }, [products]);
-
-  // Get unique categories
-  const categories = useMemo(() => {
-    return Object.keys(productsByCategory);
-  }, [productsByCategory]);
-
   return (
     <View className="flex-1 bg-gray-50">
       <VendorCoverHeader coverImage={vendor.logo} />
@@ -91,9 +87,52 @@ export default function VendorDetailScreen() {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 224, paddingBottom: 20 }}
+        contentContainerStyle={{
+          paddingTop: 224,
+          paddingBottom: Math.max(insets.bottom, 16) + 20,
+        }}
       >
         <VendorInfoCard vendor={vendor} />
+
+        {/* Products Section */}
+        {isLoadingProducts ? (
+          <View className="px-4">
+            <Skeleton className="w-full h-32 rounded-2xl mb-4" />
+            <Skeleton className="w-full h-32 rounded-2xl mb-4" />
+          </View>
+        ) : productsError ? (
+          <View className="mx-4 mb-6 rounded-2xl border border-gray-200 bg-white p-5">
+            <Text className="font-semibold text-gray-900">
+              Unable to load this menu
+            </Text>
+            <Text className="mt-1 text-sm text-gray-500">
+              Check your connection and try again.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => refetchProducts()}
+              className="mt-3 self-start py-2"
+            >
+              <Text className="font-semibold text-primary">Try again</Text>
+            </Pressable>
+          </View>
+        ) : menu.products.length > 0 ? (
+          <View className="px-4">
+            <CategoryFilter
+              categories={menu.categories}
+              total={menu.products.length}
+              selectedCategory={activeCategory?.key ?? null}
+              onSelectCategory={setSelectedCategory}
+            />
+            <VendorProductsSection
+              products={visibleProducts}
+              label={activeCategory?.label || "All items"}
+              userLocation={location?.coords}
+            />
+          </View>
+        ) : (
+          <VendorEmptyState />
+        )}
 
         {/* Reviews Section */}
         <View className="px-4 mb-6">
@@ -136,12 +175,12 @@ export default function VendorDetailScreen() {
                         <View className="flex-row items-center mb-2">
                           <View className="bg-green-600 w-8 h-8 rounded-full items-center justify-center mr-2">
                             <Text className="text-white font-bold">
-                              {review.customer?.first_name?.charAt(0) || '?'}
+                              {review.customer?.first_name?.charAt(0) || "?"}
                             </Text>
                           </View>
                           <View className="flex-1">
                             <Text className="font-semibold">
-                              {review.customer?.first_name || 'Anonymous'}
+                              {review.customer?.first_name || "Anonymous"}
                             </Text>
                           </View>
                           <RatingDisplay
@@ -194,31 +233,6 @@ export default function VendorDetailScreen() {
             </Pressable>
           )}
         </View>
-
-        {/* Products Section */}
-        {isLoadingProducts ? (
-          <View className="px-4">
-            <Skeleton className="w-full h-32 rounded-2xl mb-4" />
-            <Skeleton className="w-full h-32 rounded-2xl mb-4" />
-          </View>
-        ) : products && products.length > 0 ? (
-          <View className="px-4">
-            <CategoryFilter
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onSelectCategory={setSelectedCategory}
-            />
-            <VendorProductsSection
-              products={products}
-              productsByCategory={productsByCategory}
-              categories={categories}
-              selectedCategory={selectedCategory}
-              userLocation={location?.coords}
-            />
-          </View>
-        ) : (
-          <VendorEmptyState />
-        )}
       </ScrollView>
     </View>
   );
