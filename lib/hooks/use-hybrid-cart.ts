@@ -1,147 +1,76 @@
-import { toast } from "@/components/ui/toast";
+import { toast } from '@/components/ui/toast';
 /**
  * Hybrid Cart: server cart when logged in (single source of truth), local when guest.
  * Checkout uses server cart (use_cart: true) when authenticated.
  */
 
-import type { CartItem as LocalCartItem } from "@/types";
-import type {
-  AddToCartRequest,
-  Cart,
-  Meal,
-  UpdateCartRequest,
-} from "@/types/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
-import { Alert } from "react-native";
-import { api } from "../api";
-import { authAtom } from "../atoms/auth";
-import { persistCartAtom } from "../atoms/cart";
+import type { CartItem as LocalCartItem } from '@/types';
+import type { AddToCartRequest, Meal } from '@/types/api';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useIsMutating,
+} from '@tanstack/react-query';
+import { useAtom, useAtomValue } from 'jotai';
+import { useMemo, useState } from 'react';
 
-/** Normalize API cart item to shared display shape (id, productId, vendorId, product, quantity, unitPrice, totalPrice) */
-function apiCartToDisplayItems(
-  apiCart: Cart | null | undefined,
-): LocalCartItem[] {
-  if (!apiCart?.items?.length) return [];
-  return apiCart.items.map((item: any) => {
-    const product = item.product || {};
-    const price = parseFloat(String(product.price ?? item.price ?? 0));
-    return {
-      id: String(item.id ?? `${item.product_id}-${Date.now()}`),
-      productId: String(item.product_id),
-      vendorId: String(product.vendor_id ?? product.vendor?.id ?? ""),
-      product: product as LocalCartItem["product"],
-      quantity: item.quantity,
-      customizations: {},
-      unitPrice: price,
-      totalPrice: price * item.quantity,
-      fulfillment_method: item.fulfillment_method ?? null,
-      requires_fulfillment_choice: item.requires_fulfillment_choice ?? false,
-    };
-  });
-}
+import { api } from '../api';
+import { authAtom } from '../atoms/auth';
+import { persistCartAtom, cartSyncAtom } from '../atoms/cart';
+import { displayItems, stockAvailable } from '../cart-display';
 
-/**
- * Single source of truth: when authenticated use API cart, when guest use local.
- */
 export function useHybridCart() {
-  const authState = useAtomValue(authAtom);
+  const auth = useAtomValue(authAtom);
+  const client = useQueryClient();
   const [localCart, setLocalCart] = useAtom(persistCartAtom);
-  const queryClient = useQueryClient();
-
-  const {
-    data: apiCart,
-    isLoading: apiLoading,
-    refetch: refetchApiCart,
-  } = useQuery({
-    queryKey: ["cart"],
-    queryFn: async () => {
-      try {
-        return await api.cart.getCart();
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
-          return { items: [], total_items: 0, subtotal: "0.00" };
-        }
-        throw error;
-      }
-    },
-    enabled: authState.isAuthenticated,
-    staleTime: 60 * 1000,
-    refetchOnMount: true,
+  const [sync, setSync] = useAtom(cartSyncAtom);
+  const activeMutations = useIsMutating({ mutationKey: ['cart-mutation'] });
+  const result = useQuery({
+    queryKey: ['cart'],
+    queryFn: () => api.cart.getCart(),
+    enabled: auth.isAuthenticated,
+    staleTime: 30000,
+    refetchOnMount: 'always',
   });
-
-  // On login: merge local cart into API, then clear local (one-time sync). Reset merge flag on logout.
-  const hasMergedRef = useRef(false);
-  useEffect(() => {
-    if (!authState.isAuthenticated) {
-      hasMergedRef.current = false;
-      return;
-    }
-    if (!localCart.length || hasMergedRef.current) return;
-    hasMergedRef.current = true;
-    (async () => {
-      try {
-        for (const item of localCart) {
-          await api.cart.addToCart({
-            product_id: Number(item.productId),
-            quantity: item.quantity,
-          });
-        }
-        setLocalCart([]);
-        queryClient.invalidateQueries({ queryKey: ["cart"] });
-      } catch (e) {
-        hasMergedRef.current = false;
-      }
-    })();
-  }, [authState.isAuthenticated, localCart.length]);
-
-  const displayCart = useMemo(() => {
-    if (authState.isAuthenticated && apiCart) {
-      return apiCartToDisplayItems(apiCart);
-    }
-    return localCart;
-  }, [authState.isAuthenticated, apiCart, localCart]);
-
-  const totalItems = displayCart.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = displayCart.reduce((sum, item) => sum + item.totalPrice, 0);
-
-  // Calculate total delivery fees - only for items with fulfillment_method === 'delivery'
-  // OR items that only support delivery (available_for_delivery && !available_for_pickup)
-  const deliveryFee = useMemo(() => {
-    return displayCart.reduce((sum, item) => {
-      const product = item.product;
-
-      // Skip if no delivery fee defined
-      if (!product?.delivery_fee || !product?.available_for_delivery) {
-        return sum;
-      }
-
-      // Include delivery fee if:
-      // 1. Customer explicitly chose delivery, OR
-      // 2. Product only supports delivery (not available for pickup)
-      const shouldIncludeDeliveryFee =
-        item.fulfillment_method === "delivery" ||
-        (product.available_for_delivery && !product.available_for_pickup);
-
-      if (shouldIncludeDeliveryFee) {
-        return sum + parseFloat(product.delivery_fee);
-      }
-
-      return sum;
-    }, 0);
-  }, [displayCart]);
-
+  const cart = useMemo(
+    () => (auth.isAuthenticated ? displayItems(result.data) : localCart),
+    [auth.isAuthenticated, result.data, localCart],
+  );
+  const subtotal = auth.isAuthenticated
+    ? Number(result.data?.subtotal || 0)
+    : cart.reduce((sum, i) => sum + i.totalPrice, 0);
   return {
-    cart: displayCart,
-    totalItems,
+    cart,
+    totalItems: cart.reduce((sum, i) => sum + i.quantity, 0),
     subtotal,
-    deliveryFee,
-    serviceFee: 0,
-    tax: 0,
-    isLoading: authState.isAuthenticated ? apiLoading : false,
-    isAuthenticated: authState.isAuthenticated,
-    refetch: refetchApiCart,
+    deliveryFee: auth.isAuthenticated
+      ? Number(result.data?.delivery_fee || 0)
+      : 0,
+    serviceFee: auth.isAuthenticated
+      ? Number(result.data?.service_fee || 0)
+      : 0,
+    tax: auth.isAuthenticated ? Number(result.data?.tax || 0) : 0,
+    isLoading: auth.isAuthenticated && result.isLoading,
+    isFetching: auth.isAuthenticated && result.isFetching,
+    isError: auth.isAuthenticated && result.isError,
+    error: result.error,
+    isAuthenticated: auth.isAuthenticated,
+    refetch: async () => {
+      if (auth.isAuthenticated) return result.refetch();
+    },
+    isUpdating: activeMutations > 0 || sync.pending,
+    isSyncing: sync.pending,
+    syncError: sync.error,
+    savedItems: auth.isAuthenticated ? localCart.length : 0,
+    retrySync: () => {
+      void client.invalidateQueries({ queryKey: ['profile'] });
+      setSync((s) => ({ ...s, error: '', attempt: s.attempt + 1 }));
+    },
+    discardSaved: async () => {
+      await setLocalCart([]);
+      setSync((s) => ({ ...s, error: '' }));
+    },
   };
 }
 
@@ -154,15 +83,16 @@ export function useHybridAddToCart() {
   const queryClient = useQueryClient();
 
   const apiMutation = useMutation({
+    mutationKey: ['cart-mutation'],
     mutationFn: (data: AddToCartRequest) => api.cart.addToCart(data),
     onSuccess: (data) => {
-      queryClient.setQueryData(["cart"], data);
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.setQueryData(['cart'], data);
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
     onError: (error: any) => {
       toast.error(
-        "Could not add item",
-        error.error || error.message || "Failed to add to cart",
+        'Could not add item',
+        error.error || error.message || 'Failed to add to cart',
       );
     },
   });
@@ -170,7 +100,7 @@ export function useHybridAddToCart() {
   const addToLocalCart = async (
     product: Meal,
     quantity: number,
-    fulfillmentMethod?: "pickup" | "delivery",
+    fulfillmentMethod?: 'pickup' | 'delivery',
   ) => {
     await setLocalCart((prev) => {
       const existingIndex = prev.findIndex(
@@ -186,12 +116,12 @@ export function useHybridAddToCart() {
       let finalFulfillmentMethod = fulfillmentMethod;
       if (!finalFulfillmentMethod) {
         if (product.available_for_delivery && !product.available_for_pickup) {
-          finalFulfillmentMethod = "delivery";
+          finalFulfillmentMethod = 'delivery';
         } else if (
           product.available_for_pickup &&
           !product.available_for_delivery
         ) {
-          finalFulfillmentMethod = "pickup";
+          finalFulfillmentMethod = 'pickup';
         }
       }
 
@@ -257,7 +187,7 @@ export function useHybridAddToCart() {
         .filter((item) => Number(item.productId) === data.product_id)
         .reduce((sum, item) => sum + item.quantity, 0);
       if (existing + data.quantity > data.product.quantity_available)
-        throw new Error("This quantity is no longer available");
+        throw new Error('This quantity is no longer available');
       await addToLocalCart(
         data.product,
         data.quantity,
@@ -270,139 +200,133 @@ export function useHybridAddToCart() {
   };
 }
 
-/**
- * Update quantity: API when logged in, local when guest.
- */
+type QuantityChange = {
+  product_id?: number;
+  item_id?: string;
+  quantity: number;
+  fulfillment_method?: 'pickup' | 'delivery';
+};
+function errorMessage(error: unknown) {
+  const e = error as { error?: string; message?: string };
+  return (
+    e?.error || e?.message || 'Unable to update your cart. Please try again.'
+  );
+}
 export function useHybridUpdateCart() {
-  const authState = useAtomValue(authAtom);
-  const [localCart, setLocalCart] = useAtom(persistCartAtom);
-  const queryClient = useQueryClient();
-
-  const apiMutation = useMutation({
-    mutationFn: (data: UpdateCartRequest) => api.cart.updateCart(data),
-    onSuccess: (data) => {
-      queryClient.setQueryData(["cart"], data);
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-    },
-    onError: (error: any) => {
-      Alert.alert(
-        "Error",
-        error.error || error.message || "Failed to update cart",
-      );
-    },
+  const auth = useAtomValue(authAtom);
+  const [local, setLocal] = useAtom(persistCartAtom);
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const mutation = useMutation({
+    mutationKey: ['cart-mutation'],
+    mutationFn: api.cart.updateCart,
+    onSuccess: (data) => client.setQueryData(['cart'], data),
   });
-
-  return {
-    mutate: (data: {
-      product_id?: number;
-      item_id?: string;
-      quantity: number;
-      fulfillment_method?: "pickup" | "delivery";
-    }) => {
-      if (data.quantity <= 0) {
-        // Handled as remove by caller
-        return;
-      }
-      if (authState.isAuthenticated && data.product_id) {
-        apiMutation.mutate({
+  const mutateAsync = async (data: QuantityChange) => {
+    if (!Number.isSafeInteger(data.quantity) || data.quantity < 1)
+      throw new Error('Choose a valid quantity.');
+    setPending(true);
+    try {
+      if (auth.isAuthenticated && data.product_id)
+        return await mutation.mutateAsync({
           product_id: data.product_id,
           quantity: data.quantity,
           fulfillment_method: data.fulfillment_method,
         });
-      } else {
-        const itemId = data.item_id ?? `${data.product_id}-`;
-        setLocalCart((prev) =>
-          prev.map((item) => {
-            const match =
-              item.id === itemId ||
-              (data.product_id && Number(item.productId) === data.product_id);
-            if (match) {
-              return {
-                ...item,
+      const item = local.find(
+        (i) => i.id === data.item_id || Number(i.productId) === data.product_id,
+      );
+      if (!item) throw new Error('This item is no longer in your cart.');
+      const stock = stockAvailable(item.product);
+      if (stock !== null && data.quantity > stock)
+        throw new Error(`Only ${stock} available`);
+      await setLocal((prev) =>
+        prev.map((i) =>
+          i.id === item.id
+            ? {
+                ...i,
                 quantity: data.quantity,
-                totalPrice: item.unitPrice * data.quantity,
+                totalPrice: i.unitPrice * data.quantity,
                 fulfillment_method:
-                  data.fulfillment_method ?? item.fulfillment_method,
-              };
-            }
-            return item;
-          }),
-        );
-      }
+                  data.fulfillment_method ?? i.fulfillment_method,
+                requires_fulfillment_choice: data.fulfillment_method
+                  ? false
+                  : i.requires_fulfillment_choice,
+              }
+            : i,
+        ),
+      );
+    } finally {
+      setPending(false);
+    }
+  };
+  return {
+    mutateAsync,
+    mutate: (data: QuantityChange) => {
+      void mutateAsync(data).catch((error) =>
+        toast.error('Could not update cart', errorMessage(error)),
+      );
     },
-    isPending: apiMutation.isPending,
+    isPending: pending || mutation.isPending,
   };
 }
-
-/**
- * Remove item: API when logged in, local when guest.
- */
 export function useHybridRemoveFromCart() {
-  const authState = useAtomValue(authAtom);
-  const [localCart, setLocalCart] = useAtom(persistCartAtom);
-  const queryClient = useQueryClient();
-
-  const apiMutation = useMutation({
+  const auth = useAtomValue(authAtom);
+  const [, setLocal] = useAtom(persistCartAtom);
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const mutation = useMutation({
+    mutationKey: ['cart-mutation'],
     mutationFn: (productId: number) =>
       api.cart.removeFromCart({ product_id: productId }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(["cart"], data);
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-    },
-    onError: (error: any) => {
-      Alert.alert(
-        "Error",
-        error.error || error.message || "Failed to remove item",
+    onSuccess: (data) => client.setQueryData(['cart'], data),
+  });
+  const mutateAsync = async (id: string, productId?: number) => {
+    setPending(true);
+    try {
+      if (auth.isAuthenticated && productId != null)
+        return await mutation.mutateAsync(productId);
+      await setLocal((prev) => prev.filter((i) => i.id !== id));
+    } finally {
+      setPending(false);
+    }
+  };
+  return {
+    mutateAsync,
+    mutate: (id: string, productId?: number) => {
+      void mutateAsync(id, productId).catch((error) =>
+        toast.error('Could not remove item', errorMessage(error)),
       );
     },
-  });
-
-  return {
-    mutate: (id: string, productId?: number) => {
-      if (authState.isAuthenticated && productId != null) {
-        apiMutation.mutate(productId);
-      } else {
-        setLocalCart((prev) => prev.filter((item) => item.id !== id));
-      }
-    },
-    isPending: apiMutation.isPending,
+    isPending: pending || mutation.isPending,
   };
 }
-
-/**
- * Clear cart: API when logged in, local when guest.
- */
 export function useHybridClearCart() {
-  const authState = useAtomValue(authAtom);
-  const [, setLocalCart] = useAtom(persistCartAtom);
-  const queryClient = useQueryClient();
-
-  const apiMutation = useMutation({
-    mutationFn: () => api.cart.clearCart(),
-    onSuccess: () => {
-      queryClient.setQueryData(["cart"], {
-        items: [],
-        total_items: 0,
-        subtotal: "0.00",
-      });
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-    },
-    onError: (error: any) => {
-      Alert.alert(
-        "Error",
-        error.error || error.message || "Failed to clear cart",
+  const auth = useAtomValue(authAtom);
+  const [, setLocal] = useAtom(persistCartAtom);
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const mutation = useMutation({
+    mutationKey: ['cart-mutation'],
+    mutationFn: api.cart.clearCart,
+    onSuccess: (data) => client.setQueryData(['cart'], data),
+  });
+  const mutateAsync = async () => {
+    setPending(true);
+    try {
+      if (auth.isAuthenticated) await mutation.mutateAsync();
+      else await setLocal([]);
+    } finally {
+      setPending(false);
+    }
+  };
+  return {
+    mutateAsync,
+    mutate: () => {
+      void mutateAsync().catch((error) =>
+        toast.error('Could not clear cart', errorMessage(error)),
       );
     },
-  });
-
-  return {
-    mutate: () => {
-      if (authState.isAuthenticated) {
-        apiMutation.mutate();
-      } else {
-        setLocalCart([]);
-      }
-    },
-    isPending: apiMutation.isPending,
+    isPending: pending || mutation.isPending,
   };
 }

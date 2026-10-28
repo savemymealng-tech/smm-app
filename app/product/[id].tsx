@@ -1,3 +1,4 @@
+import { ProductBackButton } from '@/components/product/ProductBackButton';
 import { toast } from '@/components/ui/toast';
 import { remainingStock } from '@/lib/product-display';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -30,7 +31,7 @@ export default function ProductDetailScreen() {
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const addToCartMutation = useHybridAddToCart();
-  const { totalItems, cart } = useHybridCart();
+  const { totalItems, cart, isSyncing, savedItems } = useHybridCart();
   const inCart = cart
     .filter((item) => Number(item.productId) === product?.id)
     .reduce((sum, item) => sum + item.quantity, 0);
@@ -59,6 +60,7 @@ export default function ProductDetailScreen() {
     return (
       <View className="flex-1" style={{ paddingTop: insets.top }}>
         <Skeleton className="w-full h-64" />
+        <ProductBackButton />
       </View>
     );
   }
@@ -66,6 +68,7 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View className="flex-1 items-center justify-center">
+        <ProductBackButton />
         <Text>Product not found</Text>
         <Button onPress={() => router.back()} className="mt-4">
           <Text className="text-white">Go Back</Text>
@@ -75,6 +78,10 @@ export default function ProductDetailScreen() {
   }
 
   const handleAddToCart = async () => {
+    if (isSyncing || savedItems) {
+      router.push('/(tabs)/cart');
+      return;
+    }
     if (quantity > maxQuantity || adding) return;
     setAdding(true);
     try {
@@ -216,13 +223,14 @@ export default function ProductDetailScreen() {
         </Pressable>
       )}
 
+      <ProductBackButton />
       <AddToCartButton
         product={product}
         quantity={quantity}
         maxQuantity={maxQuantity}
         onQuantityChange={setQuantity}
         onAddToCart={handleAddToCart}
-        isLoading={adding || addToCartMutation.isPending}
+        isLoading={adding || addToCartMutation.isPending || isSyncing}
       />
     </View>
   );

@@ -4,13 +4,46 @@ const fs = require('node:fs'),
   vm = require('node:vm'),
   ts = require('typescript'),
   React = require('react');
+const productDisplay = {};
+vm.runInNewContext(
+  ts.transpileModule(fs.readFileSync('lib/product-display.ts', 'utf8'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText,
+  { exports: productDisplay },
+);
+const vendorDisplay = {};
+vm.runInNewContext(
+  ts.transpileModule(fs.readFileSync('lib/vendor-display.ts', 'utf8'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText,
+  { exports: vendorDisplay },
+);
 function load(file) {
   const exports = {};
   const mocks = {
     react: { ...React, useState: (v) => [v, () => {}] },
     'react/jsx-runtime': require('react/jsx-runtime'),
+    'lucide-react-native': {
+      Star: () => null,
+      MapPin: () => null,
+      ChevronRight: () => null,
+      BadgeCheck: () => null,
+      ShoppingBag: () => null,
+      Sparkles: () => null,
+    },
+    '@/lib/vendor-display': vendorDisplay,
+    '@/components/ui/screen-kit': { palette: { green: '#008236' } },
+    '@/lib/order-display': { formatMoney: (v) => String(v) },
     'react-native': {
+      StyleSheet: { create: (s) => s },
       View: 'View',
+      Text: 'Text',
       Pressable: 'Pressable',
       Modal: 'Modal',
       Dimensions: { get: () => ({ width: 390, height: 844 }) },
@@ -26,9 +59,7 @@ function load(file) {
     '@/components/ui/icon-symbol': { IconSymbol: () => null },
     '@/components/ui/app-image': { AppImage: () => null },
     '@/constants/theme': { Colors: { light: { tint: '#008236' } } },
-    '@/lib/product-display': {
-      ratingLabel: (v) => (Number(v) > 0 ? String(v) : 'No reviews yet'),
-    },
+    '@/lib/product-display': productDisplay,
     '@/lib/utils': {
       getImageSource: () => ({ uri: 'preview' }),
       formatCurrency: (v) => String(v),
@@ -76,9 +107,10 @@ function check(node, inText = false) {
 }
 const files = [
   ['components/product/ProductInfoCard.tsx', 'ProductInfoCard', 'product'],
-  ['components/explore/ProductCard.tsx', 'ProductCard', 'item'],
+  ['components/product/ProductCard.tsx', 'ProductCard', 'item'],
   ['components/product/VendorInfoCard.tsx', 'VendorInfoCard', 'vendor'],
   ['components/vendor/VendorInfoCard.tsx', 'VendorInfoCard', 'vendor'],
+  ['components/vendor/VendorCard.tsx', 'VendorCard', 'item'],
 ];
 for (const [file, name, prop] of files)
   test(`${name} (${file}) does not leak zero ratings, distances or discounts into native views`, () => {

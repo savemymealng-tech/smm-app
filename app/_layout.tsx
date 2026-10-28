@@ -1,3 +1,4 @@
+import { useGuestCartSync } from '@/lib/hooks/use-guest-cart-sync';
 import { isRateLimited } from '@/lib/api/rate-limit';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -110,6 +111,7 @@ function InitAtoms() {
 
   // Initialize automatic token refresh
   useTokenRefresh();
+  useGuestCartSync();
 
   // Handle deep links from backend email URLs:
   //   https://savemymeal.com/app/redirect?path=/verify-otp&params=code=123456

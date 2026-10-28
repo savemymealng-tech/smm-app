@@ -4,17 +4,28 @@ import { Text } from '@/components/ui/text';
 import { api } from '@/lib/api';
 import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
 import type { User } from '@/types';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAtom } from 'jotai';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [, setAuthState] = useAtom(setAuthStateAtom);
   const [, setVerificationContext] = useAtom(verificationContextAtom);
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +50,7 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password.trim(),
       });
-      
+
       // Fetch full user profile after login
       let user: User | null = null;
       try {
@@ -65,19 +76,22 @@ export default function LoginScreen() {
         refreshToken: result.refreshToken || '',
       });
 
-      router.replace('/(tabs)');
+      router.replace(returnTo === '/cart' ? '/(tabs)/cart' : '/(tabs)');
     } catch (err: any) {
       console.log('Login error:', err); // Debug log
-      
+
       // Check if email not verified
       // The API returns error data wrapped in a 'data' object
       if (err?.statusCode === 403) {
         const responseData = err?.responseData?.data || err?.responseData;
         const details = responseData?.details;
-        
+
         console.log('403 error details:', details); // Debug log
-        
-        if (details?.code === 'EMAIL_NOT_VERIFIED' || details?.requires_verification) {
+
+        if (
+          details?.code === 'EMAIL_NOT_VERIFIED' ||
+          details?.requires_verification
+        ) {
           Alert.alert(
             'Email Not Verified',
             'Please verify your email address to continue.',
@@ -87,33 +101,38 @@ export default function LoginScreen() {
                 onPress: () => {
                   setLoading(false);
                   const emailToVerify = details?.email || email.trim();
-                  console.log('Navigating to verify-otp with email:', emailToVerify);
+                  console.log(
+                    'Navigating to verify-otp with email:',
+                    emailToVerify,
+                  );
                   // Set verification context
                   setVerificationContext({
                     email: emailToVerify,
-                    fromSignup: false
+                    fromSignup: false,
                   });
                   // Small delay to ensure state is set before navigation
                   setTimeout(() => {
                     router.push('/verify-otp');
                   }, 50);
-                }
+                },
               },
               {
                 text: 'Cancel',
-                style: 'cancel'
-              }
-            ]
+                style: 'cancel',
+              },
+            ],
           );
           setLoading(false);
           return;
         }
       }
-      
+
       // Also check in error message for "email not verified" text
       const errorMsg = err?.error || err?.message || '';
-      if (errorMsg.toLowerCase().includes('email not verified') || 
-          errorMsg.toLowerCase().includes('verify your email')) {
+      if (
+        errorMsg.toLowerCase().includes('email not verified') ||
+        errorMsg.toLowerCase().includes('verify your email')
+      ) {
         Alert.alert(
           'Email Not Verified',
           'Please verify your email address to continue.',
@@ -126,46 +145,54 @@ export default function LoginScreen() {
                 // Set verification context
                 setVerificationContext({
                   email: emailToVerify,
-                  fromSignup: false
+                  fromSignup: false,
                 });
                 // Small delay to ensure state is set before navigation
                 setTimeout(() => {
                   router.push('/verify-otp');
                 }, 50);
-              }
+              },
             },
             {
               text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
+              style: 'cancel',
+            },
+          ],
         );
         setLoading(false);
         return;
       }
-      
+
       // Extract the most user-friendly error message
       let errorMessage = 'Invalid email or password';
-      
+
       if (err?.error) {
         errorMessage = err.error;
       } else if (err?.message) {
         errorMessage = err.message;
       }
-      
+
       // Handle specific error cases
-      if (errorMessage.toLowerCase().includes('not found') ||
-          errorMessage.toLowerCase().includes('does not exist')) {
-        errorMessage = 'No account found with this email. Please sign up first.';
-      } else if (errorMessage.toLowerCase().includes('incorrect') ||
-                 errorMessage.toLowerCase().includes('invalid password') ||
-                 errorMessage.toLowerCase().includes('wrong password')) {
+      if (
+        errorMessage.toLowerCase().includes('not found') ||
+        errorMessage.toLowerCase().includes('does not exist')
+      ) {
+        errorMessage =
+          'No account found with this email. Please sign up first.';
+      } else if (
+        errorMessage.toLowerCase().includes('incorrect') ||
+        errorMessage.toLowerCase().includes('invalid password') ||
+        errorMessage.toLowerCase().includes('wrong password')
+      ) {
         errorMessage = 'Incorrect password. Please try again.';
-      } else if (errorMessage.toLowerCase().includes('blocked') ||
-                 errorMessage.toLowerCase().includes('suspended')) {
-        errorMessage = 'Your account has been suspended. Please contact support.';
+      } else if (
+        errorMessage.toLowerCase().includes('blocked') ||
+        errorMessage.toLowerCase().includes('suspended')
+      ) {
+        errorMessage =
+          'Your account has been suspended. Please contact support.';
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -193,21 +220,14 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable 
-          onPress={() => router.replace('/(tabs)')} 
-          className="mb-8"
-        >
-          <IconSymbol 
-            name="chevron.left" 
-            size={24} 
-            color="#111827" 
-          />
+        <Pressable onPress={() => router.replace('/(tabs)')} className="mb-8">
+          <IconSymbol name="chevron.left" size={24} color="#111827" />
         </Pressable>
 
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-full bg-[#15785B] items-center justify-center mb-4 overflow-hidden">
-            <Image 
-              source={require('@/assets/adaptive-icon.png')} 
+            <Image
+              source={require('@/assets/adaptive-icon.png')}
               style={{ width: 60, height: 60 }}
               resizeMode="contain"
             />
@@ -224,9 +244,7 @@ export default function LoginScreen() {
           {/* Error Message */}
           {error ? (
             <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200">
-              <Text className="text-red-800 text-sm">
-                {error}
-              </Text>
+              <Text className="text-red-800 text-sm">{error}</Text>
             </View>
           ) : null}
 
@@ -311,10 +329,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Forgot Password */}
-          <Pressable
-            onPress={handleForgotPassword}
-            className="self-end mb-6"
-          >
+          <Pressable onPress={handleForgotPassword} className="self-end mb-6">
             <Text className="text-blue-600 text-sm font-medium">
               Forgot Password?
             </Text>
@@ -329,9 +344,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white font-bold text-base">
-                Sign In
-              </Text>
+              <Text className="text-white font-bold text-base">Sign In</Text>
             )}
           </Button>
         </View>
@@ -342,9 +355,7 @@ export default function LoginScreen() {
               Don't have an account?{' '}
             </Text>
             <Pressable onPress={() => router.push('/signup')}>
-              <Text className="text-blue-600 font-semibold">
-                Sign up
-              </Text>
+              <Text className="text-blue-600 font-semibold">Sign up</Text>
             </Pressable>
           </View>
         </View>

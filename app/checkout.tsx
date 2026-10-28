@@ -1,3 +1,5 @@
+import { Tag } from 'lucide-react-native';
+import { cartIssue } from '@/lib/cart-display';
 import { formatMoney as formatCurrency } from '@/lib/order-display';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import {
@@ -43,7 +45,16 @@ export default function CheckoutScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
 
-  const { cart, subtotal, deliveryFee, serviceFee, tax } = useHybridCart();
+  const {
+    cart,
+    subtotal,
+    deliveryFee,
+    serviceFee,
+    tax,
+    isUpdating,
+    savedItems,
+    isError: cartError,
+  } = useHybridCart();
   const { data: user } = useProfile();
   const clearCart = useHybridClearCart();
 
@@ -149,6 +160,10 @@ export default function CheckoutScreen() {
 
   const canPlaceOrder = Boolean(
     !hasDeliveryItems &&
+      !isUpdating &&
+      !savedItems &&
+      !cartError &&
+      !cart.some((item) => !!cartIssue(item)) &&
       cart.length > 0 &&
       !isProcessing &&
       !hasItemsRequiringChoice,
@@ -172,6 +187,18 @@ export default function CheckoutScreen() {
   };
 
   const handlePlaceOrder = async () => {
+    if (
+      isUpdating ||
+      savedItems ||
+      cartError ||
+      cart.some((item) => !!cartIssue(item))
+    ) {
+      toast.warning(
+        'Cart is not ready',
+        'Return to your cart and finish updating your items before checkout.',
+      );
+      return;
+    }
     if (hasDeliveryItems) {
       toast.warning(
         'Pickup only',
@@ -724,7 +751,16 @@ export default function CheckoutScreen() {
                 style={ui.between}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={ui.heading}>Offers & SMM Coin</Text>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <Tag size={18} color={palette.orangeInk} />
+                    <Text style={ui.heading}>Offers & SMM Coin</Text>
+                  </View>
                   <Text style={ui.muted}>
                     {serverQuote?.campaign?.name ||
                       (appliedCoins
@@ -813,7 +849,7 @@ export default function CheckoutScreen() {
                         setAppliedCoins(0);
                       }}
                     />
-                  )}{' '}
+                  )}
                 </>
               )}
               {quoteQuery.isError && (

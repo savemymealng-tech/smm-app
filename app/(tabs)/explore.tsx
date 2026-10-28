@@ -1,10 +1,15 @@
+import { SlidersHorizontal } from 'lucide-react-native';
+import { formatMoney } from '@/lib/order-display';
+import { Action, Message, palette } from '@/components/ui/screen-kit';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useCategories } from '@/lib/hooks/use-categories';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAtom } from 'jotai';
 import {
   ActivityIndicator,
+  ScrollView,
+  Keyboard,
   FlatList,
   Pressable,
   TextInput,
@@ -40,10 +45,12 @@ export default function ExploreScreen() {
     category?: string;
     nearby_vendors?: string;
     all_vendors?: string;
+    scope?: string;
+    reset?: string;
   }>();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const [sceneHeight, setSceneHeight] = useState(0);
   // The navigator normally reserves bar space; only add the portion overlapping the scene.
   const bottomClearance =
@@ -52,8 +59,11 @@ export default function ExploreScreen() {
       ? Math.max(0, tabBarHeight - Math.max(0, windowHeight - sceneHeight))
       : 0);
   const { location } = useLocation();
+  const listRef = useRef<FlatList<Meal>>(null);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState(route.q || '');
-  const [search] = useDebounce(query, 400);
+  const [search] = useDebounce(query.trim(), 400);
   const [filters, setFilters] = useState({
     ...empty,
     category: route.category || null,
@@ -78,6 +88,13 @@ export default function ExploreScreen() {
         `/vendors?filter=${route.nearby_vendors === 'true' ? 'nearby' : 'all'}`,
       );
   }, [route.nearby_vendors, route.all_vendors]);
+  useEffect(() => {
+    if (route.scope) setNear(route.scope === 'area');
+    if (route.reset) {
+      setQuery(route.q || '');
+      setFilters({ ...empty, category: route.category || null });
+    }
+  }, [route.scope, route.reset, route.q, route.category, setNear]);
   const scoped = near && !!(location?.coords || location?.city);
   const params = useMemo(
     () =>
@@ -97,13 +114,33 @@ export default function ExploreScreen() {
             : { city: location?.city }
           : {}),
         sort_by:
-          filters.sort === 'distance' && !location?.coords
+          filters.sort === 'distance' && (!location?.coords || !scoped)
             ? 'created_at'
             : filters.sort,
       }) as BrowseMealsParams,
     [search, filters, scoped, location, radius],
   );
   const result = useBrowseMealsInfinite(params);
+  const scopeKey = JSON.stringify(params);
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [scopeKey]);
+  const activeCount =
+    Number(!!filters.category) +
+    Number(filters.rating !== null) +
+    Number(filters.min !== null || filters.max !== null);
+  const sortOptions = [
+    ['Newest', 'created_at'],
+    ['Price: low to high', 'price_asc'],
+    ['Price: high to low', 'price_desc'],
+    ...(scoped && location?.coords ? [['Nearest first', 'distance']] : []),
+  ];
+  const sortLabel =
+    sortOptions.find(([, value]) => value === params.sort_by)?.[0] || 'Newest';
+  const resetProducts = () => {
+    setFilters({ ...empty });
+    setQuery('');
+  };
   const products = useMemo(
     () => [
       ...new Map(
@@ -125,11 +162,16 @@ export default function ExploreScreen() {
       clear: () => setFilters((f) => ({ ...f, category: null })),
     },
     filters.rating && {
-      label: `${filters.rating}+ stars`,
+      label: `Vendor ${filters.rating}+ stars`,
       clear: () => setFilters((f) => ({ ...f, rating: null })),
     },
     (filters.min !== null || filters.max !== null) && {
-      label: 'Price range',
+      label:
+        filters.min !== null && filters.max !== null
+          ? `${formatMoney(filters.min)}–${formatMoney(filters.max)}`
+          : filters.min !== null
+            ? `From ${formatMoney(filters.min)}`
+            : `Up to ${formatMoney(filters.max!)}`,
       clear: () => setFilters((f) => ({ ...f, min: null, max: null })),
     },
     scoped && {
@@ -144,23 +186,53 @@ export default function ExploreScreen() {
       onLayout={(event) => setSceneHeight(event.nativeEvent.layout.height)}
     >
       <View className="bg-white pb-3">
-        <BrowsingLocation />
-        <View className="px-4 flex-row items-center gap-3">
-          <View className="flex-1 flex-row items-center rounded-2xl bg-gray-100 px-3">
+        <BrowsingLocation onSelected={() => setNear(true)} />
+        <View
+          style={{
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              flexDirection: 'row',
+              alignItems: 'center',
+              borderRadius: 12,
+              backgroundColor: '#f2f5f3',
+              paddingHorizontal: 10,
+            }}
+          >
             <IconSymbol name="magnifyingglass" size={18} color="#6b7280" />
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Search products"
               returnKeyType="search"
-              className="flex-1 p-3 text-gray-900"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              autoCorrect={false}
+              maxLength={150}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: 44,
+                paddingHorizontal: 8,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: palette.ink,
+              }}
             />
-            <Pressable
-              accessibilityLabel="Clear search"
-              onPress={() => setQuery('')}
-            >
-              <Text className="text-gray-500">{query ? '✕' : ''}</Text>
-            </Pressable>
+            {query.length > 0 && (
+              <Pressable
+                accessibilityLabel="Clear search"
+                onPress={() => setQuery('')}
+              >
+                <Text className="text-gray-500">✕</Text>
+              </Pressable>
+            )}
           </View>
           <Pressable
             accessibilityLabel="Open product filters"
@@ -171,45 +243,160 @@ export default function ExploreScreen() {
               setNotice('');
               setOpen(true);
             }}
-            className="bg-[#008236] rounded-2xl p-3"
+            accessibilityRole="button"
+            style={{
+              backgroundColor: palette.green,
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              flexDirection: 'row',
+              gap: 6,
+              flexShrink: 0,
+              minWidth: 44,
+              minHeight: 44,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <IconSymbol name="slider.horizontal.3" size={22} color="white" />
+            <SlidersHorizontal size={18} color="#fff" />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#fff' }}>
+              Filters
+            </Text>
+            {activeCount > 0 && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: -5,
+                  right: -5,
+                  backgroundColor: '#fff',
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: palette.green,
+                  minWidth: 20,
+                  height: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '700',
+                    color: palette.green,
+                  }}
+                >
+                  {activeCount}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
-        <View className="flex-row flex-wrap px-4 mt-2 gap-2">
-          {chips.map((chip) => (
-            <Pressable
-              key={chip.label}
-              onPress={chip.clear}
-              className="bg-green-50 rounded-full px-3 py-2"
+        {chips.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              gap: 8,
+              paddingTop: 10,
+            }}
+          >
+            {chips.map((chip) => (
+              <Pressable
+                key={chip.label}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${chip.label} filter`}
+                onPress={chip.clear}
+                style={{
+                  minHeight: 36,
+                  justifyContent: 'center',
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#edf7f0',
+                }}
+              >
+                <Text style={{ fontSize: 12, color: palette.green }}>
+                  {chip.label} ×
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingTop: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontSize: 13, fontWeight: '600', color: palette.ink }}
             >
-              <Text className="text-xs text-[#008236]">{chip.label} ×</Text>
-            </Pressable>
-          ))}
+              {result.isLoading
+                ? 'Finding products…'
+                : `${total} ${total === 1 ? 'product' : 'products'}`}
+            </Text>
+            <Text style={{ fontSize: 11, color: palette.muted, marginTop: 2 }}>
+              {scoped
+                ? location?.coords
+                  ? `Selected area · ${radius} km radius`
+                  : `In ${location?.city}`
+                : 'Across all areas'}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sort products"
+            onPress={() => {
+              Keyboard.dismiss();
+              setSortOpen(true);
+            }}
+            style={{ minHeight: 44, justifyContent: 'center' }}
+          >
+            <Text
+              style={{ fontSize: 12, fontWeight: '600', color: palette.green }}
+            >
+              Sort: {sortLabel}⌄
+            </Text>
+          </Pressable>
         </View>
-        <Text className="px-4 mt-2 text-sm text-gray-500">
-          {result.isLoading ? 'Finding products…' : `${total} products`}
-          {!scoped ? ' · All areas' : ''}
-        </Text>
+        {!scoped && !!location && (
+          <Pressable
+            onPress={() => setNear(true)}
+            style={{ paddingHorizontal: 16, paddingVertical: 6 }}
+          >
+            <Text style={{ fontSize: 12, color: palette.green }}>
+              Show products in {location.city || 'my selected area'}
+            </Text>
+          </Pressable>
+        )}
       </View>
       <FlatList
+        ref={listRef}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         style={{ flex: 1 }}
         data={products}
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
-        columnWrapperStyle={{ gap: 12 }}
+        columnWrapperStyle={{ justifyContent: 'space-between' }}
+        ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
         contentContainerStyle={{ padding: 16, paddingBottom: bottomClearance }}
         renderItem={({ item }) => (
-          <View style={{ flex: 1, maxWidth: '50%' }}>
+          <View style={{ width: Math.max(0, (windowWidth - 44) / 2) }}>
             <ProductCard
               item={item}
               userLocation={scoped ? location?.coords : undefined}
             />
           </View>
         )}
-        refreshing={result.isRefetching && !result.isFetchingNextPage}
+        refreshing={refreshing}
         onRefresh={() => {
-          void result.refetch();
+          setRefreshing(true);
+          void result.refetch().finally(() => setRefreshing(false));
         }}
         onEndReached={() => {
           if (
@@ -221,30 +408,52 @@ export default function ExploreScreen() {
         }}
         onEndReachedThreshold={0.4}
         ListEmptyComponent={
-          <View className="items-center py-16">
-            <Text className="text-lg font-semibold">
-              {result.isError
-                ? 'Could not load products'
-                : result.isLoading
-                  ? 'Loading products…'
-                  : 'No products found'}
-            </Text>
-            <Text className="text-gray-500 text-center mt-2">
-              {result.isError
-                ? 'Check your connection and try again.'
-                : 'Try another area, search or fewer filters.'}
-            </Text>
-            {result.isError && (
-              <Pressable
-                onPress={() => {
-                  void result.refetch();
-                }}
-                className="p-4"
-              >
-                <Text className="text-[#008236] font-semibold">Try again</Text>
-              </Pressable>
-            )}
-          </View>
+          result.isLoading ? (
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {[0, 1].map((i) => (
+                <View
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 290,
+                    borderRadius: 16,
+                    backgroundColor: '#e5ece7',
+                  }}
+                />
+              ))}
+            </View>
+          ) : result.isError ? (
+            <Message
+              title="Could not load products"
+              body="Check your connection and try again."
+              onRetry={() => void result.refetch()}
+            />
+          ) : (
+            <View style={{ gap: 12, paddingVertical: 24 }}>
+              <Message
+                title="No products found"
+                body={
+                  query
+                    ? `We couldn't find a match for “${query}”. Try a different name or fewer filters.`
+                    : 'Try another area or adjust your filters.'
+                }
+              />
+              {(activeCount > 0 || query.length > 0) && (
+                <Action
+                  secondary
+                  label="Clear search & filters"
+                  onPress={resetProducts}
+                />
+              )}
+              {scoped && (
+                <Action
+                  secondary
+                  label="Explore all areas"
+                  onPress={() => setNear(false)}
+                />
+              )}
+            </View>
+          )
         }
         ListFooterComponent={
           result.isFetchingNextPage ? (
@@ -265,6 +474,45 @@ export default function ExploreScreen() {
           ) : null
         }
       />
+      <BottomSheet
+        visible={sortOpen}
+        onClose={() => setSortOpen(false)}
+        title="Sort products"
+        preferredHeight={360}
+      >
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+          {sortOptions.map(([label, value]) => (
+            <Pressable
+              key={value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: params.sort_by === value }}
+              onPress={() => {
+                setFilters((f) => ({ ...f, sort: value }));
+                setSortOpen(false);
+              }}
+              style={{
+                minHeight: 48,
+                borderWidth: 1,
+                borderColor:
+                  params.sort_by === value ? palette.green : palette.border,
+                borderRadius: 10,
+                paddingHorizontal: 14,
+                justifyContent: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: params.sort_by === value ? palette.green : palette.ink,
+                }}
+              >
+                {label}
+                {params.sort_by === value ? ' ✓' : ''}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </BottomSheet>
       <BottomSheet
         visible={open}
         onClose={() => setOpen(false)}
@@ -312,7 +560,7 @@ export default function ExploreScreen() {
             <Pressable
               onPress={() => {
                 setDraft(empty);
-                setDraftNear(false);
+                setDraftNear(!!location);
                 setDraftRadius(10);
                 setNotice('');
               }}
@@ -353,7 +601,14 @@ export default function ExploreScreen() {
                   );
                   return;
                 }
-                setFilters(draft);
+                setFilters({
+                  ...draft,
+                  sort:
+                    draft.sort === 'distance' &&
+                    (!draftNear || !location?.coords)
+                      ? 'created_at'
+                      : draft.sort,
+                });
                 setNear(draftNear);
                 setRadius(draftRadius);
                 setOpen(false);

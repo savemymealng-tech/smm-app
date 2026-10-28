@@ -23,6 +23,7 @@ type Props = {
   children: React.ReactNode;
   title?: string;
   description?: string;
+  preferredHeight?: number;
 };
 
 export function BottomSheet({
@@ -31,6 +32,7 @@ export function BottomSheet({
   children,
   title = 'Categories',
   description,
+  preferredHeight,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -39,6 +41,7 @@ export function BottomSheet({
   const [availableHeight, setAvailableHeight] = useState<number | null>(null);
   const sheetHeight = Math.min(
     screenHeight * 0.85,
+    preferredHeight ?? screenHeight,
     Math.max(0, (availableHeight ?? screenHeight) - insets.top),
   );
   const closeRef = useRef(onClose);

@@ -1,24 +1,31 @@
-import { AppImage as Image } from '@/components/ui/app-image';
-import { BrowsingLocation } from '@/components/ui/browsing-location';
-import { useAtomValue } from 'jotai';
-import { locationRadiusAtom } from '@/lib/atoms/locationFilter';
-import { FlashList } from '@shopify/flash-list';
-import { router } from 'expo-router';
+import { VendorCard } from '@/components/vendor/VendorCard';
+import { useState } from 'react';
 import {
-  Dimensions,
+  ActivityIndicator,
+  FlatList,
   Linking,
   Pressable,
   RefreshControl,
   ScrollView,
+  Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { CarouselComponent } from '@/components/ui/carousel';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
-import { Colors } from '@/constants/theme';
+import { useAtomValue } from 'jotai';
+import {
+  Search,
+  UtensilsCrossed,
+  ShoppingBasket,
+  Coffee,
+  Apple,
+  Grid2X2,
+} from 'lucide-react-native';
+import { BrowsingLocation } from '@/components/ui/browsing-location';
+import { AppImage } from '@/components/ui/app-image';
+import { Action, Message, palette, ui } from '@/components/ui/screen-kit';
+import { ProductCard } from '@/components/product/ProductCard';
 import {
   useBanners,
   useFeaturedCategories,
@@ -28,760 +35,427 @@ import {
   useNearbyVendors,
 } from '@/lib/hooks';
 import { useLocation } from '@/lib/hooks/useLocation';
-import {
-  calculateDistance,
-  formatCurrency,
-  formatDistance,
-  getImageSource,
-} from '@/lib/utils';
-import type {
-  Banner,
-  FeaturedCategory,
-  FeaturedProduct,
-  FeaturedVendor,
-  Vendor,
-} from '../../types/api';
-
-const { width: screenWidth } = Dimensions.get('window');
-
-const handleBannerPress = (linkUrl: string | null) => {
-  if (!linkUrl) return;
-  if (linkUrl.startsWith('savemymeal://')) {
-    // Deep link: strip scheme and route internally
-    const path = linkUrl.replace('savemymeal:/', '');
-    router.push(path as any);
-  } else if (linkUrl.startsWith('https://') || linkUrl.startsWith('http://')) {
-    Linking.openURL(linkUrl);
-  }
-};
-
-const SearchBar = () => (
-  <View className="px-4 mb-4">
-    <Pressable
-      onPress={() => router.push('/explore')}
-      className="flex-row items-center bg-white rounded-full px-4 py-3 shadow-sm border border-gray-100"
-      style={{
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-      }}
-    >
-      <IconSymbol name="magnifyingglass" size={20} color={Colors.light.icon} />
-      <Text className="ml-3 text-gray-400 text-base flex-1">
-        Search for food, groceries...
-      </Text>
-      <View className="w-px h-6 bg-gray-200 mx-2" />
-      <IconSymbol name="location.fill" size={18} color={Colors.light.tint} />
-    </Pressable>
-  </View>
-);
-
-const WelcomeHeader = ({
-  address,
-  isLoading,
-  onPress,
-}: {
-  address?: string;
-  isLoading?: boolean;
-  onPress?: () => void;
-}) => (
-  <Pressable
-    onPress={onPress}
-    className="px-4 py-6 flex-row items-center justify-between"
-  >
-    <View className="flex-1">
-      <Text className="text-sm text-gray-500 font-medium uppercase tracking-wider">
-        Vendors near
-      </Text>
-      <View className="flex-row items-center mt-0.5">
-        {isLoading ? (
-          <Text className="text-lg font-bold mr-1 text-gray-400">
-            Getting location...
-          </Text>
-        ) : (
-          <Text className="text-lg font-bold mr-1 flex-1" numberOfLines={1}>
-            {address || 'Current Location'}
-          </Text>
-        )}
-        <IconSymbol name="chevron.right" size={14} color="#000" />
-      </View>
-    </View>
-  </Pressable>
-);
-
-const NearbyVendorCard = ({ item }: { item: Vendor }) => (
-  console.log('Logo: ', item.logo),
-  (
-    <View style={{ width: 165, marginRight: 12 }}>
-      <Pressable
-        onPress={() => router.push(`/vendor/${item.id}`)}
-        className="bg-white rounded-3xl overflow-hidden"
-        style={{
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          elevation: 3,
-        }}
-      >
-        <View className="relative">
-          <Image
-            source={
-              getImageSource(item.logo) ||
-              require('@/assets/images/default-profile.jpg')
-            }
-            fallbackSource={require('@/assets/images/default-profile.jpg')}
-            style={{ width: '100%', height: 140 }}
-            resizeMode="cover"
-          />
-          <View className="absolute top-2.5 right-2.5 bg-white/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
-            <IconSymbol name="star.fill" size={11} color="#fbbf24" />
-            <Text className="text-[11px] font-bold ml-1 text-gray-900">
-              {parseFloat(item.rating || '0').toFixed(1)}
-            </Text>
-          </View>
-          {!!item.distance && (
-            <View className="absolute bottom-2.5 left-2.5 bg-[#1E8449] rounded-full px-2 py-0.5">
-              <Text className="text-[10px] font-bold text-white">
-                {item.distance} km
-              </Text>
-            </View>
-          )}
-        </View>
-        <View className="p-3">
-          <Text
-            className="font-bold text-base mb-0.5 text-gray-900"
-            numberOfLines={1}
-          >
-            {item.business_name}
-          </Text>
-          <View className="flex-row items-center mb-1">
-            <IconSymbol name="location.fill" size={11} color="#9ca3af" />
-            <Text
-              className="text-xs text-gray-500 ml-1 flex-1"
-              numberOfLines={1}
-            >
-              {item.city || 'Lagos'}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-    </View>
-  )
-);
-
-const AdBanner = ({
-  data,
-  isLoading,
-}: {
-  data?: Banner[];
-  isLoading?: boolean;
-}) => {
-  if (isLoading) {
-    return (
-      <View className="mb-6 px-4">
-        <Skeleton className="w-full h-44 rounded-3xl" />
-      </View>
-    );
-  }
-  if (!data?.length) return null;
-  return (
-    <View className="mb-6">
-      <CarouselComponent
-        data={data}
-        renderItem={(item: Banner) => (
-          <Pressable
-            className="px-4"
-            onPress={() => handleBannerPress(item.link_url)}
-            disabled={!item.link_url}
-          >
-            <Image
-              source={{ uri: item.image_url }}
-              className="w-full h-44 rounded-3xl"
-              resizeMode="cover"
-            />
-          </Pressable>
-        )}
-        itemWidth={screenWidth}
-        autoplay={data.length > 1}
-        loop={data.length > 1}
-        autoplayInterval={4000}
-      />
-    </View>
-  );
-};
-
-const Section = ({
+import { locationRadiusAtom } from '@/lib/atoms/locationFilter';
+import { getImageSource } from '@/lib/utils';
+function Section({
   title,
-  onSeeAll,
+  onAll,
   children,
 }: {
   title: string;
-  onSeeAll?: () => void;
+  onAll?: () => void;
   children: React.ReactNode;
-}) => (
-  <View className="mb-8">
-    <View className="flex-row items-center justify-between px-4 mb-4">
-      <Text className="text-xl font-bold text-gray-900">{title}</Text>
-      {onSeeAll && (
-        <Pressable
-          onPress={onSeeAll}
-          className="bg-primary/10 px-3 py-1 rounded-full"
-        >
-          <Text className="text-primary font-semibold text-sm">View all</Text>
-        </Pressable>
-      )}
-    </View>
-    {children}
-  </View>
-);
-
-const SectionEmptyState = ({
-  message,
-  icon,
-}: {
-  message: string;
-  icon?: any;
-}) => (
-  <View className="px-4 py-8 items-center justify-center bg-gray-50/50 rounded-[24px] mx-4 border border-dashed border-gray-200">
-    <IconSymbol name={icon || 'square.grid.2x2'} size={32} color="#9ca3af" />
-    <Text className="text-gray-500 text-sm mt-2 font-medium">{message}</Text>
-  </View>
-);
-
-const VendorCard = ({
-  item,
-  userLocation,
-}: {
-  item: FeaturedVendor;
-  userLocation?: { latitude: number; longitude: number } | null;
-}) => {
-  // Calculate distance if user location and vendor location are available
-  let distance: string | null = null;
-
-  // First check if distance is already provided by API
-  if (item.distance) {
-    distance =
-      typeof item.distance === 'string' && item.distance.includes('km')
-        ? item.distance
-        : `${item.distance} km`;
-  } else if (userLocation && item.latitude && item.longitude) {
-    // Calculate distance if not provided
-    const vendorLat = parseFloat(item.latitude);
-    const vendorLng = parseFloat(item.longitude);
-    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
-      const distanceInMeters = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        vendorLat,
-        vendorLng,
-      );
-      distance = formatDistance(distanceInMeters);
-    }
-  }
-
+}) {
   return (
-    <View style={{ width: 165, marginRight: 12 }}>
-      <Pressable
-        onPress={() => router.push(`/vendor/${item.id}`)}
-        className="bg-white rounded-3xl overflow-hidden"
-        style={{
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          elevation: 3,
-        }}
-      >
-        <View className="relative">
-          <Image
-            source={
-              getImageSource(item.logo) ||
-              require('@/assets/images/default-profile.jpg')
-            }
-            fallbackSource={require('@/assets/images/default-profile.jpg')}
-            style={{ width: '100%', height: 140 }}
-            resizeMode="cover"
-          />
-          <View className="absolute top-2.5 right-2.5 bg-white/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
-            <IconSymbol name="star.fill" size={11} color="#fbbf24" />
-            <Text className="text-[11px] font-bold ml-1 text-gray-900">
-              {parseFloat(item.rating || '0').toFixed(1)}
-            </Text>
-          </View>
-          {distance && (
-            <View className="absolute bottom-2.5 left-2.5 bg-[#1E8449] rounded-full px-2 py-0.5">
-              <Text className="text-[10px] font-bold text-white">
-                {distance}
-              </Text>
-            </View>
-          )}
-        </View>
-        <View className="p-3">
-          <Text
-            className="font-bold text-base mb-0.5 text-gray-900"
-            numberOfLines={1}
+    <View style={{ gap: 10 }}>
+      <View style={[ui.between, { paddingHorizontal: 16 }]}>
+        <Text style={ui.heading}>{title}</Text>
+        {onAll && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`See all ${title.toLowerCase()}`}
+            onPress={onAll}
+            style={{ minHeight: 44, justifyContent: 'center' }}
           >
-            {item.business_name}
-          </Text>
-          <View className="flex-row items-center mb-1">
-            <IconSymbol name="location.fill" size={11} color="#9ca3af" />
-            <Text
-              className="text-xs text-gray-500 ml-1 flex-1"
-              numberOfLines={1}
-            >
-              {item.city || 'Lagos'}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
+            <Text style={ui.link}>See all</Text>
+          </Pressable>
+        )}
+      </View>
+      {children}
     </View>
   );
-};
-
-const ProductCard = ({
-  item,
-  userLocation,
-}: {
-  item: FeaturedProduct;
-  userLocation?: { latitude: number; longitude: number } | null;
-}) => {
-  const price = parseFloat(item.price);
-  const originalPrice = item.original_price
-    ? parseFloat(item.original_price)
-    : null;
-  const hasDiscount = originalPrice && originalPrice > price;
-  const discountPercent = hasDiscount
-    ? Math.round(((originalPrice! - price) / originalPrice!) * 100)
-    : 0;
-
-  // Calculate distance if user location and vendor location are available
-  let distance: string | null = null;
-  if (userLocation && item.vendor?.latitude && item.vendor?.longitude) {
-    const vendorLat = parseFloat(item.vendor.latitude);
-    const vendorLng = parseFloat(item.vendor.longitude);
-    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
-      const distanceInMeters = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        vendorLat,
-        vendorLng,
-      );
-      distance = formatDistance(distanceInMeters);
-    }
-  }
-
-  return (
-    <View style={{ width: 165, marginRight: 12 }}>
-      <Pressable
-        onPress={() => router.push(`/product/${item.id}`)}
-        className="bg-white rounded-3xl overflow-hidden"
-        style={{
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          elevation: 3,
-        }}
-      >
-        <View className="relative">
-          <Image
-            source={
-              getImageSource(item.photo_url) ||
-              require('@/assets/images/default-product.jpg')
-            }
-            fallbackSource={require('@/assets/images/default-product.jpg')}
-            style={{ width: '100%', height: 140 }}
-            resizeMode="cover"
-          />
-          {!!hasDiscount && (
-            <View className="absolute top-2.5 left-2.5 bg-red-500 rounded-full px-2 py-0.5">
-              <Text className="text-[10px] font-bold text-white">
-                {discountPercent}% OFF
-              </Text>
-            </View>
-          )}
-          {!!(item.average_rating && parseFloat(item.average_rating) > 0) && (
-            <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
-              <IconSymbol name="star.fill" size={11} color="#fbbf24" />
-              <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
-                {parseFloat(item.average_rating).toFixed(1)}
-              </Text>
-            </View>
-          )}
-          {!item.is_available && (
-            <View className="absolute inset-0 bg-black/50 items-center justify-center">
-              <Text className="text-white font-semibold text-xs">Sold Out</Text>
-            </View>
-          )}
-        </View>
-        <View className="p-3">
-          <Text
-            className="font-bold text-base mb-1 text-gray-900"
-            numberOfLines={1}
-          >
-            {item.name}
-          </Text>
-          {distance && (
-            <View className="flex-row items-center mb-1">
-              <IconSymbol
-                name="location.fill"
-                size={11}
-                color={Colors.light.tint}
-              />
-              <Text className="text-[10px] text-gray-500 ml-1">
-                {distance} away
-              </Text>
-            </View>
-          )}
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-sm font-bold text-[#1E8449]">
-                {formatCurrency(price)}
-              </Text>
-              {!!hasDiscount && (
-                <Text className="text-[11px] text-gray-400 line-through">
-                  {formatCurrency(originalPrice!)}
-                </Text>
-              )}
-            </View>
-            {item.quantity_available > 0 && item.quantity_available < 10 && (
-              <Text className="text-[10px] text-amber-600 font-medium">
-                {item.quantity_available} left
-              </Text>
-            )}
-          </View>
-        </View>
-      </Pressable>
-    </View>
-  );
-};
-
-const CategoryCard = ({ item }: { item: FeaturedCategory }) => (
-  <Pressable
-    onPress={() => router.push(`/category/${item.id}`)}
-    className="items-center mr-6"
-  >
-    <View className="w-16 h-16 rounded-full bg-gray-50 items-center justify-center mb-2 overflow-hidden border border-gray-100">
-      <IconSymbol name="square.grid.2x2" size={24} color={Colors.light.tint} />
-    </View>
-    <Text
-      className="font-medium text-[13px] text-gray-700 text-center"
-      numberOfLines={1}
-    >
-      {item.name}
-    </Text>
-  </Pressable>
-);
-
+}
+function CategoryIcon({ name }: { name: string }) {
+  const Icon = /drink|beverage|coffee/i.test(name)
+    ? Coffee
+    : /fruit|vegetable/i.test(name)
+      ? Apple
+      : /grocery|groceries|market/i.test(name)
+        ? ShoppingBasket
+        : /meal|food|rice|bakery|bread/i.test(name)
+          ? UtensilsCrossed
+          : Grid2X2;
+  return <Icon size={22} color={palette.green} />;
+}
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-
+  const { width } = useWindowDimensions();
+  const railWidth = Math.min(208, Math.max(164, width * 0.47));
   const radius = useAtomValue(locationRadiusAtom);
-
-  // Location hook for nearby vendors
-  const {
-    location,
-    isLoading: loadingLocation,
-    refreshLocation,
-    requestLocation,
-    error: locationError,
-  } = useLocation();
-
-  // Nearby vendors based on user location
-  const {
-    data: nearbyVendors,
-    isLoading: loadingNearby,
-    refetch: refetchNearby,
-  } = useNearbyVendors(
+  const { location, error: locationError } = useLocation();
+  const [refreshing, setRefreshing] = useState(false);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const nearby = useNearbyMeals(
     location?.coords?.latitude ?? null,
     location?.coords?.longitude ?? null,
-    radius, // Shared browsing radius
-    10, // limit to 10 vendors
+    radius,
+    20,
   );
-
-  const {
-    data: featuredVendors,
-    isLoading: loadingFeatured,
-    refetch: refetchVendors,
-  } = useFeaturedVendors();
-
-  const {
-    data: featuredProducts,
-    isLoading: loadingProducts,
-    refetch: refetchProducts,
-  } = useFeaturedProducts();
-
-  // Nearby meals based on user location
-  const {
-    data: nearbyMeals,
-    isLoading: loadingNearbyMeals,
-    refetch: refetchNearbyMeals,
-  } = useNearbyMeals(
+  const nearbyVendors = useNearbyVendors(
     location?.coords?.latitude ?? null,
     location?.coords?.longitude ?? null,
-    radius, // Shared browsing radius
-    20, // limit to 20 meals
+    radius,
+    10,
   );
-
-  const {
-    data: banners,
-    isLoading: loadingBanners,
-    refetch: refetchBanners,
-  } = useBanners();
-
-  const {
-    data: categories,
-    isLoading: loadingCategories,
-    refetch: refetchCategories,
-  } = useFeaturedCategories();
-
-  const onRefresh = () => {
-    refetchBanners();
-    refetchVendors();
-    refetchProducts();
-    refetchCategories();
-    if (location) {
-      refetchNearby();
-      refetchNearbyMeals();
-    } else {
-      refreshLocation();
+  const featured = useFeaturedProducts();
+  const vendors = useFeaturedVendors();
+  const categories = useFeaturedCategories();
+  const banners = useBanners();
+  const hasArea = !!(location?.coords || location?.city);
+  const areaTitle = location?.coords
+    ? 'Meals near your area'
+    : `Meals in ${location?.city || 'your area'}`;
+  const nearbyIds = new Set((nearby.data || []).map((p) => p.id));
+  const featuredItems = (featured.data || []).filter(
+    (p) => !nearbyIds.has(p.id),
+  );
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await Promise.allSettled([
+        banners.refetch(),
+        categories.refetch(),
+        featured.refetch(),
+        vendors.refetch(),
+        ...(hasArea ? [nearby.refetch(), nearbyVendors.refetch()] : []),
+      ]);
+    } finally {
+      setRefreshing(false);
     }
-  };
-
-  const renderVendorItem = ({ item }: { item: FeaturedVendor }) => (
-    <VendorCard item={item} userLocation={location?.coords} />
-  );
-
-  const renderNearbyVendorItem = ({ item }: { item: Vendor }) => (
-    <NearbyVendorCard item={item} />
-  );
-
-  const renderProductItem = ({ item }: { item: FeaturedProduct }) => (
-    <ProductCard item={item} userLocation={location?.coords} />
-  );
-
-  const renderCategoryItem = ({ item }: { item: FeaturedCategory }) => (
-    <CategoryCard item={item} />
-  );
-
-  const isLoading = loadingFeatured || loadingProducts || loadingCategories;
+  }
 
   return (
-    <View className="flex-1 bg-white">
-      {/* Fixed Header Section */}
+    <View
+      style={{ flex: 1, paddingTop: insets.top, backgroundColor: palette.bg }}
+    >
       <View
-        className="bg-white border-b border-gray-100"
         style={{
-          paddingTop: insets.top,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          elevation: 3,
+          paddingBottom: 12,
+          backgroundColor: '#fff',
+          borderBottomWidth: 1,
+          borderBottomColor: palette.border,
         }}
       >
         <BrowsingLocation />
-        {locationError && (
-          <Text className="px-4 pb-2 text-sm text-gray-500">
-            {locationError}
-          </Text>
-        )}
-        <SearchBar />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search products"
+          onPress={() => router.push('/explore')}
+          style={{
+            marginHorizontal: 16,
+            minHeight: 44,
+            paddingHorizontal: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            borderRadius: 12,
+            backgroundColor: '#f2f5f3',
+          }}
+        >
+          <Search size={18} color={palette.muted} />
+          <Text style={ui.muted}>Search meals, groceries and more</Text>
+        </Pressable>
       </View>
-
       <ScrollView
-        className="flex-1"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 24, gap: 20 }}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={onRefresh}
-            tintColor={Colors.light.tint}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+            tintColor={palette.green}
           />
         }
       >
-        <AdBanner data={banners} isLoading={loadingBanners} />
-
-        <Section title="Categories">
-          {loadingCategories ? (
-            <View className="flex-row px-4">
-              {[...Array(5)].map((_, i) => (
-                <View key={i} className="items-center mr-6">
-                  <Skeleton className="w-16 h-16 rounded-full mb-2" />
-                  <Skeleton className="w-12 h-3 rounded-full" />
+        {!!locationError && !hasArea && (
+          <View style={{ paddingHorizontal: 16 }}>
+            <Text style={ui.muted}>
+              {locationError} You can also choose an area above.
+            </Text>
+          </View>
+        )}
+        {banners.isLoading ? (
+          <View
+            style={{
+              marginHorizontal: 16,
+              height: 120,
+              borderRadius: 16,
+              backgroundColor: '#e9eeeb',
+            }}
+          />
+        ) : (
+          !!banners.data?.length && (
+            <View style={{ gap: 8 }}>
+              <FlatList
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                data={banners.data}
+                keyExtractor={(b) => String(b.id)}
+                onMomentumScrollEnd={(event) =>
+                  setBannerIndex(
+                    Math.round(event.nativeEvent.contentOffset.x / width),
+                  )
+                }
+                renderItem={({ item }) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="View promotion"
+                    disabled={!item.link_url}
+                    onPress={() => {
+                      if (item.link_url?.startsWith('savemymeal://'))
+                        router.push(
+                          item.link_url.replace('savemymeal:/', '') as any,
+                        );
+                      else if (/^https?:\/\//.test(item.link_url || ''))
+                        void Linking.openURL(item.link_url!).catch(() => {});
+                    }}
+                    style={{ width, paddingHorizontal: 16 }}
+                  >
+                    <AppImage
+                      source={getImageSource(item.image_url)}
+                      style={{ width: '100%', height: 120, borderRadius: 16 }}
+                      resizeMode="cover"
+                    />
+                  </Pressable>
+                )}
+              />
+              {banners.data.length > 1 && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    gap: 5,
+                    justifyContent: 'center',
+                  }}
+                >
+                  {banners.data.map((b, index) => (
+                    <View
+                      key={b.id}
+                      style={{
+                        width: index === bannerIndex ? 16 : 5,
+                        height: 5,
+                        borderRadius: 3,
+                        backgroundColor:
+                          index === bannerIndex ? palette.green : '#cbd6ce',
+                      }}
+                    />
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
-          ) : !categories?.length ? (
-            <SectionEmptyState message="No categories available" />
-          ) : (
-            <FlashList<FeaturedCategory>
-              data={categories || []}
-              renderItem={renderCategoryItem}
-              keyExtractor={(item) => String(item.id)}
+          )
+        )}
+        {(categories.isLoading || !!categories.data?.length) && (
+          <Section title="Browse categories">
+            <ScrollView
               horizontal
-              // @ts-ignore
-              estimatedItemSize={80}
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-              }}
-            />
-          )}
-        </Section>
-
-        {/* Nearby Vendors Section - Only show if we have location */}
-        {(location || loadingNearby) && (
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+            >
+              {categories.isLoading
+                ? [0, 1, 2, 3].map((i) => (
+                    <View
+                      key={i}
+                      style={{
+                        width: 74,
+                        height: 82,
+                        borderRadius: 12,
+                        backgroundColor: '#e9eeeb',
+                      }}
+                    />
+                  ))
+                : categories.data?.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      accessibilityRole="button"
+                      onPress={() => router.push(`/category/${c.id}` as any)}
+                      style={{ width: 74, gap: 7, alignItems: 'center' }}
+                    >
+                      <View
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 16,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: palette.greenSurface,
+                        }}
+                      >
+                        <CategoryIcon name={c.name} />
+                      </View>
+                      <Text
+                        style={[
+                          ui.muted,
+                          { textAlign: 'center', fontSize: 12 },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+            </ScrollView>
+          </Section>
+        )}
+        {hasArea && (
           <Section
-            title="Nearby vendors"
-            onSeeAll={
-              nearbyVendors?.length
-                ? () => router.push('/vendors?filter=nearby')
+            title={areaTitle}
+            onAll={
+              nearby.data?.length
+                ? () => router.push(`/explore?scope=area&reset=${Date.now()}`)
                 : undefined
             }
           >
-            {loadingNearby || loadingLocation ? (
-              <View className="flex-row px-4">
-                <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
-                <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
-                <Skeleton className="w-[165px] h-[200px] rounded-3xl" />
+            {nearby.isLoading ? (
+              <ActivityIndicator color={palette.green} />
+            ) : nearby.isError ? (
+              <View style={{ paddingHorizontal: 16 }}>
+                <Message
+                  title="Unable to load meals in this area"
+                  onRetry={() => void nearby.refetch()}
+                />
               </View>
-            ) : !nearbyVendors?.length ? (
-              <SectionEmptyState
-                message="No vendors found nearby"
-                icon="location.slash.fill"
-              />
-            ) : (
-              <FlashList<Vendor>
-                data={nearbyVendors || []}
-                renderItem={renderNearbyVendorItem}
-                keyExtractor={(item) => String(item.id)}
+            ) : nearby.data?.length ? (
+              <FlatList
                 horizontal
-                // @ts-ignore
-                estimatedItemSize={165}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{
                   paddingHorizontal: 16,
-                  paddingRight: 32,
+                  gap: 12,
+                  paddingBottom: 4,
                 }}
+                data={nearby.data}
+                keyExtractor={(i) => String(i.id)}
+                renderItem={({ item }) => (
+                  <View style={{ width: railWidth }}>
+                    <ProductCard item={item} userLocation={location?.coords} />
+                  </View>
+                )}
+              />
+            ) : (
+              <View
+                style={{
+                  marginHorizontal: 16,
+                  padding: 16,
+                  gap: 10,
+                  borderWidth: 1,
+                  borderColor: palette.border,
+                  borderRadius: 16,
+                  backgroundColor: '#fff',
+                }}
+              >
+                <Text style={ui.body}>
+                  No pickup meals found in this area yet.
+                </Text>
+                <Text style={ui.muted}>
+                  Choose another area above or explore meals across all areas.
+                </Text>
+                <Action
+                  secondary
+                  label="Explore all areas"
+                  onPress={() =>
+                    router.push(`/explore?scope=all&reset=${Date.now()}`)
+                  }
+                />
+              </View>
+            )}
+          </Section>
+        )}
+        {(featured.isLoading ||
+          featuredItems.length > 0 ||
+          (!hasArea && featured.isError)) && (
+          <Section
+            title={hasArea ? 'More meals to discover' : 'Featured meals'}
+            onAll={() => router.push('/explore')}
+          >
+            {featured.isLoading ? (
+              <ActivityIndicator color={palette.green} />
+            ) : featured.isError ? (
+              <View style={{ paddingHorizontal: 16 }}>
+                <Message
+                  title="Unable to load featured meals"
+                  onRetry={() => void featured.refetch()}
+                />
+              </View>
+            ) : (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  gap: 12,
+                  paddingBottom: 4,
+                }}
+                data={featuredItems}
+                keyExtractor={(i) => String(i.id)}
+                renderItem={({ item }) => (
+                  <View style={{ width: railWidth }}>
+                    <ProductCard item={item} userLocation={location?.coords} />
+                  </View>
+                )}
               />
             )}
           </Section>
         )}
-
-        <Section
-          title="Featured Vendors"
-          onSeeAll={
-            featuredVendors?.length
-              ? () => router.push('/vendors?filter=featured')
-              : undefined
-          }
-        >
-          {loadingFeatured ? (
-            <View className="flex-row px-4">
-              <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
-              <Skeleton className="w-[165px] h-[200px] rounded-3xl mr-3" />
-              <Skeleton className="w-[165px] h-[200px] rounded-3xl" />
+        {!hasArea &&
+          !featured.isLoading &&
+          !featured.isError &&
+          !featuredItems.length && (
+            <View style={{ paddingHorizontal: 16 }}>
+              <Message
+                title="Find your next pickup"
+                body="Choose an area above to see meals from local vendors."
+              />
             </View>
-          ) : !featuredVendors?.length ? (
-            <SectionEmptyState
-              message="No featured stores at the moment"
-              icon="bag.fill"
-            />
-          ) : (
-            <FlashList<FeaturedVendor>
-              data={featuredVendors || []}
-              renderItem={renderVendorItem}
-              keyExtractor={(item) => String(item.id)}
-              horizontal
-              // @ts-ignore
-              estimatedItemSize={165}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingRight: 32,
-              }}
-            />
           )}
-        </Section>
-
-        <Section
-          title="Featured Items"
-          onSeeAll={
-            featuredProducts?.length
-              ? () => router.push('/explore?all_products=true')
-              : undefined
-          }
-        >
-          {loadingProducts ? (
-            <View className="flex-row px-4">
-              <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
-              <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
-              <Skeleton className="w-[165px] h-[220px] rounded-3xl" />
-            </View>
-          ) : !featuredProducts?.length ? (
-            <SectionEmptyState
-              message="No featured items found"
-              icon="star.fill"
-            />
-          ) : (
-            <FlashList<FeaturedProduct>
-              data={featuredProducts || []}
-              renderItem={renderProductItem}
-              keyExtractor={(item) => String(item.id)}
+        {hasArea && !!nearbyVendors.data?.length && (
+          <Section
+            title={
+              location?.coords
+                ? 'Nearby vendors'
+                : `Vendors in ${location?.city}`
+            }
+            onAll={() => router.push('/vendors?filter=nearby')}
+          >
+            <FlatList
               horizontal
-              // @ts-ignore
-              estimatedItemSize={165}
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingRight: 32,
-                paddingBottom: 24,
-              }}
-            />
-          )}
-
-          {/* Nearby Meals Section - Only show if we have location */}
-          {(location || loadingNearbyMeals) && (
-            <Section
-              title="Nearby Meals"
-              onSeeAll={
-                nearbyMeals?.length ? () => router.push('/explore') : undefined
-              }
-            >
-              {loadingNearbyMeals || loadingLocation ? (
-                <View className="flex-row px-4">
-                  <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
-                  <Skeleton className="w-[165px] h-[220px] rounded-3xl mr-3" />
-                  <Skeleton className="w-[165px] h-[220px] rounded-3xl" />
-                </View>
-              ) : !nearbyMeals?.length ? (
-                <SectionEmptyState
-                  message="No meals found nearby"
-                  icon="location.slash.fill"
-                />
-              ) : (
-                <FlashList<FeaturedProduct>
-                  data={(nearbyMeals as any) || []}
-                  renderItem={renderProductItem}
-                  keyExtractor={(item) => String(item.id)}
-                  horizontal
-                  // @ts-ignore
-                  estimatedItemSize={165}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{
-                    paddingHorizontal: 16,
-                    paddingRight: 32,
-                    paddingBottom: 24,
-                  }}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              data={nearbyVendors.data}
+              keyExtractor={(v) => String(v.id)}
+              renderItem={({ item }) => (
+                <VendorCard
+                  item={item}
+                  variant="rail"
+                  width={railWidth}
+                  userLocation={location?.coords}
                 />
               )}
-            </Section>
-          )}
-        </Section>
+            />
+          </Section>
+        )}
+        {!!vendors.data?.length && (
+          <Section
+            title="Featured vendors"
+            onAll={() => router.push('/vendors?filter=featured')}
+          >
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              data={vendors.data}
+              keyExtractor={(v) => String(v.id)}
+              renderItem={({ item }) => (
+                <VendorCard
+                  item={item}
+                  variant="rail"
+                  width={railWidth}
+                  userLocation={location?.coords}
+                />
+              )}
+            />
+          </Section>
+        )}
       </ScrollView>
     </View>
   );

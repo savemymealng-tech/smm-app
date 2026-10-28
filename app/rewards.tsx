@@ -1,3 +1,4 @@
+import { Coins } from 'lucide-react-native';
 import { formatMoney as formatCurrency } from '@/lib/order-display';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View, Share } from 'react-native';
@@ -150,12 +151,29 @@ export default function RewardsScreen() {
               {coinTab ? (
                 <>
                   <Card>
-                    <Text style={ui.muted}>Available SMM Coin</Text>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <View
+                        style={{
+                          padding: 8,
+                          borderRadius: 10,
+                          backgroundColor: palette.orangeSurface,
+                        }}
+                      >
+                        <Coins size={20} color={palette.orangeInk} />
+                      </View>
+                      <Text style={ui.muted}>Available SMM Coin</Text>
+                    </View>
                     <Text
                       style={{
                         fontSize: 32,
                         fontWeight: '700',
-                        color: palette.green,
+                        color: palette.orangeInk,
                       }}
                     >
                       {data.account.available.toLocaleString()}
@@ -316,6 +334,7 @@ export default function RewardsScreen() {
                           <View style={{ flex: 1 }}>
                             <Action
                               label="Share invite"
+                              tone="accent"
                               onPress={() =>
                                 void share(data.code!, data.referral_link)
                               }

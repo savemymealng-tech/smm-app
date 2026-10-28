@@ -6,29 +6,37 @@
 import { Platform } from 'react-native';
 
 // Brand Colors
-const ORANGE = "#F39C12";
-const GREEN = "#008236";
+const ORANGE = '#F29C12';
+const GREEN = '#008236';
 
+export const Brand = {
+  green: GREEN,
+  orange: ORANGE,
+  greenSurface: '#edf7f0',
+  orangeSurface: '#fff4e3',
+  orangeInk: '#653700',
+  orangeBorder: '#f6d6a1',
+};
 const tintColorLight = GREEN;
 
 export const Colors = {
   light: {
-    text: "#202124",
-    background: "#ffffff",
-    surface: "#f8f9fa",
+    text: '#202124',
+    background: '#ffffff',
+    surface: '#f8f9fa',
     tint: tintColorLight,
     primary: GREEN,
     secondary: ORANGE,
-    icon: "#5f6368",
-    tabIconDefault: "#5f6368",
+    icon: '#5f6368',
+    tabIconDefault: '#5f6368',
     tabIconSelected: tintColorLight,
-    border: "#dadce0",
+    border: '#dadce0',
     success: GREEN,
-    error: "#ea4335",
+    error: '#ea4335',
     warning: ORANGE,
-    info: "#3498db",
+    info: '#3498db',
   },
-  
+
   // Brand colors for direct use
   brand: {
     orange: ORANGE,
@@ -56,7 +64,8 @@ export const Fonts = Platform.select({
   web: {
     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    rounded:
+      "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

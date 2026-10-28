@@ -7,7 +7,7 @@ import type {
   AddToCartRequest,
   Cart,
   RemoveFromCartRequest,
-  UpdateCartRequest
+  UpdateCartRequest,
 } from '@/types/api';
 import apiClient, { ApiResponse } from './client';
 import { API_CONFIG } from './config';
@@ -20,21 +20,23 @@ export const cartApi = {
   async getCart(): Promise<Cart> {
     console.log('🛒 cartApi.getCart - Fetching cart from server...');
     const response = await apiClient.get<ApiResponse<any>>(
-      API_CONFIG.ENDPOINTS.CART.GET
+      API_CONFIG.ENDPOINTS.CART.GET,
     );
-    
+
     console.log('🛒 cartApi.getCart - Raw response:', response.data);
-    
+
     if (response.data.success && response.data.data) {
       const rawData = response.data.data;
-      
+
       // Handle both response formats:
       // Format 1: { items: [...], total_items: 2, subtotal: "5500.00" }
       // Format 2: [...] (array of items directly)
-      
+
       if (Array.isArray(rawData)) {
         // Server returned array directly - transform to expected format
-        console.log('🛒 cartApi.getCart - Server returned array, transforming...');
+        console.log(
+          '🛒 cartApi.getCart - Server returned array, transforming...',
+        );
         const items = rawData.map((item: any) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -43,36 +45,39 @@ export const cartApi = {
             name: item.name,
             price: item.price,
             photo_url: item.photo_url || '',
-            quantity_available: item.quantity_available || 999,
+            quantity_available: item.quantity_available ?? 0,
             vendor_id: item.vendor_id,
             vendor: item.vendor,
           },
         }));
-        
+
         const subtotal = items.reduce((sum, item) => {
-          return sum + (parseFloat(item.product.price) * item.quantity);
+          return sum + parseFloat(item.product.price) * item.quantity;
         }, 0);
-        
+
         const cart: Cart = {
           items,
           total_items: items.reduce((sum, item) => sum + item.quantity, 0),
           subtotal: subtotal.toFixed(2),
         };
-        
+
         console.log('🛒 cartApi.getCart - Transformed cart:', {
           items: cart.items.length,
           total_items: cart.total_items,
           subtotal: cart.subtotal,
         });
-        
+
         return cart;
       } else {
         // Server returned object with items property
-        console.log('🛒 cartApi.getCart - Cart items:', rawData.items?.length || 0);
+        console.log(
+          '🛒 cartApi.getCart - Cart items:',
+          rawData.items?.length || 0,
+        );
         return rawData as Cart;
       }
     }
-    
+
     throw new Error(response.data.error || 'Failed to fetch cart');
   },
 
@@ -83,13 +88,13 @@ export const cartApi = {
   async addToCart(data: AddToCartRequest): Promise<Cart> {
     const response = await apiClient.post<ApiResponse<Cart>>(
       API_CONFIG.ENDPOINTS.CART.ADD,
-      data
+      data,
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
+
     throw new Error(response.data.error || 'Failed to add item to cart');
   },
 
@@ -100,13 +105,13 @@ export const cartApi = {
   async updateCart(data: UpdateCartRequest): Promise<Cart> {
     const response = await apiClient.put<ApiResponse<Cart>>(
       API_CONFIG.ENDPOINTS.CART.UPDATE,
-      data
+      data,
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
+
     throw new Error(response.data.error || 'Failed to update cart');
   },
 
@@ -117,19 +122,22 @@ export const cartApi = {
   async removeFromCart(data: RemoveFromCartRequest): Promise<Cart> {
     console.log('🛒 cartApi.removeFromCart - Removing item:', data.product_id);
     console.log('🛒 cartApi.removeFromCart - Request data:', data);
-    console.log('🛒 cartApi.removeFromCart - Endpoint:', API_CONFIG.ENDPOINTS.CART.REMOVE);
-    
+    console.log(
+      '🛒 cartApi.removeFromCart - Endpoint:',
+      API_CONFIG.ENDPOINTS.CART.REMOVE,
+    );
+
     const response = await apiClient.post<ApiResponse<any>>(
       API_CONFIG.ENDPOINTS.CART.REMOVE,
-      data
+      data,
     );
-    
+
     console.log('🛒 cartApi.removeFromCart - Response:', response.data);
-    
+
     if (response.data.success) {
       // Handle both response formats
       const rawData = response.data.data;
-      
+
       if (Array.isArray(rawData)) {
         // Server returned array directly - transform to expected format
         const items = rawData.map((item: any) => ({
@@ -140,16 +148,16 @@ export const cartApi = {
             name: item.name,
             price: item.price,
             photo_url: item.photo_url || '',
-            quantity_available: item.quantity_available || 999,
+            quantity_available: item.quantity_available ?? 0,
             vendor_id: item.vendor_id,
             vendor: item.vendor,
           },
         }));
-        
+
         const subtotal = items.reduce((sum, item) => {
-          return sum + (parseFloat(item.product.price) * item.quantity);
+          return sum + parseFloat(item.product.price) * item.quantity;
         }, 0);
-        
+
         return {
           items,
           total_items: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -158,7 +166,7 @@ export const cartApi = {
       } else if (rawData) {
         return rawData as Cart;
       }
-      
+
       // If no data, return empty cart
       return {
         items: [],
@@ -166,7 +174,7 @@ export const cartApi = {
         subtotal: '0.00',
       };
     }
-    
+
     throw new Error(response.data.error || 'Failed to remove item from cart');
   },
 
@@ -177,11 +185,11 @@ export const cartApi = {
   async clearCart(): Promise<Cart> {
     console.log('🛒 cartApi.clearCart - Clearing entire cart');
     const response = await apiClient.delete<ApiResponse<any>>(
-      API_CONFIG.ENDPOINTS.CART.CLEAR
+      API_CONFIG.ENDPOINTS.CART.CLEAR,
     );
-    
+
     console.log('🛒 cartApi.clearCart - Response:', response.data);
-    
+
     if (response.data.success) {
       // Return empty cart structure
       return {
@@ -190,8 +198,7 @@ export const cartApi = {
         subtotal: '0.00',
       };
     }
-    
+
     throw new Error(response.data.error || 'Failed to clear cart');
   },
 };
-

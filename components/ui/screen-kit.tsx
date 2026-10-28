@@ -1,3 +1,4 @@
+import { Brand } from '@/constants/theme';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,11 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 export const palette = {
-  green: '#008236',
+  green: Brand.green,
+  orange: Brand.orange,
+  orangeInk: Brand.orangeInk,
+  orangeSurface: Brand.orangeSurface,
+  greenSurface: Brand.greenSurface,
   ink: '#17251d',
   muted: '#66736c',
   border: '#e4e9e6',
@@ -159,6 +164,7 @@ export function Action({
   onPress,
   secondary = false,
   danger = false,
+  tone = 'primary',
   disabled = false,
   busy = false,
 }: {
@@ -166,10 +172,22 @@ export function Action({
   onPress: () => void;
   secondary?: boolean;
   danger?: boolean;
+  tone?: 'primary' | 'accent';
   disabled?: boolean;
   busy?: boolean;
 }) {
-  const color = danger ? palette.red : palette.green;
+  const color = danger
+    ? palette.red
+    : tone === 'accent'
+      ? palette.orange
+      : palette.green;
+  const labelColor = secondary
+    ? tone === 'accent'
+      ? palette.orangeInk
+      : color
+    : tone === 'accent' && !danger
+      ? palette.orangeInk
+      : '#fff';
   return (
     <Pressable
       accessibilityRole="button"
@@ -198,7 +216,7 @@ export function Action({
         style={{
           fontSize: 14,
           fontWeight: '600',
-          color: secondary ? color : '#fff',
+          color: labelColor,
           textAlign: 'center',
         }}
       >
@@ -213,12 +231,14 @@ export function MenuRow({
   detail,
   onPress,
   danger = false,
+  tone = 'primary',
 }: {
   icon: LucideIcon;
   label: string;
   detail?: string;
   onPress: () => void;
   danger?: boolean;
+  tone?: 'primary' | 'accent';
 }) {
   return (
     <Pressable
@@ -236,12 +256,25 @@ export function MenuRow({
           width: 36,
           height: 36,
           borderRadius: 10,
-          backgroundColor: danger ? '#fef3f2' : '#eef7f1',
+          backgroundColor: danger
+            ? '#fef3f2'
+            : tone === 'accent'
+              ? palette.orangeSurface
+              : palette.greenSurface,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon size={19} color={danger ? palette.red : palette.green} />
+        <Icon
+          size={19}
+          color={
+            danger
+              ? palette.red
+              : tone === 'accent'
+                ? palette.orangeInk
+                : palette.green
+          }
+        />
       </View>
       <View style={{ flex: 1 }}>
         <Text

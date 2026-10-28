@@ -1,355 +1,358 @@
+import { useRef, useState } from 'react';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
-import { Colors } from '@/constants/theme';
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  Text,
+  View,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ShoppingBag } from 'lucide-react-native';
+import {
+  Action,
+  Card,
+  Message,
+  PageScroll,
+  palette,
+  ui,
+} from '@/components/ui/screen-kit';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { AppImage } from '@/components/ui/app-image';
+import { CartItemCard } from '@/components/cart/CartItemCard';
+import { CartSummary } from '@/components/cart/CartSummary';
 import {
   useHybridCart,
-  useHybridClearCart,
-  useHybridRemoveFromCart,
   useHybridUpdateCart,
+  useHybridRemoveFromCart,
+  useHybridClearCart,
 } from '@/lib/hooks/use-hybrid-cart';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Platform, RefreshControl, ScrollView, View } from 'react-native';
-import { FadeInDown, SlideOutDown } from 'react-native-reanimated';
+import { cartIssue, groupCart, pickupAddress } from '@/lib/cart-display';
+import { formatMoney } from '@/lib/order-display';
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
-
-import {
-  CartEmptyState,
-  CartHeader,
-  CartItemCard,
-  CartSummary,
-} from '@/components/cart';
-
+  formatTime12Hour,
+  getEffectivePickupDay,
+  getImageSource,
+} from '@/lib/utils';
+import type { CartItem } from '@/types';
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const {
-    cart,
-    totalItems,
-    subtotal,
-    deliveryFee,
-    serviceFee,
-    tax,
-    isLoading,
-    isAuthenticated,
-    refetch,
-  } = useHybridCart();
-  const updateCartMutation = useHybridUpdateCart();
-  const removeFromCartMutation = useHybridRemoveFromCart();
-  const clearCartMutation = useHybridClearCart();
-
-  // Dialog states
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [clearDialogOpen, setClearDialogOpen] = useState(false);
-  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-  const [itemToRemove, setItemToRemove] = useState<{
-    id: string;
-    productId: number;
-  } | null>(null);
-
-  // Calculate total from values (server provides fees, or they're 0)
-  const total = subtotal + deliveryFee + serviceFee + tax;
-
-  const totals = {
-    subtotal,
-    deliveryFee,
-    serviceFee,
-    tax,
-    total,
-  };
-
-  const handleRemoveItem = (id: string, productId: number) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const state = useHybridCart();
+  const update = useHybridUpdateCart();
+  const remove = useHybridRemoveFromCart();
+  const clear = useHybridClearCart();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const lock = useRef(false);
+  const [error, setError] = useState('');
+  const [errorId, setErrorId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<'cart' | 'saved' | null>(null);
+  const busy = state.isUpdating || busyId !== null;
+  const groups = groupCart(state.cart);
+  const total =
+    state.subtotal + state.serviceFee + state.tax + state.deliveryFee;
+  const issues = state.cart.some((i) => !!cartIssue(i));
+  async function change(
+    item: CartItem,
+    quantity?: number,
+    choosePickup = false,
+  ) {
+    if (lock.current || busy) return;
+    lock.current = true;
+    setBusyId(item.id);
+    setError('');
+    setErrorId(null);
+    try {
+      if (quantity == null)
+        await remove.mutateAsync(item.id, Number(item.productId));
+      else
+        await update.mutateAsync({
+          item_id: item.id,
+          product_id: Number(item.productId),
+          quantity,
+          fulfillment_method: choosePickup ? 'pickup' : undefined,
+        });
+    } catch (e) {
+      const cause = e as { error?: string; message?: string };
+      setErrorId(item.id);
+      setError(
+        cause.error ||
+          cause.message ||
+          'Unable to update this item. Please try again.',
+      );
+      void state.refetch();
+    } finally {
+      lock.current = false;
+      setBusyId(null);
     }
-    setItemToRemove({ id, productId });
-    setRemoveDialogOpen(true);
-  };
-
-  const confirmRemoveItem = () => {
-    if (itemToRemove !== null) {
-      removeFromCartMutation.mutate(itemToRemove.id, itemToRemove.productId);
-    }
-    setRemoveDialogOpen(false);
-    setItemToRemove(null);
-  };
-
-  const handleUpdateQuantity = (
-    id: string,
-    quantity: number,
-    productId?: number,
-  ) => {
-    if (quantity < 1) {
-      handleRemoveItem(id, productId || 0);
-      return;
-    }
-
-    // Always pass item_id for local cart, and product_id for API sync
-    updateCartMutation.mutate({ item_id: id, product_id: productId, quantity });
-  };
-
-  const handleUpdateFulfillmentMethod = (
-    id: string,
-    method: 'pickup' | 'delivery',
-    productId?: number,
-  ) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    // Find the current item to get its quantity
-    const currentItem = cart.find((item) => item.id === id);
-    if (currentItem) {
-      updateCartMutation.mutate({
-        item_id: id,
-        product_id: productId,
-        quantity: currentItem.quantity,
-        fulfillment_method: method,
-      });
-    }
-  };
-
-  const handleCheckout = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    // Check if user is logged in
-    if (!isAuthenticated) {
-      setLoginDialogOpen(true);
-      return;
-    }
-
-    router.push('/checkout');
-  };
-
-  const handleClearCart = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    }
-    setClearDialogOpen(true);
-  };
-
-  const confirmClearCart = () => {
-    clearCartMutation.mutate();
-    setClearDialogOpen(false);
-  };
-
-  if (isLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-gray-50">
-        <CartHeader itemCount={0} onBack={() => router.back()} />
-        <View className="p-4">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="w-full h-32 rounded-2xl mb-4" />
-          ))}
-        </View>
-      </SafeAreaView>
-    );
   }
-
-  if (cart.length === 0) {
-    return (
-      <SafeAreaView className="flex-1 bg-gray-50">
-        <CartHeader itemCount={0} onBack={() => router.back()} />
-        <View
-          style={{ height: '100%' }}
-          className="flex-1 justify-center items-center"
-        >
-          <CartEmptyState
-            onBackToExplore={() => router.push('/(tabs)/explore')}
-          />
-        </View>
-      </SafeAreaView>
-    );
+  async function empty() {
+    if (lock.current || busy) return;
+    lock.current = true;
+    setBusyId('clear');
+    setError('');
+    setErrorId(null);
+    try {
+      if (confirm === 'saved') await state.discardSaved();
+      else await clear.mutateAsync();
+      setConfirm(null);
+    } catch (e) {
+      const cause = e as { error?: string; message?: string };
+      setError(cause.error || cause.message || 'Unable to clear your cart.');
+    } finally {
+      lock.current = false;
+      setBusyId(null);
+    }
   }
-
-  // Group items by vendor - handle both API and local cart structures
-  const itemsByVendor = cart.reduce(
-    (acc, item: any) => {
-      // API cart structure: item.product.vendor
-      // Local cart structure: item.product.vendor
-      const vendor = item.product?.vendor;
-      const vendorId = vendor?.id || 0;
-
-      if (!acc[vendorId]) {
-        acc[vendorId] = {
-          vendor: vendor || { id: 0, business_name: 'Unknown Vendor' },
-          items: [],
-        };
-      }
-      acc[vendorId].items.push(item);
-      return acc;
-    },
-    {} as Record<string, { vendor: any; items: any[] }>,
-  );
-
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <CartHeader itemCount={totalItems} onBack={() => router.back()} />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={false}
-            onRefresh={refetch}
-            tintColor={Colors.light.tint}
-          />
-        }
-        contentContainerStyle={{
-          paddingBottom: 220 + insets.bottom,
-          paddingTop: 16,
+    <View
+      style={{ flex: 1, paddingTop: insets.top, backgroundColor: palette.bg }}
+    >
+      <View
+        style={{
+          minHeight: 60,
+          paddingHorizontal: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          backgroundColor: '#fff',
+          borderBottomWidth: 1,
+          borderBottomColor: palette.border,
         }}
       >
-        <View className="px-4">
-          {Object.values(itemsByVendor).map((vendorGroup, vendorIndex) => (
-            <View key={vendorGroup.vendor.id} className="mb-6">
-              {/* Vendor Header */}
-              <View className="flex-row items-center mb-3 px-2">
-                <Text className="text-lg font-bold text-gray-900">
-                  {vendorGroup.vendor.business_name}
-                </Text>
-                <Text className="text-sm text-gray-500 ml-2">
-                  ({vendorGroup.items.length}{' '}
-                  {vendorGroup.items.length === 1 ? 'item' : 'items'})
-                </Text>
-              </View>
-
-              {/* Vendor Items */}
-              {vendorGroup.items.map((item: any, index: number) => {
-                // Always use local cart item.id now since we always return local cart
-                const itemId = item.id;
-                const productId = Number(item.productId);
-                return (
-                  <NativeOnlyAnimatedView
-                    key={itemId}
-                    entering={FadeInDown.delay(index * 50)
-                      .springify()
-                      .damping(15)}
-                    exiting={SlideOutDown.duration(300)}
-                    className="mb-3"
-                  >
-                    <CartItemCard
-                      item={item}
-                      isAuthenticated={isAuthenticated}
-                      onRemove={() => handleRemoveItem(itemId, productId)}
-                      onUpdateQuantity={(quantity) =>
-                        handleUpdateQuantity(itemId, quantity, productId)
-                      }
-                      onUpdateFulfillmentMethod={(method) =>
-                        handleUpdateFulfillmentMethod(itemId, method, productId)
-                      }
-                    />
-                  </NativeOnlyAnimatedView>
-                );
-              })}
+        <Text style={ui.title}>Cart</Text>
+        {state.totalItems > 0 && (
+          <Text style={ui.muted}>
+            {state.totalItems} {state.totalItems === 1 ? 'item' : 'items'}
+          </Text>
+        )}
+        <View style={{ flex: 1 }} />
+        {state.cart.length > 0 && (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => {
+              setError('');
+              setConfirm('cart');
+            }}
+            style={{
+              minHeight: 44,
+              justifyContent: 'center',
+              opacity: busy ? 0.4 : 1,
+            }}
+          >
+            <Text style={[ui.link, { color: palette.red }]}>Clear cart</Text>
+          </Pressable>
+        )}
+      </View>
+      <PageScroll
+        contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={state.isFetching && !state.isLoading && !busy}
+            onRefresh={() => void state.refetch()}
+            tintColor={palette.green}
+          />
+        }
+      >
+        {state.isLoading ? <ActivityIndicator color={palette.green} /> : null}
+        {state.isError && (
+          <Message
+            title="Unable to refresh your cart"
+            body="Your items have not been cleared. Check your connection and try again."
+            onRetry={() => void state.refetch()}
+          />
+        )}
+        {(state.isSyncing || (state.savedItems > 0 && !state.syncError)) && (
+          <Card>
+            <View style={ui.row}>
+              <ActivityIndicator color={palette.green} />
+              <Text style={[ui.body, { flex: 1 }]}>
+                Bringing your saved items into your account…
+              </Text>
             </View>
-          ))}
-        </View>
-        <CartSummary
-          totals={totals}
-          onClearCart={handleClearCart}
-          onCheckout={handleCheckout}
-          bottomInset={insets.bottom}
-        />
-      </ScrollView>
-
-      {/* Remove Item Dialog */}
-      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <AlertDialogContent compact>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">
-              Remove Item?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-base text-gray-600 pt-1">
-              Are you sure you want to remove this item from your cart?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="flex-1">
-              <Text className="text-gray-700">Cancel</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              tone="destructive"
-              onPress={confirmRemoveItem}
-              className="flex-1 bg-red-500"
-            >
-              <Text className="text-white font-semibold">Remove</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Clear Cart Dialog */}
-      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-        <AlertDialogContent compact>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">
-              Clear Cart?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-base text-gray-600 pt-1">
-              Are you sure you want to remove all items from your cart?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="flex-1">
-              <Text className="text-gray-700">Cancel</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              tone="destructive"
-              onPress={confirmClearCart}
-              className="flex-1 bg-red-500"
-            >
-              <Text className="text-white font-semibold">Clear cart</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Login Required Dialog */}
-      <AlertDialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-900">
-              🔐 Login Required
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-base text-gray-600 pt-1">
-              You need to be logged in to proceed with checkout. Your cart items
-              will be saved and synced once you login!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="flex-1">
-              <Text className="text-gray-700">Cancel</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction
+          </Card>
+        )}
+        {!!state.syncError && (
+          <Card>
+            <Text style={ui.heading}>
+              Some saved items still need attention
+            </Text>
+            <Text style={ui.muted}>{state.syncError}</Text>
+            <Action
+              secondary
+              label="Retry saved cart"
+              onPress={state.retrySync}
+            />
+            <Action
+              secondary
+              danger
+              label="Remove remaining saved items"
               onPress={() => {
-                setLoginDialogOpen(false);
-                router.push('/login');
+                setError('');
+                setConfirm('saved');
               }}
-              className="flex-1 bg-[#1E8449]"
+            />
+          </Card>
+        )}
+        {!!error && !errorId && (
+          <Text
+            accessibilityRole="alert"
+            style={[ui.body, { color: palette.red }]}
+          >
+            {error}
+          </Text>
+        )}
+        {!state.isLoading &&
+          !state.isError &&
+          !state.savedItems &&
+          !state.cart.length && (
+            <View
+              style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}
             >
-              <Text className="text-white font-semibold">Login</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </SafeAreaView>
+              <View
+                style={{
+                  padding: 20,
+                  borderRadius: 40,
+                  backgroundColor: '#eaf5ee',
+                }}
+              >
+                <ShoppingBag size={32} color={palette.green} />
+              </View>
+              <Text style={ui.heading}>Your next meal starts here</Text>
+              <Text style={[ui.muted, { textAlign: 'center' }]}>
+                Explore meals and add something for pickup.
+              </Text>
+              <Action
+                label="Explore meals"
+                onPress={() => router.push('/(tabs)/explore')}
+              />
+            </View>
+          )}
+        {groups.map((group) => {
+          const windows = [
+            ...new Set(
+              group.items
+                .map((i) => {
+                  const p = i.product;
+                  return p.pickup_start_time && p.pickup_end_time
+                    ? `${getEffectivePickupDay(p.pickup_day, p.pickup_end_time)} · ${formatTime12Hour(p.pickup_start_time)}–${formatTime12Hour(p.pickup_end_time)}`
+                    : null;
+                })
+                .filter(Boolean),
+            ),
+          ];
+          return (
+            <Card key={group.id}>
+              <View style={ui.row}>
+                <AppImage
+                  source={getImageSource(group.vendor?.logo)}
+                  fallbackSource={require('@/assets/images/default-profile.jpg')}
+                  style={{ width: 40, height: 40, borderRadius: 10 }}
+                />
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={ui.heading}>
+                    {group.vendor?.business_name || 'Pickup vendor'}
+                  </Text>
+                  <Text style={ui.muted}>
+                    {pickupAddress(group.vendor) ||
+                      'Pickup details confirmed at checkout'}
+                  </Text>
+                </View>
+              </View>
+              {windows.map((window) => (
+                <Text key={window} style={[ui.muted, { color: palette.green }]}>
+                  Pickup {window}
+                </Text>
+              ))}
+              {group.items.map((item) => (
+                <CartItemCard
+                  key={item.id}
+                  item={item}
+                  error={errorId === item.id ? error : undefined}
+                  busy={busyId === item.id}
+                  disabled={busy}
+                  onRemove={() => void change(item)}
+                  onUpdateQuantity={(quantity) => void change(item, quantity)}
+                  onChoosePickup={() => void change(item, item.quantity, true)}
+                />
+              ))}
+            </Card>
+          );
+        })}
+        {state.cart.length > 0 && (
+          <CartSummary
+            subtotal={state.subtotal}
+            serviceFee={state.serviceFee}
+            tax={state.tax}
+            deliveryFee={state.deliveryFee}
+            isAuthenticated={state.isAuthenticated}
+          />
+        )}
+        {issues && (
+          <Text style={[ui.muted, { color: '#92400e' }]}>
+            Resolve the highlighted items before continuing to checkout.
+          </Text>
+        )}
+      </PageScroll>
+      {state.cart.length > 0 && (
+        <View
+          style={{
+            padding: 16,
+            gap: 10,
+            backgroundColor: '#fff',
+            borderTopWidth: 1,
+            borderTopColor: palette.border,
+          }}
+        >
+          <View style={ui.between}>
+            <Text style={ui.muted}>Estimated total</Text>
+            <Text style={ui.title}>{formatMoney(total)}</Text>
+          </View>
+          {(issues || state.savedItems > 0 || state.isError) && (
+            <Text style={{ fontSize: 12, lineHeight: 18, color: '#92400e' }}>
+              {issues
+                ? 'Update the highlighted items to continue.'
+                : state.savedItems > 0
+                  ? 'Finish syncing your saved items to continue.'
+                  : 'Refresh your cart to continue.'}
+            </Text>
+          )}
+          <Action
+            label={
+              state.isAuthenticated
+                ? 'Continue to checkout'
+                : 'Sign in to checkout'
+            }
+            busy={busy}
+            disabled={issues || state.isError || state.savedItems > 0}
+            onPress={() => {
+              if (busy || issues) return;
+              if (!state.isAuthenticated)
+                router.push({
+                  pathname: '/login',
+                  params: { returnTo: '/cart' },
+                });
+              else router.push('/checkout');
+            }}
+          />
+        </View>
+      )}
+      <ConfirmDialog
+        open={confirm !== null}
+        onClose={() => setConfirm(null)}
+        destructive
+        busy={busy}
+        title={confirm === 'saved' ? 'Remove saved items?' : 'Clear your cart?'}
+        message={
+          confirm === 'saved'
+            ? 'Only the remaining saved guest items will be removed. Items already in your account will stay in your cart.'
+            : 'All items in your cart will be removed.'
+        }
+        error={error}
+        primaryLabel={confirm === 'saved' ? 'Remove saved items' : 'Clear cart'}
+        onPrimary={() => void empty()}
+        secondaryLabel="Keep items"
+      />
+    </View>
   );
 }

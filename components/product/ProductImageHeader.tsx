@@ -1,11 +1,10 @@
 import { AppImage as Image } from '@/components/ui/app-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Dimensions, Modal, Pressable, View } from 'react-native';
 
 import { CarouselComponent } from '@/components/ui/carousel';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { X } from 'lucide-react-native';
 import { getImageSource } from '@/lib/utils';
 
 interface ProductImageHeaderProps {
@@ -15,7 +14,6 @@ interface ProductImageHeaderProps {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function ProductImageHeader({ images }: ProductImageHeaderProps) {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [previewVisible, setPreviewVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -58,13 +56,6 @@ export function ProductImageHeader({ images }: ProductImageHeaderProps) {
           showPagination={false}
           autoplay={false}
         />
-        <Pressable
-          onPress={() => router.back()}
-          style={{ position: 'absolute', top: insets.top + 12, left: 16 }}
-          className="bg-white/95 rounded-full p-2.5 shadow-sm"
-        >
-          <IconSymbol name="arrow.back" size={22} color="#000" />
-        </Pressable>
       </View>
 
       {/* Image Preview Modal */}
@@ -87,9 +78,23 @@ export function ProductImageHeader({ images }: ProductImageHeaderProps) {
 
           <Pressable
             onPress={() => setPreviewVisible(false)}
-            className="absolute top-12 right-4 bg-white/20 rounded-full p-3"
+            accessibilityRole="button"
+            accessibilityLabel="Close product image"
+            style={{
+              position: 'absolute',
+              top: insets.top + 12,
+              right: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: '#fff',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2,
+              elevation: 4,
+            }}
           >
-            <IconSymbol name="xmark" size={24} color="#fff" />
+            <X size={22} color="#17251d" />
           </Pressable>
         </View>
       </Modal>

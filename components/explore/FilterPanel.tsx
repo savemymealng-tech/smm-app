@@ -205,7 +205,7 @@ export function FilterPanel({
         {/* Rating */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-gray-700 mb-2">
-            Minimum Rating
+            Minimum vendor rating
           </Text>
           <View className="flex-row flex-wrap">
             {[3, 4, 4.5].map((rating) => (

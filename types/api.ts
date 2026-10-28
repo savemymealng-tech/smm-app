@@ -82,11 +82,11 @@ export interface Meal {
   id: number;
   vendor_id: number;
   name: string;
-  description: string;
+  description?: string | null;
   price: string;
   original_price?: string;
   quantity_available: number;
-  expiry_date: string;
+  expiry_date?: string | null;
   photo_url: string;
   weight?: string;
   meta_title?: string;
@@ -167,6 +167,8 @@ export interface SearchVendorsParams {
 // ============================================
 
 export interface CartProduct {
+  is_available?: boolean;
+  expiry_date?: string;
   id: number;
   name: string;
   price: string;
@@ -176,6 +178,10 @@ export interface CartProduct {
   vendor?: {
     id: number;
     business_name: string;
+    address?: string;
+    city?: string;
+    phone?: string;
+    logo?: string;
   };
   available_for_pickup?: boolean;
   available_for_delivery?: boolean;
@@ -186,6 +192,8 @@ export interface CartProduct {
 }
 
 export interface CartItem {
+  price?: string;
+  price_snapshot?: number;
   id?: number;
   product_id: number;
   quantity: number;

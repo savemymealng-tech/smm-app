@@ -26,7 +26,9 @@ type Area = {
   longitude?: number;
   place_id?: string;
 };
-export function BrowsingLocation() {
+export function BrowsingLocation({
+  onSelected,
+}: { onSelected?: () => void } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery] = useDebounce(query.trim(), 450);
@@ -83,10 +85,11 @@ export function BrowsingLocation() {
       !error
     ) {
       choosingGPS.current = false;
+      onSelected?.();
       Keyboard.dismiss();
       setOpen(false);
     }
-  }, [isLoading, location, error]);
+  }, [isLoading, location, error, onSelected]);
   async function choose(area: Area) {
     const id = ++request.current;
     resolution.current?.abort();
@@ -116,6 +119,7 @@ export function BrowsingLocation() {
         source: 'manual',
         timestamp: Date.now(),
       });
+      onSelected?.();
       setOpen(false);
     } catch {
       if (id === request.current && !controller.signal.aborted)

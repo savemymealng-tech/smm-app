@@ -66,7 +66,7 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
       </View>
 
       <Text className="text-gray-700 leading-6 text-base">
-        {product.description}
+        {product.description || 'No description provided.'}
       </Text>
 
       {/* Categories */}

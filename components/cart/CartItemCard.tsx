@@ -1,201 +1,198 @@
-import { AppImage as Image } from '@/components/ui/app-image';
-import * as Haptics from 'expo-haptics';
-import { Platform, Pressable, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
-import { Text } from '@/components/ui/text';
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  View,
+  StyleSheet,
+} from 'react-native';
+import { router } from 'expo-router';
+import { Minus, Plus, Trash2 } from 'lucide-react-native';
+import { AppImage } from '@/components/ui/app-image';
+import { Action, palette, ui } from '@/components/ui/screen-kit';
 import { getImageSource } from '@/lib/utils';
-import type { CartItem as LocalCartItem } from '@/types';
-import type { CartItem } from '@/types/api';
-import { FadeIn } from 'react-native-reanimated';
-
-interface CartItemCardProps {
-  item: CartItem | LocalCartItem;
-  isAuthenticated?: boolean;
-  onRemove: () => void;
-  onUpdateQuantity: (quantity: number) => void;
-  onUpdateFulfillmentMethod?: (method: 'pickup' | 'delivery') => void;
-}
-
+import { formatMoney } from '@/lib/order-display';
+import { cartIssue, stockAvailable } from '@/lib/cart-display';
+import type { CartItem } from '@/types';
 export function CartItemCard({
   item,
-  isAuthenticated = true,
+  busy = false,
+  error,
+  disabled = false,
   onRemove,
   onUpdateQuantity,
-  onUpdateFulfillmentMethod,
-}: CartItemCardProps) {
-  const scale = useSharedValue(1);
-  const quantityScale = useSharedValue(1);
-
-  // Handle both API cart (item.product.price) and local cart (item.unitPrice)
-  const price = isAuthenticated
-    ? parseFloat((item as CartItem).product.price)
-    : (item as LocalCartItem).unitPrice;
-  const quantity = item.quantity;
-  const totalPrice = isAuthenticated
-    ? price * quantity
-    : (item as LocalCartItem).totalPrice;
-  const product = item.product;
-  const quantityAvailable = isAuthenticated
-    ? (item as CartItem).product.quantity_available
-    : (product as any).quantityAvailable ||
-      (product as any).quantity_available ||
-      999;
-
-  const handleQuantityChange = (newQuantity: number) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    quantityScale.value = withSpring(1.2, {}, () => {
-      quantityScale.value = withSpring(1);
-    });
-    onUpdateQuantity(newQuantity);
-  };
-
-  const handleRemove = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    scale.value = withTiming(0.95, { duration: 100 }, () => {
-      scale.value = withTiming(1, { duration: 100 });
-    });
-    onRemove();
-  };
-
-  const animatedCardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const animatedQuantityStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: quantityScale.value }],
-  }));
-
+  onChoosePickup,
+}: {
+  item: CartItem;
+  busy?: boolean;
+  error?: string;
+  disabled?: boolean;
+  onRemove: () => void;
+  onUpdateQuantity: (quantity: number) => void;
+  onChoosePickup?: () => void;
+}) {
+  const name = item.product.name || 'Unavailable item';
+  const stock = stockAvailable(item.product);
+  const issue = cartIssue(item);
   return (
-    <Animated.View
-      style={animatedCardStyle}
-      className="bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100"
-    >
-      <View className="flex-row">
-        {/* Product Image */}
-        <NativeOnlyAnimatedView entering={FadeIn.delay(100).duration(300)}>
-          <Image
-            source={
-              getImageSource(
-                (product as any).photo_url ||
-                  (product as any).photoUrl ||
-                  (product as any).images?.[0],
-              ) || require('@/assets/images/default-product.jpg')
-            }
-            fallbackSource={require('@/assets/images/default-product.jpg')}
-            style={{
-              width: 112,
-              height: 112,
-              borderTopLeftRadius: 16,
-              borderBottomLeftRadius: 16,
-            }}
-            resizeMode="cover"
+    <View style={styles.card}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${name}`}
+          onPress={() => router.push(`/product/${item.productId}` as any)}
+        >
+          <AppImage
+            source={getImageSource(
+              item.product.photo_url || item.product.images?.[0],
+            )}
+            style={{ width: 76, height: 76, borderRadius: 12 }}
           />
-        </NativeOnlyAnimatedView>
-
-        {/* Product Details */}
-        <View className="flex-1 p-4">
-          <View className="flex-row justify-between items-start mb-1">
-            <View className="flex-1 mr-2">
-              <Text
-                className="font-bold text-base mb-1 text-gray-900"
-                numberOfLines={1}
-              >
-                {product.name}
-              </Text>
-              {(product as any).vendor && (
-                <Text className="text-gray-500 text-xs" numberOfLines={1}>
-                  {(product as any).vendor.business_name ||
-                    (product as any).vendor.name}
-                </Text>
-              )}
-
-              {/* Pickup indicator */}
-              {(product as any).available_for_pickup && (
-                <View className="flex-row items-center mt-1">
-                  <IconSymbol name="bag.fill" size={12} color="#1E8449" />
-                  <Text className="text-[#1E8449] text-xs ml-1">Pickup</Text>
-                </View>
-              )}
-            </View>
+        </Pressable>
+        <View style={{ flex: 1, gap: 5 }}>
+          <View
+            style={{ flexDirection: 'row', gap: 4, alignItems: 'flex-start' }}
+          >
             <Pressable
-              onPress={handleRemove}
-              className="w-9 h-9 rounded-full bg-red-50 items-center justify-center active:bg-red-100"
+              style={{ flex: 1 }}
+              onPress={() => router.push(`/product/${item.productId}` as any)}
             >
-              <IconSymbol name="trash" size={16} color="#ef4444" />
+              <Text style={[ui.body, { fontWeight: '600' }]} numberOfLines={2}>
+                {name}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${name}`}
+              disabled={disabled}
+              onPress={onRemove}
+              style={{
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: -8,
+                marginRight: -8,
+                opacity: disabled ? 0.4 : 1,
+              }}
+            >
+              <Trash2 size={17} color={palette.muted} />
             </Pressable>
           </View>
-
-          {/* Stock Warning */}
-          {quantityAvailable < quantity && (
-            <View className="bg-amber-50 px-2 py-1 rounded-md mb-2">
-              <Text className="text-amber-700 text-xs">
-                Only {quantityAvailable} available
-              </Text>
-            </View>
-          )}
-
-          {/* Quantity and Price */}
-          <View className="flex-row justify-between items-center mt-2">
-            <View className="flex-row items-center bg-gray-50 rounded-full px-2 py-1">
-              <Pressable
-                onPress={() => handleQuantityChange(quantity - 1)}
-                disabled={quantity <= 1}
-                className={`w-8 h-8 rounded-full items-center justify-center shadow-sm ${
-                  quantity <= 1 ? 'bg-gray-200' : 'bg-white active:bg-gray-50'
-                }`}
-              >
-                <IconSymbol
-                  name="minus"
-                  size={14}
-                  color={quantity <= 1 ? '#d1d5db' : '#666'}
-                />
-              </Pressable>
-              <Animated.View style={animatedQuantityStyle}>
-                <Text className="text-gray-900 font-bold text-base mx-4 min-w-[24px] text-center">
-                  {quantity}
-                </Text>
-              </Animated.View>
-              <Pressable
-                onPress={() => handleQuantityChange(quantity + 1)}
-                disabled={quantity >= quantityAvailable}
-                className={`w-8 h-8 rounded-full items-center justify-center shadow-sm ${
-                  quantity >= quantityAvailable
-                    ? 'bg-gray-200'
-                    : 'bg-[#1E8449] active:opacity-80'
-                }`}
-              >
-                <IconSymbol
-                  name="plus"
-                  size={14}
-                  color={quantity >= quantityAvailable ? '#d1d5db' : 'white'}
-                />
-              </Pressable>
-            </View>
-            <View className="items-end">
-              <Text className="text-gray-900 font-bold text-lg">
-                ₦{totalPrice.toFixed(0)}
-              </Text>
-              {quantity > 1 && (
-                <Text className="text-gray-400 text-xs">
-                  ₦{price.toFixed(0)} each
-                </Text>
-              )}
-            </View>
-          </View>
+          <Text style={ui.muted}>{formatMoney(item.unitPrice)} each</Text>
+          <Text style={[ui.muted, { color: palette.green }]}>Pickup</Text>
         </View>
       </View>
-    </Animated.View>
+      <View style={ui.between}>
+        <View style={styles.stepper}>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={4}
+            accessibilityLabel={`Decrease ${name} quantity`}
+            disabled={disabled || item.quantity <= 1}
+            onPress={() => onUpdateQuantity(item.quantity - 1)}
+            style={[
+              styles.control,
+              { opacity: disabled || item.quantity <= 1 ? 0.35 : 1 },
+            ]}
+          >
+            <Minus size={16} color={palette.ink} />
+          </Pressable>
+          {busy ? (
+            <ActivityIndicator
+              size="small"
+              color={palette.green}
+              style={{ width: 34 }}
+            />
+          ) : (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{
+                minWidth: 34,
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: 14,
+                color: palette.ink,
+              }}
+            >
+              {item.quantity}
+            </Text>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={4}
+            accessibilityLabel={`Increase ${name} quantity`}
+            disabled={disabled || (stock !== null && item.quantity >= stock)}
+            onPress={() => onUpdateQuantity(item.quantity + 1)}
+            style={[
+              styles.control,
+              {
+                opacity:
+                  disabled || (stock !== null && item.quantity >= stock)
+                    ? 0.35
+                    : 1,
+              },
+            ]}
+          >
+            <Plus size={16} color={palette.green} />
+          </Pressable>
+        </View>
+        <Text style={ui.heading}>{formatMoney(item.totalPrice)}</Text>
+      </View>
+      {!!error && (
+        <Text
+          accessibilityRole="alert"
+          style={{ fontSize: 12, lineHeight: 18, color: palette.red }}
+        >
+          {error}
+        </Text>
+      )}
+      {!!issue && (
+        <View
+          style={{
+            gap: 8,
+            padding: 10,
+            backgroundColor: '#fff8eb',
+            borderRadius: 10,
+          }}
+        >
+          <Text
+            accessibilityRole="alert"
+            style={{ fontSize: 12, lineHeight: 18, color: '#92400e' }}
+          >
+            {issue}
+          </Text>
+          {item.requires_fulfillment_choice && onChoosePickup && (
+            <Action
+              secondary
+              label="Choose pickup"
+              disabled={disabled}
+              onPress={onChoosePickup}
+            />
+          )}
+        </View>
+      )}
+    </View>
   );
 }
+const styles = StyleSheet.create({
+  card: {
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 10,
+    backgroundColor: '#f8faf9',
+  },
+  control: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

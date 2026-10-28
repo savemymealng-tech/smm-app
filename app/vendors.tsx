@@ -1,22 +1,29 @@
-import { BrowsingLocation } from '@/components/ui/browsing-location';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useAtom } from 'jotai';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  FlatList,
+  Keyboard,
   Pressable,
   RefreshControl,
   ScrollView,
+  Text,
   TextInput,
   View,
 } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useAtom } from 'jotai';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDebounce } from 'use-debounce';
-
-import { FilterChip } from '@/components/explore/FilterChip';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
-import { Colors } from '@/constants/theme';
+import {
+  ChevronLeft,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from 'lucide-react-native';
+import { BrowsingLocation } from '@/components/ui/browsing-location';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { VendorCard } from '@/components/vendor/VendorCard';
+import { Action, Message, palette, ui } from '@/components/ui/screen-kit';
 import { locationRadiusAtom } from '@/lib/atoms/locationFilter';
 import {
   useAllVendors,
@@ -24,462 +31,414 @@ import {
   useNearbyVendors,
 } from '@/lib/hooks';
 import { useLocation } from '@/lib/hooks/useLocation';
-import { calculateDistance, formatDistance, getImageSource } from '@/lib/utils';
-import type { FeaturedVendor, Vendor } from '@/types/api';
-import { Image } from 'react-native';
-
-type FilterType = 'all' | 'featured' | 'nearby';
-
-const VendorGridCard = ({
-  item,
-  userLocation,
-}: {
-  item: Vendor | FeaturedVendor;
-  userLocation?: { latitude: number; longitude: number } | null;
-}) => {
-  const rating =
-    typeof item.rating === 'string' ? parseFloat(item.rating) : item.rating;
-
-  // Calculate distance if not provided by API
-  let distance: string | null = null;
-
-  // First check if distance is already provided by API
-  if ('distance' in item && item.distance) {
-    distance =
-      typeof item.distance === 'string' && item.distance.includes('km')
-        ? item.distance
-        : `${item.distance} km`;
-  } else if (userLocation && item.latitude && item.longitude) {
-    // Calculate distance if not provided
-    const vendorLat = parseFloat(item.latitude);
-    const vendorLng = parseFloat(item.longitude);
-    if (!isNaN(vendorLat) && !isNaN(vendorLng)) {
-      const distanceInMeters = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        vendorLat,
-        vendorLng,
-      );
-      distance = formatDistance(distanceInMeters);
-    }
-  }
-
-  return (
-    <Pressable
-      onPress={() => router.push(`/vendor/${item.id}`)}
-      className="bg-white rounded-2xl overflow-hidden mb-4"
-      style={{
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        elevation: 3,
-      }}
-    >
-      <View className="relative">
-        <Image
-          source={
-            getImageSource(item.logo) ||
-            require('@/assets/images/default-profile.jpg')
-          }
-          className="w-full h-40"
-          resizeMode="cover"
-        />
-        <View className="absolute top-3 right-3 bg-white/95 rounded-full px-3 py-1.5 flex-row items-center shadow-sm">
-          <IconSymbol name="star.fill" size={12} color="#fbbf24" />
-          <Text className="text-xs font-bold ml-1 text-gray-900">
-            {rating > 0 ? rating.toFixed(1) : 'N/A'}
-          </Text>
-        </View>
-        {distance && (
-          <View className="absolute bottom-3 left-3 bg-[#1E8449] rounded-full px-2.5 py-1">
-            <Text className="text-xs font-bold text-white">{distance}</Text>
-          </View>
-        )}
-      </View>
-      <View className="p-4">
-        <Text
-          className="font-bold text-lg mb-1 text-gray-900"
-          numberOfLines={1}
-        >
-          {item.business_name}
-        </Text>
-        <View className="flex-row items-center">
-          <IconSymbol name="location.fill" size={12} color="#9ca3af" />
-          <Text className="text-sm text-gray-500 ml-1 flex-1" numberOfLines={1}>
-            {item.city || 'Lagos'}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-};
-
-const RADIUS_OPTIONS = [5, 10, 15, 20, 50];
-
+type Filter = 'all' | 'featured' | 'nearby';
+const filterValues: Filter[] = ['all', 'featured', 'nearby'];
 export default function VendorsScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ filter?: string }>();
-
-  const [filterType, setFilterType] = useState<FilterType>(
-    (params.filter as FilterType) || 'all',
-  );
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery] = useDebounce(searchQuery, 500);
-  const [showRadiusFilter, setShowRadiusFilter] = useState(false);
-  const [locationRadius, setLocationRadius] = useAtom(locationRadiusAtom);
-  const [customRadius, setCustomRadius] = useState('');
-
-  // Get user location
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const [search] = useDebounce(query.trim(), 350);
+  const [refreshing, setRefreshing] = useState(false);
+  const [radius, setRadius] = useAtom(locationRadiusAtom);
+  const [radiusOpen, setRadiusOpen] = useState(false);
+  const [draft, setDraft] = useState(String(radius));
+  const [notice, setNotice] = useState('');
   const {
     location,
-    isLoading: loadingLocation,
     requestLocation,
+    isLoading: gpsLoading,
     error: locationError,
   } = useLocation();
-
-  // Default city for search
-  const defaultCity = 'Lagos';
-  const [searchCity, setSearchCity] = useState(defaultCity);
-
-  // Fetch all vendors
-  const {
-    data: allVendors,
-    isLoading: loadingAll,
-    refetch: refetchAll,
-  } = useAllVendors(100);
-
-  // Fetch featured vendors
-  const {
-    data: featuredVendors,
-    isLoading: loadingFeatured,
-    refetch: refetchFeatured,
-  } = useFeaturedVendors();
-
-  // Fetch nearby vendors with configurable radius
-  const {
-    data: nearbyVendors,
-    isLoading: loadingNearby,
-    refetch: refetchNearby,
-  } = useNearbyVendors(
-    location?.coords?.latitude ?? null,
-    location?.coords?.longitude ?? null,
-    locationRadius, // Use configurable radius from atom
-    100, // limit
-  );
-
-  // Determine which vendors to display
-  const displayVendors = useMemo(() => {
-    let vendors: (Vendor | FeaturedVendor)[] = [];
-
-    switch (filterType) {
-      case 'featured':
-        vendors = featuredVendors || [];
-        break;
-      case 'nearby':
-        vendors = nearbyVendors || [];
-        break;
-      case 'all':
-      default:
-        vendors = allVendors || [];
-        break;
-    }
-
-    // Apply search filter if query exists
-    if (debouncedSearchQuery) {
-      return vendors.filter((vendor) =>
-        vendor.business_name
-          .toLowerCase()
-          .includes(debouncedSearchQuery.toLowerCase()),
-      );
-    }
-
-    return vendors;
-  }, [
-    filterType,
-    allVendors,
-    featuredVendors,
-    nearbyVendors,
-    debouncedSearchQuery,
-  ]);
-
-  const isLoading =
-    (filterType === 'featured' && loadingFeatured) ||
-    (filterType === 'nearby' && loadingNearby) ||
-    (filterType === 'all' && loadingAll);
-
-  const refetch = () => {
-    switch (filterType) {
-      case 'featured':
-        refetchFeatured();
-        break;
-      case 'nearby':
-        refetchNearby();
-        break;
-      case 'all':
-        refetchAll();
-        break;
-    }
-  };
-
-  // Update filter when query param changes
+  const hasArea = !!(location?.city || location?.coords);
+  const all = useAllVendors(100),
+    featured = useFeaturedVendors(),
+    nearby = useNearbyVendors(
+      location?.coords?.latitude ?? null,
+      location?.coords?.longitude ?? null,
+      radius,
+      100,
+    );
+  const active =
+    filter === 'all' ? all : filter === 'featured' ? featured : nearby;
+  const vendors = useMemo(() => {
+    const items = active.data || [];
+    return search
+      ? items.filter((v) =>
+          (v.business_name || '')
+            .toLocaleLowerCase()
+            .includes(search.toLocaleLowerCase()),
+        )
+      : items;
+  }, [active.data, search]);
   useEffect(() => {
-    if (params.filter && params.filter !== filterType) {
-      setFilterType(params.filter as FilterType);
-    }
+    if (filterValues.includes(params.filter as Filter))
+      setFilter(params.filter as Filter);
   }, [params.filter]);
-
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await active.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* Header */}
+    <View
+      style={{ flex: 1, paddingTop: insets.top, backgroundColor: palette.bg }}
+    >
       <View
-        className="bg-white border-b border-gray-100"
         style={{
-          paddingTop: insets.top,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          elevation: 3,
+          backgroundColor: '#fff',
+          borderBottomWidth: 1,
+          borderBottomColor: palette.border,
         }}
       >
-        <View className="px-4 py-4 flex-row items-center justify-between">
-          <Pressable onPress={() => router.back()} className="mr-3">
-            <IconSymbol name="chevron.left" size={24} color="#000" />
-          </Pressable>
-          <Text className="text-xl font-bold flex-1">Vendors</Text>
-        </View>
-
-        <BrowsingLocation />
-        {/* Search Bar */}
-        <View className="px-4 pb-4">
-          <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-3">
-            <IconSymbol
-              name="magnifyingglass"
-              size={20}
-              color={Colors.light.icon}
-            />
-            <TextInput
-              placeholder="Search vendors..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 ml-3 text-base"
-              placeholderTextColor="#6b7280"
-              style={{ color: '#111827' }}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery('')}>
-                <IconSymbol
-                  name="xmark.circle.fill"
-                  size={20}
-                  color="#9ca3af"
-                />
-              </Pressable>
-            )}
-          </View>
-        </View>
-
-        {/* Filter Tabs */}
-        <View className="flex-row px-4 pb-4 space-x-2">
+        <View
+          style={{
+            minHeight: 56,
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
           <Pressable
-            onPress={() => setFilterType('all')}
-            className={`flex-1 py-2.5 rounded-full items-center ${
-              filterType === 'all' ? 'bg-[#1E8449]' : 'bg-gray-100'
-            }`}
-          >
-            <Text
-              className={`font-semibold text-sm ${
-                filterType === 'all' ? 'text-white' : 'text-gray-700'
-              }`}
-            >
-              All Vendors
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setFilterType('featured')}
-            className={`flex-1 py-2.5 rounded-full items-center mx-2 ${
-              filterType === 'featured' ? 'bg-[#1E8449]' : 'bg-gray-100'
-            }`}
-          >
-            <Text
-              className={`font-semibold text-sm ${
-                filterType === 'featured' ? 'text-white' : 'text-gray-700'
-              }`}
-            >
-              Featured
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              if (!location) {
-                requestLocation();
-              }
-              setFilterType('nearby');
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace('/(tabs)')
+            }
+            style={{
+              width: 44,
+              height: 44,
+              marginLeft: -8,
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-            className={`flex-1 py-2.5 rounded-full items-center ${
-              filterType === 'nearby' ? 'bg-[#1E8449]' : 'bg-gray-100'
-            }`}
           >
-            <Text
-              className={`font-semibold text-sm ${
-                filterType === 'nearby' ? 'text-white' : 'text-gray-700'
-              }`}
-            >
-              Nearby
-            </Text>
+            <ChevronLeft size={24} color={palette.ink} />
           </Pressable>
-        </View>
-
-        {/* Radius Filter - Only show when "nearby" is selected */}
-        {filterType === 'nearby' && (
-          <View className="px-4 pb-3">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-sm text-gray-500">
-                {isLoading
-                  ? 'Loading...'
-                  : `${displayVendors.length} vendors found`}
-              </Text>
-              <Pressable
-                onPress={() => setShowRadiusFilter(!showRadiusFilter)}
-                className="flex-row items-center bg-gray-100 px-3 py-1.5 rounded-full"
-              >
-                <IconSymbol
-                  name="slider.horizontal.3"
-                  size={14}
-                  color="#374151"
-                />
-                <Text className="text-xs font-medium text-gray-700 ml-1.5">
-                  {locationRadius} km
-                </Text>
-              </Pressable>
-            </View>
-
-            {showRadiusFilter && (
-              <View className="bg-gray-50 rounded-2xl p-4 mt-2">
-                <Text className="text-xs font-semibold text-gray-700 mb-3">
-                  Search Radius
-                </Text>
-                <View className="flex-row flex-wrap mb-3">
-                  {RADIUS_OPTIONS.map((radius) => (
-                    <FilterChip
-                      key={radius}
-                      label={`${radius} km`}
-                      isActive={locationRadius === radius}
-                      onPress={() => {
-                        setLocationRadius(radius);
-                        setCustomRadius('');
-                      }}
-                    />
-                  ))}
-                </View>
-
-                {/* Custom Radius Input */}
-                <View className="flex-row items-center">
-                  <Text className="text-xs text-gray-600 mr-2">Custom:</Text>
-                  <View className="flex-1 flex-row items-center bg-white rounded-lg px-3 py-2 border border-gray-200">
-                    <TextInput
-                      placeholder="Enter km"
-                      keyboardType="numeric"
-                      value={customRadius}
-                      onChangeText={(text) => {
-                        setCustomRadius(text);
-                        const value = parseInt(text);
-                        if (!isNaN(value) && value > 0 && value <= 200) {
-                          setLocationRadius(value);
-                        }
-                      }}
-                      className="flex-1 text-sm text-gray-900"
-                      placeholderTextColor="#9ca3af"
-                      maxLength={3}
-                    />
-                    {!!(
-                      customRadius && !RADIUS_OPTIONS.includes(locationRadius)
-                    ) && (
-                      <View className="ml-2 bg-[#1E8449]/10 px-2 py-1 rounded">
-                        <Text className="text-xs font-medium text-[#1E8449]">
-                          {locationRadius} km
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <Text className="text-[10px] text-gray-400 mt-1 ml-14">
-                  Max: 200 km
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Results Count - For non-nearby filters */}
-        {filterType !== 'nearby' && (
-          <View className="px-4 pb-3">
-            <Text className="text-sm text-gray-500">
-              {isLoading
-                ? 'Loading...'
-                : `${displayVendors.length} vendors found`}
+          <View style={{ flex: 1 }}>
+            <Text style={ui.title}>Vendors</Text>
+            <Text
+              style={{ fontSize: 12, lineHeight: 18, color: palette.muted }}
+            >
+              Find your next pickup
             </Text>
           </View>
-        )}
-      </View>
-
-      {/* Vendors Grid */}
-      {isLoading ? (
-        <ScrollView className="flex-1 px-4 pt-4">
-          <View className="flex-row flex-wrap justify-between">
-            {[...Array(6)].map((_, i) => (
-              <View key={i} className="w-[48%]">
-                <Skeleton className="w-full h-56 rounded-2xl mb-4" />
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      ) : displayVendors.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-4">
-          <IconSymbol name="storefront" size={64} color="#9ca3af" />
-          <Text className="text-gray-500 text-center mt-4 text-lg font-medium">
-            {filterType === 'nearby'
-              ? location
-                ? 'No vendors found nearby'
-                : locationError ||
-                  'Use current location to find nearby vendors, or choose All to browse without location'
-              : filterType === 'featured'
-                ? 'No featured vendors at the moment'
-                : 'No vendors available'}
-          </Text>
-          {filterType === 'nearby' && !location && (
+        </View>
+        <BrowsingLocation />
+        <View
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 12,
+            minHeight: 44,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            backgroundColor: '#f2f5f3',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Search size={18} color={palette.muted} />
+          <TextInput
+            accessibilityLabel="Search vendors"
+            placeholder="Search vendors"
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => Keyboard.dismiss()}
+            autoCorrect={false}
+            returnKeyType="search"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 44,
+              fontSize: 14,
+              color: palette.ink,
+            }}
+          />
+          {query.length > 0 && (
             <Pressable
-              onPress={requestLocation}
-              className="mt-4 bg-[#1E8449] px-6 py-3 rounded-full"
+              accessibilityRole="button"
+              accessibilityLabel="Clear vendor search"
+              onPress={() => setQuery('')}
+              style={{
+                width: 36,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <Text className="text-white font-semibold">Enable Location</Text>
+              <X size={17} color={palette.muted} />
             </Pressable>
           )}
         </View>
+        <View
+          style={{
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            gap: 8,
+            paddingBottom: 10,
+          }}
+        >
+          {filterValues.map((value) => (
+            <Pressable
+              key={value}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: filter === value }}
+              onPress={() => setFilter(value)}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: filter === value ? palette.green : palette.border,
+                backgroundColor:
+                  filter === value ? palette.greenSurface : '#fff',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 5,
+              }}
+            >
+              {value === 'featured' && (
+                <Sparkles size={13} color={palette.orangeInk} />
+              )}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: filter === value ? palette.green : palette.muted,
+                }}
+              >
+                {value === 'all'
+                  ? 'All'
+                  : value === 'featured'
+                    ? 'Featured'
+                    : 'Nearby'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: palette.muted }}>
+              {filter === 'nearby' && !hasArea
+                ? 'Choose an area to find vendors'
+                : active.isLoading
+                  ? 'Finding vendors…'
+                  : `Showing ${vendors.length} ${vendors.length === 1 ? 'vendor' : 'vendors'}`}
+            </Text>
+            <Text
+              style={{ fontSize: 11, lineHeight: 17, color: palette.muted }}
+            >
+              {location?.city
+                ? `In ${location.city}`
+                : location?.coords
+                  ? 'Around your selected area'
+                  : 'Across all areas'}
+            </Text>
+          </View>
+          {filter === 'nearby' && !!location?.coords && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Change vendor search radius"
+              onPress={() => {
+                setDraft(String(radius));
+                setNotice('');
+                setRadiusOpen(true);
+              }}
+              style={{
+                minHeight: 44,
+                paddingHorizontal: 10,
+                gap: 5,
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderRadius: 10,
+                backgroundColor: palette.greenSurface,
+              }}
+            >
+              <SlidersHorizontal size={15} color={palette.green} />
+              <Text style={ui.link}>{radius} km</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+      {filter === 'nearby' && !hasArea ? (
+        <View style={{ padding: 16, gap: 12 }}>
+          <Message
+            title="Choose where to browse"
+            body="Select a city or area above to find pickup vendors."
+          />
+          {!!locationError && <Text style={ui.muted}>{locationError}</Text>}
+          <Action
+            secondary
+            label="Use my current location"
+            busy={gpsLoading}
+            onPress={() => void requestLocation()}
+          />
+        </View>
       ) : (
-        <ScrollView
-          className="flex-1 px-4 pt-4"
-          showsVerticalScrollIndicator={false}
+        <FlatList
+          data={vendors}
+          keyExtractor={(v) => String(v.id)}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: Math.max(24, insets.bottom + 16),
+            gap: 14,
+            flexGrow: 1,
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl
-              refreshing={false}
-              onRefresh={refetch}
-              tintColor={Colors.light.tint}
+              refreshing={refreshing}
+              onRefresh={() => void refresh()}
+              tintColor={palette.green}
             />
           }
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          <View className="flex-row flex-wrap justify-between">
-            {displayVendors.map((vendor) => (
-              <View key={vendor.id} className="w-[48%]">
-                <VendorGridCard item={vendor} userLocation={location?.coords} />
+          renderItem={({ item }) => (
+            <VendorCard
+              item={item}
+              variant="list"
+              userLocation={location?.coords}
+            />
+          )}
+          ListHeaderComponent={
+            active.isError && vendors.length > 0 ? (
+              <Message
+                title="Unable to refresh vendors"
+                body="Showing your previous results. Pull down to retry."
+                onRetry={() => void active.refetch()}
+              />
+            ) : null
+          }
+          ListEmptyComponent={
+            active.isLoading ? (
+              <View style={{ gap: 14 }}>
+                {[0, 1, 2].map((i) => (
+                  <View
+                    key={i}
+                    style={{
+                      height: 174,
+                      borderRadius: 18,
+                      backgroundColor: '#e6ede8',
+                    }}
+                  />
+                ))}
               </View>
+            ) : active.isError ? (
+              <Message
+                title="Unable to load vendors"
+                body="Check your connection and try again."
+                onRetry={() => void active.refetch()}
+              />
+            ) : (
+              <View style={{ gap: 12 }}>
+                <Message
+                  title={
+                    search
+                      ? 'No matching vendors'
+                      : filter === 'featured'
+                        ? 'No featured vendors here yet'
+                        : 'No vendors found in this area'
+                  }
+                  body={
+                    search
+                      ? 'Try another vendor name or clear your search.'
+                      : 'Choose another area above or browse a different vendor category.'
+                  }
+                />
+                {search.length > 0 && (
+                  <Action
+                    secondary
+                    label="Clear search"
+                    onPress={() => setQuery('')}
+                  />
+                )}
+              </View>
+            )
+          }
+        />
+      )}
+      <BottomSheet
+        visible={radiusOpen}
+        onClose={() => setRadiusOpen(false)}
+        title="Vendor search radius"
+        preferredHeight={380}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
+        >
+          <Text style={ui.muted}>
+            Find vendors within this distance of your selected location.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {[5, 10, 15, 20, 50].map((km) => (
+              <Pressable
+                key={km}
+                onPress={() => setDraft(String(km))}
+                style={{
+                  minHeight: 40,
+                  paddingHorizontal: 12,
+                  borderRadius: 9,
+                  borderWidth: 1,
+                  borderColor:
+                    draft === String(km) ? palette.green : palette.border,
+                  justifyContent: 'center',
+                  backgroundColor:
+                    draft === String(km) ? palette.greenSurface : '#fff',
+                }}
+              >
+                <Text style={{ fontSize: 13, color: palette.green }}>
+                  {km} km
+                </Text>
+              </Pressable>
             ))}
           </View>
+          <TextInput
+            accessibilityLabel="Custom vendor radius in kilometres"
+            placeholder="Custom radius (1–200 km)"
+            keyboardType="number-pad"
+            value={draft}
+            onChangeText={setDraft}
+            maxLength={3}
+            style={ui.input}
+          />
+          {!!notice && (
+            <Text
+              accessibilityRole="alert"
+              style={{ fontSize: 13, color: palette.red }}
+            >
+              {notice}
+            </Text>
+          )}
+          <Action
+            label="Apply radius"
+            onPress={() => {
+              const value = Number(draft);
+              if (!Number.isSafeInteger(value) || value < 1 || value > 200) {
+                setNotice('Enter a whole number between 1 and 200 km.');
+                return;
+              }
+              setRadius(value);
+              setRadiusOpen(false);
+            }}
+          />
         </ScrollView>
-      )}
+      </BottomSheet>
     </View>
   );
 }

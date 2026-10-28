@@ -98,6 +98,7 @@ export default function ProfileScreen() {
           {(config.data?.coins_enabled || config.data?.referrals_enabled) && (
             <MenuRow
               icon={Gift}
+              tone="accent"
               label="SMM Coin & referrals"
               detail="Your rewards and invitations"
               onPress={() => router.push('/rewards')}
