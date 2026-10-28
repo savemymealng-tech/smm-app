@@ -25,7 +25,7 @@ export const profileApi = {
   async getProfile(): Promise<User> {
     console.log('📋 profileApi.getProfile - Fetching profile...');
     const response = await apiClient.get<ApiResponse<User>>(
-      API_CONFIG.ENDPOINTS.PROFILE.GET
+      API_CONFIG.ENDPOINTS.PROFILE.GET,
     );
     console.log('📋 profileApi.getProfile - Response:', response.data);
     return extractData(response);
@@ -39,7 +39,7 @@ export const profileApi = {
     console.log('📋 profileApi.updateProfile - Updating with:', data);
     const response = await apiClient.put<ApiResponse<User>>(
       API_CONFIG.ENDPOINTS.PROFILE.UPDATE,
-      data
+      data,
     );
     console.log('📋 profileApi.updateProfile - Response:', response.data);
     return extractData(response);
@@ -52,11 +52,15 @@ export const profileApi = {
   async deleteAccount(): Promise<void> {
     console.log('📋 profileApi.deleteAccount - Deleting account...');
     const response = await apiClient.delete<ApiResponse<null>>(
-      API_CONFIG.ENDPOINTS.PROFILE.DELETE
+      API_CONFIG.ENDPOINTS.PROFILE.DELETE,
     );
 
     if (!response.data.success) {
-      throw new Error(response.data.error || response.data.message || 'Failed to delete account');
+      throw new Error(
+        response.data.error ||
+          response.data.message ||
+          'Failed to delete account',
+      );
     }
   },
 
@@ -64,17 +68,20 @@ export const profileApi = {
    * Upload profile picture
    * POST /customers/profile/picture
    */
-  async uploadProfilePicture(uri: string, type: string = 'image/jpeg'): Promise<{ url: string }> {
+  async uploadProfilePicture(
+    uri: string,
+    type: string = 'image/jpeg',
+  ): Promise<{ url: string }> {
     console.log('📋 profileApi.uploadProfilePicture - Uploading...');
     // Create FormData for file upload
     const formData = new FormData();
-    
+
     // For React Native, we need to handle the file differently
     // @ts-ignore - FormData in React Native accepts objects with specific structure
     formData.append('profile_picture', {
       uri,
       type,
-      name: 'profile.jpg',
+      name: `profile.${({ 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' } as Record<string, string>)[type] || 'jpg'}`,
     } as any);
 
     const response = await apiClient.post<ApiResponse<{ url: string }>>(
@@ -84,9 +91,8 @@ export const profileApi = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-      }
+      },
     );
     return extractData(response);
   },
 };
-

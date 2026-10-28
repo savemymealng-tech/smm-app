@@ -7,6 +7,7 @@
  *   https://savemymeal.com/app/redirect?path=/verify-otp&params=code=123456&email=user@example.com
  */
 
+import { resolveAppLink } from "@/lib/deep-links";
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
@@ -37,7 +38,11 @@ export default function VerifyOTPScreen() {
     verificationContextAtom,
   );
 
-  const params = useLocalSearchParams<{ email?: string; code?: string }>();
+  const params = useLocalSearchParams<{
+    email?: string;
+    code?: string;
+    returnTo?: string;
+  }>();
   const initialEmail =
     typeof params.email === "string"
       ? params.email
@@ -103,7 +108,16 @@ export default function VerifyOTPScreen() {
       );
 
       // Redirect to login screen
-      router.replace("/login");
+      router.replace({
+        pathname: "/login",
+        params: {
+          email: finalEmail.trim(),
+          returnTo:
+            typeof params.returnTo === "string"
+              ? resolveAppLink(params.returnTo) || "/(tabs)"
+              : "/(tabs)",
+        },
+      });
     } catch (err: any) {
       const msg =
         err.response?.data?.error ??

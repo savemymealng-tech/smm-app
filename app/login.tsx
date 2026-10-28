@@ -1,370 +1,185 @@
-import { resolveAppLink } from "@/lib/deep-links";
-import { Button } from "@/components/ui/button";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Text } from "@/components/ui/text";
-import { api } from "@/lib/api";
-import { setAuthStateAtom, verificationContextAtom } from "@/lib/atoms/auth";
-import type { User } from "@/types";
-import { router, useLocalSearchParams } from "expo-router";
-import { useAtom } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from 'react';
+import { Keyboard, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useSetAtom } from 'jotai';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+  AuthError,
+  AuthField,
+  AuthLink,
+  AuthScreen,
+} from '@/components/auth/auth-screen';
+import { Action, ui } from '@/components/ui/screen-kit';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { api } from '@/lib/api';
+import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
+import { resolveAppLink } from '@/lib/deep-links';
+import { authError, loginErrors, verificationEmail } from '@/lib/auth-form';
+import type { User } from '@/types';
 
 export default function LoginScreen() {
-  const insets = useSafeAreaInsets();
-  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
-  const [, setAuthState] = useAtom(setAuthStateAtom);
-  const [, setVerificationContext] = useAtom(verificationContextAtom);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleLogin = async () => {
-    if (!email.trim()) {
-      setError("Please enter your email address");
-      return;
-    }
-
-    if (!password.trim() || password.length < 6) {
-      setError("Please enter a valid password (minimum 6 characters)");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
+  const params = useLocalSearchParams<{ email?: string; returnTo?: string }>();
+  const destination =
+    typeof params.returnTo === 'string'
+      ? resolveAppLink(params.returnTo) || '/(tabs)'
+      : '/(tabs)';
+  const setAuth = useSetAtom(setAuthStateAtom);
+  const setVerification = useSetAtom(verificationContextAtom);
+  const [email, setEmail] = useState(
+    typeof params.email === 'string' ? params.email : '',
+  );
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
+  const passwordInput = useRef<TextInput>(null);
+  async function login() {
+    if (submitting.current) return;
+    const validation = loginErrors(email, password);
+    setErrors(validation);
+    setError('');
+    if (Object.keys(validation).length) return;
+    submitting.current = true;
+    setBusy(true);
+    Keyboard.dismiss();
     try {
-      const result = await api.auth.login({
-        email: email.trim(),
-        password: password.trim(),
-      });
-
-      // Fetch full user profile after login
-      let user: User | null = null;
+      // Passwords are submitted exactly as typed, including spaces.
+      const result = await api.auth.login({ email: email.trim(), password });
+      let user: User;
       try {
         user = await api.profile.getProfile();
-      } catch (profileError) {
-        console.error("Error fetching profile:", profileError);
-        // Create a basic user object from auth response
+      } catch {
         user = {
-          id: result.user?.id?.toString() || "",
-          email: result.user?.email || email,
-          name: "",
-          phone: "",
-          addresses: [],
-          paymentMethods: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          id: String(result.user.id),
+          email: result.user.email || email.trim(),
         };
       }
-
-      await setAuthState({
+      await setAuth({
         user,
         accessToken: result.token,
-        refreshToken: result.refreshToken || "",
+        refreshToken: result.refreshToken || '',
       });
-
-      router.replace(
-        (typeof returnTo === "string"
-          ? resolveAppLink(returnTo) || "/(tabs)"
-          : "/(tabs)") as any,
-      );
-    } catch (err: any) {
-      console.log("Login error:", err); // Debug log
-
-      // Check if email not verified
-      // The API returns error data wrapped in a 'data' object
-      if (err?.statusCode === 403) {
-        const responseData = err?.responseData?.data || err?.responseData;
-        const details = responseData?.details;
-
-        console.log("403 error details:", details); // Debug log
-
-        if (
-          details?.code === "EMAIL_NOT_VERIFIED" ||
-          details?.requires_verification
-        ) {
-          Alert.alert(
-            "Email Not Verified",
-            "Please verify your email address to continue.",
-            [
-              {
-                text: "Verify Now",
-                onPress: () => {
-                  setLoading(false);
-                  const emailToVerify = details?.email || email.trim();
-                  console.log(
-                    "Navigating to verify-otp with email:",
-                    emailToVerify,
-                  );
-                  // Set verification context
-                  setVerificationContext({
-                    email: emailToVerify,
-                    fromSignup: false,
-                  });
-                  // Small delay to ensure state is set before navigation
-                  setTimeout(() => {
-                    router.push("/verify-otp");
-                  }, 50);
-                },
-              },
-              {
-                text: "Cancel",
-                style: "cancel",
-              },
-            ],
-          );
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Also check in error message for "email not verified" text
-      const errorMsg = err?.error || err?.message || "";
-      if (
-        errorMsg.toLowerCase().includes("email not verified") ||
-        errorMsg.toLowerCase().includes("verify your email")
-      ) {
-        Alert.alert(
-          "Email Not Verified",
-          "Please verify your email address to continue.",
-          [
-            {
-              text: "Verify Now",
-              onPress: () => {
-                setLoading(false);
-                const emailToVerify = email.trim();
-                // Set verification context
-                setVerificationContext({
-                  email: emailToVerify,
-                  fromSignup: false,
-                });
-                // Small delay to ensure state is set before navigation
-                setTimeout(() => {
-                  router.push("/verify-otp");
-                }, 50);
-              },
-            },
-            {
-              text: "Cancel",
-              style: "cancel",
-            },
-          ],
+      router.replace(destination as never);
+    } catch (cause) {
+      const unverified = verificationEmail(cause, email);
+      if (unverified) setVerifyEmail(unverified);
+      else
+        setError(
+          authError(
+            cause,
+            'Unable to sign in. Check your details and try again.',
+          ),
         );
-        setLoading(false);
-        return;
-      }
-
-      // Extract the most user-friendly error message
-      let errorMessage = "Invalid email or password";
-
-      if (err?.error) {
-        errorMessage = err.error;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-
-      // Handle specific error cases
-      if (
-        errorMessage.toLowerCase().includes("not found") ||
-        errorMessage.toLowerCase().includes("does not exist")
-      ) {
-        errorMessage =
-          "No account found with this email. Please sign up first.";
-      } else if (
-        errorMessage.toLowerCase().includes("incorrect") ||
-        errorMessage.toLowerCase().includes("invalid password") ||
-        errorMessage.toLowerCase().includes("wrong password")
-      ) {
-        errorMessage = "Incorrect password. Please try again.";
-      } else if (
-        errorMessage.toLowerCase().includes("blocked") ||
-        errorMessage.toLowerCase().includes("suspended")
-      ) {
-        errorMessage =
-          "Your account has been suspended. Please contact support.";
-      }
-
-      setError(errorMessage);
     } finally {
-      setLoading(false);
+      submitting.current = false;
+      setBusy(false);
     }
-  };
-
-  const handleForgotPassword = () => {
-    router.push("/forgot-password");
-  };
-
+  }
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      className="flex-1 bg-white"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 20,
-          paddingHorizontal: 24,
-          minHeight: "100%",
-        }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Pressable onPress={() => router.replace("/(tabs)")} className="mb-8">
-          <IconSymbol name="chevron.left" size={24} color="#111827" />
-        </Pressable>
-
-        <View className="items-center mb-8">
-          <View className="w-20 h-20 rounded-full bg-[#15785B] items-center justify-center mb-4 overflow-hidden">
-            <Image
-              source={require("@/assets/adaptive-icon.png")}
-              style={{ width: 60, height: 60 }}
-              resizeMode="contain"
-            />
-          </View>
-          <Text className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome Back
-          </Text>
-          <Text className="text-gray-500 text-center">
-            Sign in to continue to Savemymeal
-          </Text>
-        </View>
-
-        <View className="mb-6">
-          {/* Error Message */}
-          {error ? (
-            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200">
-              <Text className="text-red-800 text-sm">{error}</Text>
-            </View>
-          ) : null}
-
-          {/* Email Field */}
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </Text>
-            <TextInput
-              placeholder="your@email.com"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (error) setError("");
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              placeholderTextColor="#6b7280"
-              style={{
-                height: 56,
-                paddingHorizontal: 16,
-                fontSize: 16,
-                color: "#111827",
-                backgroundColor: "#f9fafb",
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "#e5e7eb",
-              }}
-            />
-          </View>
-
-          {/* Password Field */}
-          <View className="mb-2">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Password
-            </Text>
-            <View className="relative">
-              <TextInput
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (error) setError("");
-                }}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="password"
-                placeholderTextColor="#6b7280"
-                style={{
-                  height: 56,
-                  paddingHorizontal: 16,
-                  paddingRight: 50,
-                  fontSize: 16,
-                  color: "#111827",
-                  backgroundColor: "#f9fafb",
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "#e5e7eb",
-                }}
-              />
-              <Pressable
-                onPress={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: 16,
-                  top: 0,
-                  bottom: 0,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <IconSymbol
-                  name={showPassword ? "eye.slash" : "eye"}
-                  size={20}
-                  color="#6b7280"
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Forgot Password */}
-          <Pressable onPress={handleForgotPassword} className="self-end mb-6">
-            <Text className="text-blue-600 text-sm font-medium">
-              Forgot Password?
-            </Text>
-          </Pressable>
-
-          {/* Submit Button */}
-          <Button
-            onPress={handleLogin}
-            disabled={loading}
-            className="w-full h-14 rounded-2xl"
+    <>
+      <AuthScreen
+        title="Welcome back"
+        description="Sign in to manage your orders, pickups and rewards."
+        onBack={() => !busy && router.replace('/(tabs)')}
+        footer={
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+            }}
           >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text className="text-white font-bold text-base">Sign In</Text>
-            )}
-          </Button>
-        </View>
-
-        <View className="mt-auto pt-8">
-          <View className="flex-row justify-center items-center">
-            <Text className="text-center text-gray-400 text-sm">
-              Don't have an account?{" "}
-            </Text>
-            <Pressable onPress={() => router.push("/signup")}>
-              <Text className="text-blue-600 font-semibold">Sign up</Text>
-            </Pressable>
+            <Text style={ui.muted}>New to Savemymeal?</Text>
+            <AuthLink
+              label="Create an account"
+              disabled={busy}
+              onPress={() =>
+                router.push({
+                  pathname: '/signup',
+                  params: { returnTo: destination },
+                })
+              }
+            />
           </View>
+        }
+      >
+        <AuthError message={error} />
+        <AuthField
+          label="Email address"
+          placeholder="you@example.com"
+          value={email}
+          error={errors.email}
+          onChangeText={(value) => {
+            setEmail(value);
+            setErrors((previous) => ({ ...previous, email: '' }));
+            setError('');
+          }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          editable={!busy}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordInput.current?.focus()}
+        />
+        <AuthField
+          ref={passwordInput}
+          password
+          label="Password"
+          placeholder="Your password"
+          value={password}
+          error={errors.password}
+          onChangeText={(value) => {
+            setPassword(value);
+            setErrors((previous) => ({ ...previous, password: '' }));
+            setError('');
+          }}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          editable={!busy}
+          returnKeyType="go"
+          onSubmitEditing={() => void login()}
+        />
+        <View style={{ alignItems: 'flex-end' }}>
+          <AuthLink
+            label="Forgot password?"
+            disabled={busy}
+            onPress={() =>
+              router.push({
+                pathname: '/forgot-password',
+                params: { email: email.trim(), returnTo: destination },
+              })
+            }
+          />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <Action
+          label={busy ? 'Signing in…' : 'Sign in'}
+          busy={busy}
+          onPress={() => void login()}
+        />
+      </AuthScreen>
+      <ConfirmDialog
+        open={!!verifyEmail}
+        onClose={() => setVerifyEmail(null)}
+        title="Verify your email"
+        message="Verify your email address before signing in. You can enter your code or request a new one on the next screen."
+        primaryLabel="Verify email"
+        onPrimary={() => {
+          if (!verifyEmail) return;
+          setVerification({ email: verifyEmail, fromSignup: false });
+          const value = verifyEmail;
+          setVerifyEmail(null);
+          router.push({
+            pathname: '/verify-otp',
+            params: { email: value, returnTo: destination },
+          });
+        }}
+        secondaryLabel="Keep editing"
+      />
+    </>
   );
 }

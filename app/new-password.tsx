@@ -1,34 +1,38 @@
 /**
  * New Password Screen
- * 
+ *
  * Customer creates a new password after code verification
  */
 
+import { resolveAppLink } from "@/lib/deep-links";
 import { Button } from "@/components/ui/button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Text } from "@/components/ui/text";
 import { toast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { passwordResetContextAtom } from "@/lib/atoms/auth";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function NewPasswordScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [passwordResetContext, setPasswordResetContext] = useAtom(passwordResetContextAtom);
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const [passwordResetContext, setPasswordResetContext] = useAtom(
+    passwordResetContextAtom,
+  );
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,19 +43,28 @@ export default function NewPasswordScreen() {
   const email = passwordResetContext?.email || "";
   const code = passwordResetContext?.code || "";
 
-  console.log('🔑 [NewPassword] Context:', { email, code: code ? '***' : null });
+  console.log("🔑 [NewPassword] Context:", {
+    email,
+    code: code ? "***" : null,
+  });
 
   useEffect(() => {
     // Verify we have the required context
     if (!email || !code) {
-      toast.error("Invalid Access", "Please start from the forgot password screen");
+      toast.error(
+        "Invalid Access",
+        "Please start from the forgot password screen",
+      );
       router.replace("/forgot-password");
     }
   }, []);
 
   const handleResetPassword = async () => {
     if (!email || !code) {
-      toast.error("Invalid Session", "Please start the password reset process again");
+      toast.error(
+        "Invalid Session",
+        "Please start the password reset process again",
+      );
       router.replace("/forgot-password");
       return;
     }
@@ -62,12 +75,18 @@ export default function NewPasswordScreen() {
     }
 
     if (newPassword.length < 6) {
-      toast.warning("Password Too Short", "Password must be at least 6 characters");
+      toast.warning(
+        "Password Too Short",
+        "Password must be at least 6 characters",
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.warning("Passwords Don't Match", "Please make sure both passwords are identical");
+      toast.warning(
+        "Passwords Don't Match",
+        "Please make sure both passwords are identical",
+      );
       return;
     }
 
@@ -76,7 +95,7 @@ export default function NewPasswordScreen() {
       await api.auth.resetPasswordWithCode({
         email,
         code,
-        newPassword: newPassword.trim(),
+        newPassword,
       });
 
       // Clear the reset context
@@ -92,10 +111,20 @@ export default function NewPasswordScreen() {
         [
           {
             text: "Go to Login",
-            onPress: () => router.replace("/login"),
+            onPress: () =>
+              router.replace({
+                pathname: "/login",
+                params: {
+                  email,
+                  returnTo:
+                    typeof returnTo === "string"
+                      ? resolveAppLink(returnTo) || "/(tabs)"
+                      : "/(tabs)",
+                },
+              }),
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
     } catch (err: any) {
       const msg =
@@ -122,7 +151,7 @@ export default function NewPasswordScreen() {
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
           paddingHorizontal: 24,
-          minHeight: '100%',
+          minHeight: "100%",
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -148,8 +177,10 @@ export default function NewPasswordScreen() {
 
           {/* New Password */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">New Password</Text>
-            <View style={{ position: 'relative' }}>
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              New Password
+            </Text>
+            <View style={{ position: "relative" }}>
               <TextInput
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -158,20 +189,20 @@ export default function NewPasswordScreen() {
                 placeholderTextColor="#9ca3af"
                 style={{
                   borderWidth: 1,
-                  borderColor: '#e5e7eb',
+                  borderColor: "#e5e7eb",
                   borderRadius: 12,
                   paddingHorizontal: 16,
                   paddingVertical: 12,
                   paddingRight: 48,
                   fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
+                  color: "#111827",
+                  backgroundColor: "#f9fafb",
                 }}
               />
               <Pressable
                 onPress={() => setShowNew(!showNew)}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   right: 12,
                   top: 12,
                   padding: 4,
@@ -188,8 +219,10 @@ export default function NewPasswordScreen() {
 
           {/* Confirm Password */}
           <View className="mb-6">
-            <Text className="text-sm font-medium text-gray-700 mb-2">Confirm Password</Text>
-            <View style={{ position: 'relative' }}>
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              Confirm Password
+            </Text>
+            <View style={{ position: "relative" }}>
               <TextInput
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -198,20 +231,20 @@ export default function NewPasswordScreen() {
                 placeholderTextColor="#9ca3af"
                 style={{
                   borderWidth: 1,
-                  borderColor: '#e5e7eb',
+                  borderColor: "#e5e7eb",
                   borderRadius: 12,
                   paddingHorizontal: 16,
                   paddingVertical: 12,
                   paddingRight: 48,
                   fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
+                  color: "#111827",
+                  backgroundColor: "#f9fafb",
                 }}
               />
               <Pressable
                 onPress={() => setShowConfirm(!showConfirm)}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   right: 12,
                   top: 12,
                   padding: 4,
@@ -238,7 +271,9 @@ export default function NewPasswordScreen() {
                 <Text className="text-white font-semibold">Resetting…</Text>
               </View>
             ) : (
-              <Text className="text-white font-semibold text-base">Reset Password</Text>
+              <Text className="text-white font-semibold text-base">
+                Reset Password
+              </Text>
             )}
           </Button>
         </View>

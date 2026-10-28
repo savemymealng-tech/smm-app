@@ -1,92 +1,107 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { api } from '../api'
-import type { UpdateProfileRequest } from '../api/profile'
-import { authAtom, clearAuthStateAtom, setAuthStateAtom } from '../atoms/auth'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { api } from '../api';
+import type { UpdateProfileRequest } from '../api/profile';
+import { authAtom, clearAuthStateAtom, setAuthStateAtom } from '../atoms/auth';
 
 export function useProfile() {
-  const authState = useAtomValue(authAtom)
+  const authState = useAtomValue(authAtom);
 
   return useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
-      return await api.profile.getProfile()
+      return await api.profile.getProfile();
     },
     enabled: authState.isAuthenticated,
     staleTime: 5 * 60 * 1000,
-  })
+  });
 }
 
 export function useUpdateProfile() {
-  const queryClient = useQueryClient()
-  const [, setAuthState] = useAtom(setAuthStateAtom)
-  const authState = useAtomValue(authAtom)
+  const queryClient = useQueryClient();
+  const [, setAuthState] = useAtom(setAuthStateAtom);
+  const authState = useAtomValue(authAtom);
 
   return useMutation({
     mutationFn: async (data: UpdateProfileRequest) => {
-      return await api.profile.updateProfile(data)
+      return await api.profile.updateProfile(data);
     },
     onSuccess: async (updatedUser) => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      await queryClient.cancelQueries({ queryKey: ['profile'] });
+      const merged = {
+        ...authState.user,
+        ...queryClient.getQueryData<import('../../types').User>(['profile']),
+        ...updatedUser,
+      };
+      if (merged) queryClient.setQueryData(['profile'], merged);
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       // Update auth state with new user data
       // Get current tokens from tokenManager to ensure we have the latest
-      const accessToken = await api.tokenManager.getAccessToken()
-      const refreshToken = await api.tokenManager.getRefreshToken()
-      
+      const accessToken = await api.tokenManager.getAccessToken();
+      const refreshToken = await api.tokenManager.getRefreshToken();
+
       if (accessToken) {
         setAuthState({
-          user: updatedUser,
+          user: merged,
           accessToken,
           refreshToken: refreshToken || undefined,
-        })
+        });
       }
     },
-  })
+  });
 }
 
 export function useUploadProfilePicture() {
-  const queryClient = useQueryClient()
-  const [, setAuthState] = useAtom(setAuthStateAtom)
-  const authState = useAtomValue(authAtom)
+  const queryClient = useQueryClient();
+  const [, setAuthState] = useAtom(setAuthStateAtom);
+  const authState = useAtomValue(authAtom);
 
   return useMutation({
     mutationFn: async ({ uri, type }: { uri: string; type?: string }) => {
-      return await api.profile.uploadProfilePicture(uri, type)
+      return await api.profile.uploadProfilePicture(uri, type);
     },
     onSuccess: async (result) => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      await queryClient.cancelQueries({ queryKey: ['profile'] });
+      const current =
+        queryClient.getQueryData<import('../../types').User>(['profile']) ||
+        authState.user;
+      const merged = current
+        ? {
+            ...current,
+            profile_picture_url: result.url,
+            avatar: result.url,
+          }
+        : undefined;
+      if (merged) queryClient.setQueryData(['profile'], merged);
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       // Update auth state with new avatar URL
       // Get current tokens from tokenManager to ensure we have the latest
-      const accessToken = await api.tokenManager.getAccessToken()
-      const refreshToken = await api.tokenManager.getRefreshToken()
-      
-      if (accessToken && authState.user) {
-      // Merge the new avatar URL with existing user data
+      const accessToken = await api.tokenManager.getAccessToken();
+      const refreshToken = await api.tokenManager.getRefreshToken();
+
+      if (accessToken && merged) {
+        // Merge the new avatar URL with existing user data
         setAuthState({
-          user: {
-            ...authState.user,
-            avatar: result.url,
-          },
+          user: merged,
           accessToken,
           refreshToken: refreshToken || undefined,
-        })
+        });
       }
     },
-  })
+  });
 }
 
 export function useDeleteAccount() {
-  const queryClient = useQueryClient()
-  const clearAuthState = useSetAtom(clearAuthStateAtom)
+  const queryClient = useQueryClient();
+  const clearAuthState = useSetAtom(clearAuthStateAtom);
 
   return useMutation({
     mutationFn: async () => {
-      await api.profile.deleteAccount()
+      await api.profile.deleteAccount();
     },
     onSuccess: async () => {
-      await clearAuthState()
-      queryClient.clear()
+      await clearAuthState();
+      queryClient.clear();
     },
-  })
+  });
 }
-

@@ -1,363 +1,269 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  Keyboard,
+  Linking,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAtom } from 'jotai';
-import { useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Text } from '@/components/ui/text';
+import { useSetAtom } from 'jotai';
+import { ChevronDown, ChevronUp, Gift } from 'lucide-react-native';
+import {
+  AuthError,
+  AuthField,
+  AuthLink,
+  AuthScreen,
+} from '@/components/auth/auth-screen';
+import { Action, palette, ui } from '@/components/ui/screen-kit';
 import { api } from '@/lib/api';
-import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
+import { verificationContextAtom } from '@/lib/atoms/auth';
+import { resolveAppLink } from '@/lib/deep-links';
+import { authError, normalizePhone, signupErrors } from '@/lib/auth-form';
 
 export default function SignupScreen() {
-  const insets = useSafeAreaInsets();
-  const referralParams = useLocalSearchParams<{referral_code?: string}>();
-  const [referralCode, setReferralCode] = useState(typeof referralParams.referral_code === 'string' ? referralParams.referral_code : '');
-  const [, setAuthState] = useAtom(setAuthStateAtom);
-  const [, setVerificationContext] = useAtom(verificationContextAtom);
-  
-  const [formData, setFormData] = useState({
+  const params = useLocalSearchParams<{
+    referral_code?: string;
+    returnTo?: string;
+  }>();
+  const destination =
+    typeof params.returnTo === 'string'
+      ? resolveAppLink(params.returnTo) || '/(tabs)'
+      : '/(tabs)';
+  const setVerification = useSetAtom(verificationContextAtom);
+  const [form, setForm] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // Query parameters are applied after hydration so static web HTML also matches.
+  const [referral, setReferral] = useState('');
+  const [referralOpen, setReferralOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState('');
-
-  const handleSignup = async () => {
-    // Validation
-    if (!formData.email.trim()) {
-      setError('Please enter your email address');
-      return;
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const phoneInput = useRef<TextInput>(null),
+    passwordInput = useRef<TextInput>(null),
+    confirmInput = useRef<TextInput>(null);
+  useEffect(() => {
+    if (typeof params.referral_code === 'string' && params.referral_code) {
+      setReferral(params.referral_code);
+      setReferralOpen(true);
     }
-
-    if (!formData.password.trim() || formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (!formData.phone.trim()) {
-      setError('Please enter your phone number');
-      return;
-    }
-
-    setLoading(true);
+  }, [params.referral_code]);
+  function change(key: keyof typeof form, value: string) {
+    setForm((previous) => ({ ...previous, [key]: value }));
+    setErrors((previous) => ({ ...previous, [key]: '' }));
     setError('');
+  }
+  async function signup() {
+    if (submitting.current) return;
+    const validation = signupErrors(form);
+    setErrors(validation);
+    setError('');
+    if (Object.keys(validation).length) return;
+    submitting.current = true;
+    setBusy(true);
+    Keyboard.dismiss();
     try {
-      const result = await api.auth.signup({
-        email: formData.email.trim(),
-        password: formData.password.trim(),
-        phone: formData.phone.trim(),
-        referral_code: referralCode.trim() || undefined,
+      await api.auth.signup({
+        email: form.email.trim(),
+        password: form.password,
+        phone: normalizePhone(form.phone),
+        referral_code: referral.trim() || undefined,
       });
-      
-      // Signup successful - navigate to verification screen
-      // Do NOT store tokens or set auth state yet
-      setVerificationContext({
-        email: formData.email.trim(),
-        fromSignup: true
+      setVerification({ email: form.email.trim(), fromSignup: true });
+      router.push({
+        pathname: '/verify-otp',
+        params: { email: form.email.trim(), returnTo: destination },
       });
-      // Small delay to ensure state is set before navigation
-      setTimeout(() => {
-        router.push('/verify-otp');
-      }, 50);
-      
-    } catch (err: any) {
-      // Extract the most user-friendly error message
-      let errorMessage = 'Failed to create account. Please try again.';
-      
-      if (err?.error) {
-        errorMessage = err.error;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      
-      // Handle specific error cases
-      if (errorMessage.toLowerCase().includes('duplicate') || 
-          errorMessage.toLowerCase().includes('already exists') ||
-          errorMessage.toLowerCase().includes('user already')) {
-        errorMessage = 'An account with this email already exists. Please try logging in instead.';
-      } else if (errorMessage.toLowerCase().includes('invalid email')) {
-        errorMessage = 'Please enter a valid email address.';
-      } else if (errorMessage.toLowerCase().includes('password')) {
-        errorMessage = 'Password does not meet requirements. Please use at least 6 characters.';
-      }
-      
-      setError(errorMessage);
+    } catch (cause) {
+      setError(
+        authError(cause, 'Unable to create your account. Please try again.'),
+      );
     } finally {
-      setLoading(false);
+      submitting.current = false;
+      setBusy(false);
     }
-  };
-
+  }
+  async function legal(page: 'terms' | 'privacy') {
+    try {
+      await Linking.openURL(`https://savemymeal.com/${page}`);
+    } catch {
+      setError('Unable to open this page. Please try again.');
+    }
+  }
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-white"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 20,
-          paddingHorizontal: 24,
-          minHeight: '100%',
-        }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Pressable onPress={() => router.back()} className="mb-8">
-          <IconSymbol 
-            name="chevron.left" 
-            size={24} 
-            color="#111827" 
-          />
-        </Pressable>
-
-        <View className="items-center mb-8">
-          <View className="w-20 h-20 rounded-full bg-[#15785B] items-center justify-center mb-4 overflow-hidden">
-            <Image 
-              source={require('@/assets/adaptive-icon.png')} 
-              style={{ width: 60, height: 60 }}
-              resizeMode="contain"
-            />
-          </View>
-          <Text className="text-3xl font-bold text-gray-900 mb-2">
-            Create Account
-          </Text>
-          <Text className="text-gray-500 text-center">
-            Sign up to start ordering delicious meals
-          </Text>
-        </View>
-
-        <View className="mb-6">
-          {/* Error Message */}
-          {error ? (
-            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200">
-              <Text className="text-red-800 text-sm">
-                {error}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Email Field */}
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </Text>
-            <TextInput
-              placeholder="your@email.com"
-              value={formData.email}
-              onChangeText={(text) => {
-                setFormData({ ...formData, email: text });
-                if (error) setError('');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              placeholderTextColor="#6b7280"
-              style={{
-                height: 56,
-                paddingHorizontal: 16,
-                fontSize: 16,
-                color: '#111827',
-                backgroundColor: '#f9fafb',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#e5e7eb',
-              }}
-            />
-          </View>
-
-          {/* Phone Field */}
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Phone Number
-            </Text>
-            <TextInput
-              placeholder="+234 801 234 5678"
-              value={formData.phone}
-              onChangeText={(text) => {
-                setFormData({ ...formData, phone: text });
-                if (error) setError('');
-              }}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              autoComplete="tel"
-              placeholderTextColor="#6b7280"
-              style={{
-                height: 56,
-                paddingHorizontal: 16,
-                fontSize: 16,
-                color: '#111827',
-                backgroundColor: '#f9fafb',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#e5e7eb',
-              }}
-            />
-          </View>
-
-          {/* Password Field */}
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Password
-            </Text>
-            <View className="relative">
-              <TextInput
-                placeholder="Minimum 6 characters"
-                value={formData.password}
-                onChangeText={(text) => {
-                  setFormData({ ...formData, password: text });
-                  if (error) setError('');
-                }}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="password-new"
-                placeholderTextColor="#6b7280"
-                style={{
-                  height: 56,
-                  paddingHorizontal: 16,
-                  paddingRight: 50,
-                  fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: '#e5e7eb',
-                }}
-              />
-              <Pressable
-                onPress={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: 16,
-                  top: 0,
-                  bottom: 0,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <IconSymbol
-                  name={showPassword ? 'eye.slash' : 'eye'}
-                  size={20}
-                  color="#6b7280"
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          <View className="mb-5">
-            <Text className="mb-2 text-gray-700">Referral code (optional)</Text>
-            <TextInput value={referralCode} onChangeText={setReferralCode} autoCapitalize="characters" maxLength={40} placeholder="Friend or partner code" className="rounded-xl border border-gray-300 p-4" />
-            <Text className="mt-2 text-xs text-gray-500">Enter your invite before creating your account. Eligible benefits are confirmed at checkout.</Text>
-          </View>
-          {/* Confirm Password Field */}
-          <View className="mb-6">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Confirm Password
-            </Text>
-            <View className="relative">
-              <TextInput
-                placeholder="Re-enter your password"
-                value={formData.confirmPassword}
-                onChangeText={(text) => {
-                  setFormData({ ...formData, confirmPassword: text });
-                  if (error) setError('');
-                }}
-                secureTextEntry={!showConfirmPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="password-new"
-                placeholderTextColor="#6b7280"
-                style={{
-                  height: 56,
-                  paddingHorizontal: 16,
-                  paddingRight: 50,
-                  fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: '#e5e7eb',
-                }}
-              />
-              <Pressable
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={{
-                  position: 'absolute',
-                  right: 16,
-                  top: 0,
-                  bottom: 0,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <IconSymbol
-                  name={showConfirmPassword ? 'eye.slash' : 'eye'}
-                  size={20}
-                  color="#6b7280"
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Submit Button */}
-          <Button
-            onPress={handleSignup}
-            disabled={loading}
-            className="w-full h-14 rounded-2xl"
+    <AuthScreen
+      title="Create your account"
+      description="Discover meals worth saving. Order ahead and collect from local vendors."
+      onBack={() => {
+        if (busy) return;
+        if (router.canGoBack()) router.back();
+        else router.replace('/login');
+      }}
+      footer={
+        <>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 5,
+            }}
           >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text className="text-white font-bold text-base">
-                Create Account
-              </Text>
-            )}
-          </Button>
-        </View>
-
-        <View className="mt-auto pt-8">
-          <View className="flex-row justify-center items-center mb-6">
-            <Text className="text-center text-gray-400 text-sm">
-              Already have an account?{' '}
-            </Text>
-            <Pressable onPress={() => router.push('/login')}>
-              <Text className="text-blue-600 font-semibold">
-                Sign in
-              </Text>
-            </Pressable>
+            <Text style={ui.muted}>Already have an account?</Text>
+            <AuthLink
+              label="Sign in"
+              disabled={busy}
+              onPress={() =>
+                router.replace({
+                  pathname: '/login',
+                  params: { returnTo: destination, email: form.email.trim() },
+                })
+              }
+            />
           </View>
-
-          <View className="px-4">
-            <Text className="text-xs text-center text-gray-500">
-              By signing up, you agree to our
-            </Text>
-            <View className="mt-1 flex-row justify-center items-center">
-              <Pressable onPress={() => Linking.openURL('https://savemymeal.com/terms')}>
-                <Text className="text-xs text-blue-600">Terms of Service</Text>
-              </Pressable>
-              <Text className="text-xs text-gray-500"> and </Text>
-              <Pressable onPress={() => Linking.openURL('https://savemymeal.com/privacy')}>
-                <Text className="text-xs text-blue-600">Privacy Policy</Text>
-              </Pressable>
-            </View>
+          <Text style={[ui.muted, { textAlign: 'center', fontSize: 11 }]}>
+            By creating an account, you agree to our
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 12,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
+          >
+            <AuthLink
+              label="Terms of service"
+              disabled={busy}
+              onPress={() => void legal('terms')}
+            />
+            <AuthLink
+              label="Privacy policy"
+              disabled={busy}
+              onPress={() => void legal('privacy')}
+            />
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </>
+      }
+    >
+      <AuthError message={error} />
+      <AuthField
+        label="Email address"
+        placeholder="you@example.com"
+        value={form.email}
+        error={errors.email}
+        onChangeText={(value) => change('email', value)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        editable={!busy}
+        returnKeyType="next"
+        onSubmitEditing={() => phoneInput.current?.focus()}
+      />
+      <AuthField
+        ref={phoneInput}
+        label="Phone number"
+        placeholder="08012345678"
+        value={form.phone}
+        error={errors.phone}
+        onChangeText={(value) => change('phone', value)}
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        editable={!busy}
+        returnKeyType="next"
+        onSubmitEditing={() => passwordInput.current?.focus()}
+        maxLength={30}
+      />
+      <AuthField
+        ref={passwordInput}
+        password
+        label="Password"
+        placeholder="Create a password"
+        hint="Use at least 6 characters."
+        value={form.password}
+        error={errors.password}
+        onChangeText={(value) => change('password', value)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="new-password"
+        editable={!busy}
+        returnKeyType="next"
+        onSubmitEditing={() => confirmInput.current?.focus()}
+      />
+      <AuthField
+        ref={confirmInput}
+        password
+        label="Confirm password"
+        placeholder="Enter your password again"
+        value={form.confirmPassword}
+        error={errors.confirmPassword}
+        onChangeText={(value) => change('confirmPassword', value)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="new-password"
+        editable={!busy}
+        returnKeyType="done"
+        onSubmitEditing={() => void signup()}
+      />
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: palette.border,
+          paddingTop: 4,
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: referralOpen }}
+          disabled={busy}
+          onPress={() => setReferralOpen((value) => !value)}
+          style={{
+            minHeight: 44,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Gift size={16} color={palette.green} />
+          <Text style={[ui.link, { flex: 1 }]}>
+            {referral ? 'Referral code added' : 'Have a referral code?'}
+          </Text>
+          {referralOpen ? (
+            <ChevronUp size={16} color={palette.green} />
+          ) : (
+            <ChevronDown size={16} color={palette.green} />
+          )}
+        </Pressable>
+        {referralOpen && (
+          <AuthField
+            label="Referral code (optional)"
+            placeholder="Friend or partner code"
+            hint="Eligible benefits are confirmed at checkout."
+            value={referral}
+            onChangeText={(value) => {
+              setReferral(value);
+              setError('');
+            }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={40}
+            editable={!busy}
+          />
+        )}
+      </View>
+      <Action
+        label={busy ? 'Creating account…' : 'Create account'}
+        busy={busy}
+        onPress={() => void signup()}
+      />
+    </AuthScreen>
   );
 }
-

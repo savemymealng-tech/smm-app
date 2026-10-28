@@ -5,8 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { Provider as JotaiProvider } from "jotai";
-import { useEffect } from "react";
+import { Provider as JotaiProvider, useSetAtom } from "jotai";
+import { useCallback, useEffect, useState } from "react";
+import { View } from "react-native";
+import { initializeApp } from "@/lib/startup";
+import { StartupScreen } from "@/components/ui/startup-screen";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
@@ -15,10 +18,9 @@ import { ToastProvider } from "@/components/ui/toast";
 import { initAuthAtom, initCartAtom } from "@/lib/atoms";
 import { useTokenRefresh } from "@/lib/hooks";
 import { PortalHost } from "@rn-primitives/portal";
-import { useSetAtom } from "jotai";
 
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+// Keep the native launch screen until the first React layout is ready.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -44,6 +46,10 @@ function AppProviders() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
               <Stack.Screen name="signup" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="forgot-password"
+                options={{ headerShown: false }}
+              />
               <Stack.Screen name="checkout" options={{ headerShown: false }} />
               <Stack.Screen name="addresses" options={{ headerShown: false }} />
               <Stack.Screen name="payments" options={{ headerShown: false }} />
@@ -118,7 +124,7 @@ function AppProviders() {
   );
 }
 
-function InitAtoms() {
+function InitAtoms({ onReady }: { onReady: () => void }) {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
 
@@ -127,30 +133,33 @@ function InitAtoms() {
   useGuestCartSync();
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        await initAuth();
-        await initCart();
-      } catch (e) {
-        console.warn("Error initializing app:", e);
-      } finally {
-        // Hide the splash screen after initialization
-        await SplashScreen.hideAsync();
-      }
-    }
-
-    prepare();
-  }, [initAuth, initCart]);
+    return initializeApp({
+      restoreAuth: initAuth,
+      restoreCart: initCart,
+      onReady,
+      onError: (error) => console.warn("App initialization failed", error),
+    });
+  }, [initAuth, initCart, onReady]);
 
   return null;
 }
 
 export default function RootLayout() {
+  const [ready, setReady] = useState(false);
+  const onReady = useCallback(() => setReady(true), []);
   return (
     <QueryClientProvider client={queryClient}>
       <JotaiProvider>
-        <InitAtoms />
-        <AppProviders />
+        <View
+          style={{ flex: 1 }}
+          onLayout={() => {
+            void SplashScreen.hideAsync().catch(() => {});
+          }}
+        >
+          <InitAtoms onReady={onReady} />
+          <AppProviders />
+          {!ready && <StartupScreen />}
+        </View>
       </JotaiProvider>
     </QueryClientProvider>
   );

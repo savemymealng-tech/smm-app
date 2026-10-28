@@ -1,6 +1,6 @@
 /**
  * Verify Reset Code Screen
- * 
+ *
  * Customer enters the 6-digit code received via email to verify identity before password reset
  */
 
@@ -10,17 +10,17 @@ import { Text } from "@/components/ui/text";
 import { toast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { passwordResetContextAtom } from "@/lib/atoms/auth";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -29,7 +29,10 @@ const CODE_LENGTH = 6;
 export default function VerifyResetCodeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [passwordResetContext, setPasswordResetContext] = useAtom(passwordResetContextAtom);
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const [passwordResetContext, setPasswordResetContext] = useAtom(
+    passwordResetContextAtom,
+  );
 
   const initialEmail = passwordResetContext?.email || "";
 
@@ -43,7 +46,7 @@ export default function VerifyResetCodeScreen() {
   // Clear context after reading
   useEffect(() => {
     if (passwordResetContext?.email) {
-      console.log('🔑 [VerifyResetCode] Reset context:', passwordResetContext);
+      console.log("🔑 [VerifyResetCode] Reset context:", passwordResetContext);
     }
   }, []);
 
@@ -56,21 +59,24 @@ export default function VerifyResetCodeScreen() {
 
   const handleVerifyCode = async () => {
     const finalEmail = email.trim();
-    
+
     if (!finalEmail) {
       toast.warning("Email Required", "Please enter your email address");
       return;
     }
-    
+
     if (code.length !== CODE_LENGTH) {
-      toast.warning("Invalid Code", `Please enter the ${CODE_LENGTH}-digit code`);
+      toast.warning(
+        "Invalid Code",
+        `Please enter the ${CODE_LENGTH}-digit code`,
+      );
       return;
     }
 
     setLoading(true);
     try {
       await api.auth.verifyResetCode(finalEmail, code);
-      
+
       // Update context with verified code
       setPasswordResetContext({
         email: finalEmail,
@@ -78,10 +84,10 @@ export default function VerifyResetCodeScreen() {
       });
 
       toast.success("Code Verified", "You can now set your new password");
-      
+
       // Navigate to new password screen
       setTimeout(() => {
-        router.push("/new-password");
+        router.push({ pathname: "/new-password", params: { returnTo } });
       }, 50);
     } catch (err: any) {
       const msg =
@@ -98,7 +104,7 @@ export default function VerifyResetCodeScreen() {
 
   const handleResend = async () => {
     const finalEmail = email.trim();
-    
+
     if (!finalEmail) {
       toast.warning("Email Required", "Please enter your email address");
       return;
@@ -108,7 +114,10 @@ export default function VerifyResetCodeScreen() {
     try {
       await api.auth.resendResetCode(finalEmail);
       setCountdown(60); // 60 second cooldown
-      toast.success("Code Sent", "A new verification code has been sent to your email");
+      toast.success(
+        "Code Sent",
+        "A new verification code has been sent to your email",
+      );
     } catch (err: any) {
       const msg =
         err.response?.data?.error ??
@@ -134,7 +143,7 @@ export default function VerifyResetCodeScreen() {
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
           paddingHorizontal: 24,
-          minHeight: '100%',
+          minHeight: "100%",
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -148,21 +157,29 @@ export default function VerifyResetCodeScreen() {
           {/* Icon */}
           <View className="items-center mb-8">
             <View className="w-20 h-20 rounded-full bg-blue-50 items-center justify-center mb-4">
-              <IconSymbol name="envelope.badge.fill" size={36} color="#3b82f6" />
+              <IconSymbol
+                name="envelope.badge.fill"
+                size={36}
+                color="#3b82f6"
+              />
             </View>
             <Text className="text-2xl font-bold text-gray-900 text-center">
               Check your email
             </Text>
             <Text className="text-gray-500 text-center mt-2 leading-5">
               We sent a {CODE_LENGTH}-digit code to{"\n"}
-              <Text className="font-semibold text-gray-700">{email || "your email"}</Text>
+              <Text className="font-semibold text-gray-700">
+                {email || "your email"}
+              </Text>
             </Text>
           </View>
 
           {/* Email input (editable if not provided via context) */}
           {!initialEmail && (
             <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-2">Email address</Text>
+              <Text className="text-sm font-medium text-gray-700 mb-2">
+                Email address
+              </Text>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -172,13 +189,13 @@ export default function VerifyResetCodeScreen() {
                 placeholderTextColor="#9ca3af"
                 style={{
                   borderWidth: 1,
-                  borderColor: '#e5e7eb',
+                  borderColor: "#e5e7eb",
                   borderRadius: 12,
                   paddingHorizontal: 16,
                   paddingVertical: 12,
                   fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
+                  color: "#111827",
+                  backgroundColor: "#f9fafb",
                 }}
               />
             </View>
@@ -192,23 +209,25 @@ export default function VerifyResetCodeScreen() {
             <TextInput
               ref={inputRef}
               value={code}
-              onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, CODE_LENGTH))}
+              onChangeText={(v) =>
+                setCode(v.replace(/\D/g, "").slice(0, CODE_LENGTH))
+              }
               placeholder="000000"
               keyboardType="number-pad"
               maxLength={CODE_LENGTH}
               placeholderTextColor="#9ca3af"
               style={{
                 borderWidth: 1,
-                borderColor: '#e5e7eb',
+                borderColor: "#e5e7eb",
                 borderRadius: 12,
                 paddingHorizontal: 16,
                 paddingVertical: 16,
                 fontSize: 24,
-                fontWeight: 'bold',
-                textAlign: 'center',
+                fontWeight: "bold",
+                textAlign: "center",
                 letterSpacing: 12,
-                color: '#111827',
-                backgroundColor: '#f9fafb',
+                color: "#111827",
+                backgroundColor: "#f9fafb",
               }}
               autoFocus={true}
             />
@@ -226,7 +245,9 @@ export default function VerifyResetCodeScreen() {
                 <Text className="text-white font-semibold">Verifying…</Text>
               </View>
             ) : (
-              <Text className="text-white font-semibold text-base">Verify Code</Text>
+              <Text className="text-white font-semibold text-base">
+                Verify Code
+              </Text>
             )}
           </Button>
 
@@ -234,7 +255,9 @@ export default function VerifyResetCodeScreen() {
           <View className="flex-row items-center justify-center">
             <Text className="text-gray-500">Didn't receive a code? </Text>
             {countdown > 0 ? (
-              <Text className="text-gray-400 font-medium">Resend in {countdown}s</Text>
+              <Text className="text-gray-400 font-medium">
+                Resend in {countdown}s
+              </Text>
             ) : (
               <Pressable onPress={handleResend} disabled={resending}>
                 {resending ? (

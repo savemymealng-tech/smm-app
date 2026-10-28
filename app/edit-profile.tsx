@@ -1,51 +1,149 @@
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Input } from '@/components/ui/input';
-import { Text } from '@/components/ui/text';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from 'react-native';
+import {
+  useNavigation,
+  usePreventRemove,
+  type NavigationAction,
+} from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { Camera, Check, Mail } from 'lucide-react-native';
+import {
+  Action,
+  Card,
+  Message,
+  PageScroll,
+  Screen,
+  palette,
+  ui,
+} from '@/components/ui/screen-kit';
+import { AppImage } from '@/components/ui/app-image';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { toast } from '@/components/ui/toast';
-import { useProfile, useUpdateProfile, useUploadProfilePicture } from '@/lib/hooks/use-profile';
+import {
+  useProfile,
+  useUpdateProfile,
+  useUploadProfilePicture,
+} from '@/lib/hooks/use-profile';
 import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
 import { getImageSource } from '@/lib/utils';
-import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  normalizeProfile,
+  profileChanges,
+  profileErrors,
+  profileForm,
+  type ProfileForm,
+} from '@/lib/profile-form';
+
+function Field({
+  label,
+  error,
+  required,
+  ...props
+}: TextInputProps & { label: string; error?: string; required?: boolean }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={styles.label}>
+        {label}
+        {required ? ' *' : ''}
+      </Text>
+      <TextInput
+        {...props}
+        accessibilityLabel={label}
+        placeholderTextColor={palette.muted}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[
+          ui.input,
+          {
+            minHeight: 48,
+            borderColor: error
+              ? palette.red
+              : focused
+                ? palette.green
+                : palette.border,
+          },
+        ]}
+      />
+      {!!error && (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {error}
+        </Text>
+      )}
+    </View>
+  );
+}
 
 export default function EditProfileScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const { isAuthenticated, isLoading: authLoading } = useProtectedRoute();
-  const { data: user } = useProfile();
-  const updateProfileMutation = useUpdateProfile();
-  const uploadPictureMutation = useUploadProfilePicture();
+  const profile = useProfile();
+  const updateProfile = useUpdateProfile();
+  const uploadPhoto = useUploadProfilePicture();
+  const initialized = useRef<string | null>(null);
+  const saving = useRef(false);
+  const [form, setForm] = useState<ProfileForm>(() => profileForm());
+  const [original, setOriginal] = useState<ProfileForm>(() => profileForm());
+  const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [avatar, setAvatar] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof ProfileForm, string>>
+  >({});
+  const [error, setError] = useState('');
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [allowLeave, setAllowLeave] = useState(false);
+  const exitAction = useRef<NavigationAction | null>(null);
+  const changes = profileChanges(form, original);
+  const dirty = !!photo || Object.keys(changes).length > 0;
 
-  const [profileData, setProfileData] = useState({
-    firstName: '',
-    lastName: '',
-    username: '',
-    phone: '',
-    city: '',
-    avatar: '',
-  });
-
-  if (authLoading || !isAuthenticated) return null;
-
-  // Load user data
   useEffect(() => {
-    if (user) {
-      setProfileData({
-        firstName: user.first_name || '',
-        lastName: user.last_name || '',
-        username: user.username || '',
-        phone: user.phone || '',
-        city: user.city || '',
-        avatar: user.profile_picture_url || '',
-      });
-    }
-  }, [user]);
+    const user = profile.data;
+    if (!user || initialized.current === String(user.id)) return;
+    initialized.current = String(user.id);
+    const next = profileForm(user);
+    setForm(next);
+    setOriginal(next);
+    setAvatar(user.profile_picture_url || user.avatar || '');
+    setPhoto(null);
+    setErrors({});
+  }, [profile.data]);
+  usePreventRemove(!allowLeave && (dirty || busy || picking), ({ data }) => {
+    if (saving.current || picking) return;
+    exitAction.current = data.action;
+    Keyboard.dismiss();
+    setDiscardOpen(true);
+  });
+  useEffect(() => {
+    if (!allowLeave) return;
+    if (exitAction.current) navigation.dispatch(exitAction.current);
+    else if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/profile');
+  }, [allowLeave, navigation, router]);
 
-  const pickImage = async () => {
+  function change(key: keyof ProfileForm, value: string) {
+    setForm((previous) => ({ ...previous, [key]: value }));
+    setErrors((previous) => ({ ...previous, [key]: undefined }));
+    setError('');
+  }
+  async function pickPhoto() {
+    if (saving.current || picking) return;
+    setPicking(true);
+    setError('');
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
@@ -53,155 +151,347 @@ export default function EditProfileScreen() {
         aspect: [1, 1],
         quality: 0.8,
       });
-
       if (!result.canceled && result.assets[0]) {
-        setProfileData({ ...profileData, avatar: result.assets[0].uri });
-        toast.success('Photo Selected', 'Your profile photo will be updated when you save.');
+        const asset = result.assets[0];
+        if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+          setError('Choose a photo smaller than 10 MB.');
+          return;
+        }
+        setPhoto(asset);
       }
-    } catch (error) {
-      toast.error('Error', 'Failed to pick image. Please try again.');
+    } catch {
+      setError(
+        'Unable to open your photos. Check photo access in your device settings and try again.',
+      );
+    } finally {
+      setPicking(false);
     }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!profileData.firstName || !profileData.username) {
-      toast.warning('Missing Fields', 'First name and username are required.');
+  }
+  async function save() {
+    if (saving.current || !dirty || picking) return;
+    const validation = profileErrors(form);
+    setErrors(validation);
+    if (Object.keys(validation).length) {
+      setError('Check the highlighted fields before saving.');
       return;
     }
-
+    saving.current = true;
+    setBusy(true);
+    setError('');
+    Keyboard.dismiss();
+    let detailsSaved = false;
     try {
-      // Upload profile picture first if it's a new local image
-      if (profileData.avatar && profileData.avatar.startsWith('file://')) {
-        await uploadPictureMutation.mutateAsync({ 
-          uri: profileData.avatar,
-          type: 'image/jpeg'
-        });
+      if (Object.keys(changes).length) {
+        await updateProfile.mutateAsync(changes);
+        const next = normalizeProfile(form);
+        setForm(next);
+        setOriginal(next);
+        detailsSaved = true;
       }
-
-      // Then update profile data
-      await updateProfileMutation.mutateAsync({
-        first_name: profileData.firstName,
-        last_name: profileData.lastName,
-        username: profileData.username,
-        phone: profileData.phone,
-        city: profileData.city,
-      });
-      
-      toast.success('Profile Updated', 'Your profile has been updated successfully!');
-      router.back();
-    } catch (error: any) {
-      toast.error('Update Failed', error.error || error.message || 'Failed to update profile. Please try again.');
+      if (photo) {
+        const result = await uploadPhoto.mutateAsync({
+          uri: photo.uri,
+          type: photo.mimeType || 'image/jpeg',
+        });
+        setAvatar(result.url);
+        setPhoto(null);
+      }
+      toast.success('Profile updated', 'Your changes have been saved.');
+      setAllowLeave(true);
+    } catch (cause) {
+      const failure = cause as {
+        message?: string;
+        error?: string;
+        validationErrors?: { field: string; message: string }[];
+      };
+      if (failure.validationErrors)
+        setErrors(
+          Object.fromEntries(
+            failure.validationErrors
+              .filter((item) => item.field in form)
+              .map((item) => [item.field, item.message]),
+          ),
+        );
+      setError(
+        detailsSaved
+          ? 'Your details were saved, but your photo could not be uploaded. Tap Save changes to retry the photo.'
+          : failure.message ||
+              failure.error ||
+              'Unable to save your changes. Please try again.',
+      );
+    } finally {
+      saving.current = false;
+      setBusy(false);
     }
-  };
+  }
 
-  const isLoading = updateProfileMutation.isPending || uploadPictureMutation.isPending;
-
+  if (authLoading || !isAuthenticated) return null;
+  const ready =
+    !!profile.data && initialized.current === String(profile.data.id);
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-white"
-      style={{ paddingTop: insets.top }}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}
-        keyboardShouldPersistTaps="handled"
+      <Screen
+        title="Edit profile"
+        footer={
+          ready && !profile.isError ? (
+            <View style={{ gap: 8 }}>
+              {!!error && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {error}
+                </Text>
+              )}
+              <Action
+                label={
+                  busy
+                    ? uploadPhoto.isPending
+                      ? 'Uploading photo…'
+                      : 'Saving changes…'
+                    : 'Save changes'
+                }
+                busy={busy}
+                disabled={!dirty || picking}
+                onPress={() => void save()}
+              />
+              <Text style={[ui.muted, { textAlign: 'center', fontSize: 11 }]}>
+                {dirty
+                  ? 'Your changes are not saved yet'
+                  : 'Your profile is up to date'}
+              </Text>
+            </View>
+          ) : undefined
+        }
       >
-        {/* Profile Picture Section */}
-        <View className="items-center my-8">
-          {profileData.avatar ? (
-            <Image
-              source={getImageSource(profileData.avatar)}
-              className="w-32 h-32 rounded-full mb-4"
-              resizeMode="cover"
+        {profile.isLoading || (!ready && !profile.isError) ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={palette.green} />
+            <Text style={ui.muted}>Loading your profile…</Text>
+          </View>
+        ) : profile.isError || !profile.data ? (
+          <View style={{ padding: 16 }}>
+            <Message
+              title="Could not load your profile"
+              body="Please try again before editing your details."
+              onRetry={() => void profile.refetch()}
             />
-          ) : (
-            <View className="w-32 h-32 rounded-full bg-blue-600 items-center justify-center mb-4">
-              <Text className="text-white text-5xl font-bold">
-                {profileData.firstName?.charAt(0).toUpperCase() || 'U'}
+          </View>
+        ) : (
+          <PageScroll
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            <Card>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}
+              >
+                <View>
+                  {photo?.uri || avatar ? (
+                    <AppImage
+                      source={getImageSource(photo?.uri || avatar)}
+                      fallbackSource={require('@/assets/images/default-profile.jpg')}
+                      style={{
+                        width: 76,
+                        height: 76,
+                        borderRadius: 38,
+                        backgroundColor: palette.greenSurface,
+                      }}
+                      accessibilityLabel="Profile photo"
+                    />
+                  ) : (
+                    <View
+                      accessibilityLabel="Profile initials"
+                      style={{
+                        width: 76,
+                        height: 76,
+                        borderRadius: 38,
+                        backgroundColor: palette.greenSurface,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 26,
+                          fontWeight: '700',
+                          color: palette.green,
+                        }}
+                      >
+                        {`${form.first_name.charAt(0)}${form.last_name.charAt(0)}`.toUpperCase() ||
+                          form.username.charAt(0).toUpperCase() ||
+                          'U'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.camera}>
+                    <Camera size={13} color={palette.orangeInk} />
+                  </View>
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={ui.heading}>Profile photo</Text>
+                  <Text style={ui.muted}>A little more you.</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy || picking}
+                    onPress={() => void pickPhoto()}
+                    style={{
+                      alignSelf: 'flex-start',
+                      minHeight: 44,
+                      justifyContent: 'center',
+                      opacity: busy || picking ? 0.5 : 1,
+                    }}
+                  >
+                    <Text style={ui.link}>
+                      {picking
+                        ? 'Opening photos…'
+                        : photo
+                          ? 'Choose another photo'
+                          : avatar
+                            ? 'Change photo'
+                            : 'Add a photo'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              {!!photo && (
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                >
+                  <Check size={14} color={palette.green} />
+                  <Text style={[ui.muted, { color: palette.green }]}>
+                    New photo ready to save
+                  </Text>
+                </View>
+              )}
+            </Card>
+            <Card>
+              <Text style={ui.heading}>Personal details</Text>
+              <Text style={ui.muted}>Required fields are marked with *.</Text>
+              <Field
+                label="First name"
+                required
+                value={form.first_name}
+                onChangeText={(value) => change('first_name', value)}
+                error={errors.first_name}
+                placeholder="Your first name"
+                autoComplete="given-name"
+                autoCapitalize="words"
+                editable={!busy}
+                maxLength={255}
+              />
+              <Field
+                label="Last name"
+                value={form.last_name}
+                onChangeText={(value) => change('last_name', value)}
+                error={errors.last_name}
+                placeholder="Your last name"
+                autoComplete="family-name"
+                autoCapitalize="words"
+                editable={!busy}
+                maxLength={255}
+              />
+              <Field
+                label="Username"
+                required
+                value={form.username}
+                onChangeText={(value) => change('username', value)}
+                error={errors.username}
+                placeholder="Your username"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!busy}
+                maxLength={255}
+              />
+            </Card>
+            <Card>
+              <Text style={ui.heading}>Contact details</Text>
+              <View style={{ gap: 5 }}>
+                <Text style={styles.label}>Email address</Text>
+                <View
+                  style={[
+                    ui.input,
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      backgroundColor: palette.bg,
+                    },
+                  ]}
+                >
+                  <Mail size={16} color={palette.muted} />
+                  <Text
+                    selectable
+                    style={{ flex: 1, fontSize: 14, color: palette.muted }}
+                  >
+                    {profile.data.email || 'No email address'}
+                  </Text>
+                </View>
+                <Text style={[ui.muted, { fontSize: 11 }]}>
+                  Your sign-in email is managed separately.
+                </Text>
+              </View>
+              <Field
+                label="Phone number"
+                value={form.phone}
+                onChangeText={(value) => change('phone', value)}
+                error={errors.phone}
+                placeholder="08012345678"
+                autoComplete="tel"
+                keyboardType="phone-pad"
+                editable={!busy}
+                maxLength={30}
+              />
+              <Field
+                label="City"
+                value={form.city}
+                onChangeText={(value) => change('city', value)}
+                error={errors.city}
+                placeholder="Your city"
+                autoCapitalize="words"
+                editable={!busy}
+                maxLength={255}
+              />
+              <Text style={[ui.muted, { fontSize: 11 }]}>
+                To browse pickup in another area, use the location selector on
+                Home or Explore.
               </Text>
-            </View>
-          )}
-          <Pressable onPress={pickImage} disabled={isLoading}>
-            <View className="flex-row items-center gap-2 bg-gray-100 px-6 py-3 rounded-full">
-              <IconSymbol name="camera.fill" size={18} color="#3b82f6" />
-              <Text className="text-blue-600 font-semibold">
-                {profileData.avatar ? 'Change Photo' : 'Add Photo'}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Form Fields */}
-        <View className="mb-6">
-          <Input
-            label="First Name"
-            placeholder="Enter your first name"
-            value={profileData.firstName}
-            onChangeText={(text) => setProfileData({ ...profileData, firstName: text })}
-            isRequired
-            editable={!isLoading}
-          />
-        </View>
-
-        <View className="mb-6">
-          <Input
-            label="Last Name"
-            placeholder="Enter your last name"
-            value={profileData.lastName}
-            onChangeText={(text) => setProfileData({ ...profileData, lastName: text })}
-            editable={!isLoading}
-          />
-        </View>
-
-        <View className="mb-6">
-          <Input
-            label="Username"
-            placeholder="Enter your username"
-            value={profileData.username}
-            onChangeText={(text) => setProfileData({ ...profileData, username: text })}
-            autoCapitalize="none"
-            isRequired
-            editable={!isLoading}
-          />
-        </View>
-
-        <View className="mb-6">
-          <Input
-            label="Phone Number"
-            placeholder="Enter your phone number"
-            value={profileData.phone}
-            onChangeText={(text) => setProfileData({ ...profileData, phone: text })}
-            keyboardType="phone-pad"
-            editable={!isLoading}
-          />
-        </View>
-
-        <View className="mb-6">
-          <Input
-            label="City"
-            placeholder="Enter your city"
-            value={profileData.city}
-            onChangeText={(text) => setProfileData({ ...profileData, city: text })}
-            editable={!isLoading}
-          />
-        </View>
-
-        {/* Save Button */}
-        <Button 
-          onPress={handleSaveProfile} 
-          disabled={isLoading}
-          className="mt-4"
-          size="lg"
-        >
-          {isLoading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="font-semibold text-white">Save Changes</Text>
-          )}
-        </Button>
-      </ScrollView>
+            </Card>
+          </PageScroll>
+        )}
+        <ConfirmDialog
+          open={discardOpen}
+          onClose={() => setDiscardOpen(false)}
+          title="Discard changes?"
+          message="Your unsaved profile changes will be lost."
+          primaryLabel="Discard changes"
+          destructive
+          onPrimary={() => {
+            setDiscardOpen(false);
+            setAllowLeave(true);
+          }}
+          secondaryLabel="Keep editing"
+        />
+      </Screen>
     </KeyboardAvoidingView>
   );
 }
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  label: { fontSize: 13, fontWeight: '600', color: palette.ink },
+  error: { fontSize: 12, lineHeight: 18, color: palette.red },
+  camera: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.orange,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+});
