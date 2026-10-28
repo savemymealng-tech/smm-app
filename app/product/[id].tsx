@@ -1,10 +1,10 @@
-import { ProductBackButton } from '@/components/product/ProductBackButton';
-import { toast } from '@/components/ui/toast';
-import { remainingStock } from '@/lib/product-display';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ProductBackButton } from "@/components/product/ProductBackButton";
+import { toast } from "@/components/ui/toast";
+import { remainingStock } from "@/lib/product-display";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   AddToCartButton,
@@ -12,20 +12,20 @@ import {
   ProductImageHeader,
   ProductInfoCard,
   VendorInfoCard,
-} from '@/components/product';
-import { RatingDisplay, ReviewList } from '@/components/reviews';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Text } from '@/components/ui/text';
-import { useMeal } from '@/lib/hooks';
-import { useHybridAddToCart, useHybridCart } from '@/lib/hooks/use-hybrid-cart';
-import { useProductReviews } from '@/lib/hooks/use-reviews';
+} from "@/components/product";
+import { RatingDisplay, ReviewList } from "@/components/reviews";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { useMeal } from "@/lib/hooks";
+import { useHybridAddToCart, useHybridCart } from "@/lib/hooks/use-hybrid-cart";
+import { useProductReviews } from "@/lib/hooks/use-reviews";
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: product, isLoading } = useMeal(id || '');
+  const { data: product, isLoading } = useMeal(id || "");
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -79,7 +79,7 @@ export default function ProductDetailScreen() {
 
   const handleAddToCart = async () => {
     if (isSyncing || savedItems) {
-      router.push('/(tabs)/cart');
+      router.push("/(tabs)/cart");
       return;
     }
     if (quantity > maxQuantity || adding) return;
@@ -89,13 +89,13 @@ export default function ProductDetailScreen() {
         product_id: product.id,
         quantity,
         product,
-        fulfillment_method: 'pickup',
+        fulfillment_method: "pickup",
       });
     } catch (error) {
       if (!addToCartMutation.isError)
         toast.error(
-          'Could not add item',
-          error instanceof Error ? error.message : 'Please try again.',
+          "Could not add item",
+          error instanceof Error ? error.message : "Please try again.",
         );
     } finally {
       setAdding(false);
@@ -113,6 +113,28 @@ export default function ProductDetailScreen() {
         <ProductInfoCard product={product} />
         {product.vendor && <VendorInfoCard vendor={product.vendor} />}
 
+        {!!product.item_snapshot?.contents?.length && (
+          <View
+            style={{
+              margin: 16,
+              padding: 16,
+              gap: 8,
+              borderRadius: 16,
+              backgroundColor: "#fff",
+              borderWidth: 1,
+              borderColor: "#e4e9e6",
+            }}
+          >
+            <Text style={{ fontWeight: "700", fontSize: 16 }}>
+              Included in this pack
+            </Text>
+            {product.item_snapshot.contents.map((item) => (
+              <Text key={item.product_id}>
+                {item.quantity} × {item.name}
+              </Text>
+            ))}
+          </View>
+        )}
         <ProductAdditionalInfo product={product} />
 
         {/* Reviews Section */}
@@ -143,7 +165,7 @@ export default function ProductDetailScreen() {
                       <Text className="text-white font-bold text-sm">
                         {review.customer?.first_name
                           ?.charAt(0)
-                          ?.toUpperCase() || 'U'}
+                          ?.toUpperCase() || "U"}
                       </Text>
                     </View>
                     <View className="flex-1">
@@ -151,7 +173,7 @@ export default function ProductDetailScreen() {
                         {review.customer?.first_name &&
                         review.customer?.last_name
                           ? `${review.customer.first_name} ${review.customer.last_name}`
-                          : 'Anonymous'}
+                          : "Anonymous"}
                       </Text>
                       <RatingDisplay rating={review.rating} size={14} />
                     </View>
@@ -214,11 +236,11 @@ export default function ProductDetailScreen() {
 
       {totalItems > 0 && (
         <Pressable
-          onPress={() => router.push('/(tabs)/cart')}
+          onPress={() => router.push("/(tabs)/cart")}
           className="bg-green-50 px-4 py-2"
         >
           <Text className="text-center text-[#008236] font-semibold">
-            View cart · {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            View cart · {totalItems} {totalItems === 1 ? "item" : "items"}
           </Text>
         </Pressable>
       )}

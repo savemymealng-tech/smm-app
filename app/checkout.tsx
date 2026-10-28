@@ -1,7 +1,10 @@
-import { Tag } from 'lucide-react-native';
-import { cartIssue } from '@/lib/cart-display';
-import { formatMoney as formatCurrency } from '@/lib/order-display';
-import { useProtectedRoute } from '@/lib/hooks/use-protected-route';
+import { paymentVerificationStatus as getVerificationStatus } from "@/lib/payment-status";
+import { useAtom } from "jotai";
+import { selectedOfferCodeAtom } from "@/lib/atoms/offer";
+import { Tag } from "lucide-react-native";
+import { cartIssue } from "@/lib/cart-display";
+import { formatMoney as formatCurrency } from "@/lib/order-display";
+import { useProtectedRoute } from "@/lib/hooks/use-protected-route";
 import {
   Screen,
   PageScroll,
@@ -10,36 +13,36 @@ import {
   AmountRow,
   ui,
   palette,
-} from '@/components/ui/screen-kit';
-import { AppImage } from '@/components/ui/app-image';
-import { rateLimitWaitMs } from '@/lib/api/rate-limit';
-import { OutcomeDialog } from '@/components/ui/outcome-dialog';
-import { growthApi } from '@/lib/api/growth';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+} from "@/components/ui/screen-kit";
+import { AppImage } from "@/components/ui/app-image";
+import { rateLimitWaitMs } from "@/lib/api/rate-limit";
+import { OutcomeDialog } from "@/components/ui/outcome-dialog";
+import { growthApi } from "@/lib/api/growth";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { PaystackWebView } from '@/components/ui/paystack-webview';
-import { Text } from '@/components/ui/text';
-import { toast } from '@/components/ui/toast';
+import { PaystackWebView } from "@/components/ui/paystack-webview";
+import { Text } from "@/components/ui/text";
+import { toast } from "@/components/ui/toast";
 
-import { api } from '@/lib/api';
+import { api } from "@/lib/api";
 
-import { usePlaceOrder, useVerifyPayment } from '@/lib/hooks';
-import { useHybridCart, useHybridClearCart } from '@/lib/hooks/use-hybrid-cart';
-import { useProfile } from '@/lib/hooks/use-profile';
+import { usePlaceOrder, useVerifyPayment } from "@/lib/hooks";
+import { useHybridCart, useHybridClearCart } from "@/lib/hooks/use-hybrid-cart";
+import { useProfile } from "@/lib/hooks/use-profile";
 import {
   formatTime12Hour,
   getEffectivePickupDay,
   getImageSource,
-} from '@/lib/utils';
+} from "@/lib/utils";
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -60,13 +63,13 @@ export default function CheckoutScreen() {
 
   const hasDeliveryItems = cart.some(
     (item) =>
-      item.fulfillment_method === 'delivery' ||
+      item.fulfillment_method === "delivery" ||
       item.product?.available_for_pickup === false,
   );
   const vendorGroups = useMemo(() => {
     const groups = new Map<string, typeof cart>();
     for (const item of cart) {
-      const key = item.vendorId || 'unknown';
+      const key = item.vendorId || "unknown";
       groups.set(key, [...(groups.get(key) || []), item]);
     }
     return [...groups.entries()];
@@ -76,7 +79,7 @@ export default function CheckoutScreen() {
   const placeOrder = usePlaceOrder();
   const verifyPayment = useVerifyPayment();
 
-  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [deliveryNotes, setDeliveryNotes] = useState("");
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPaymentWebView, setShowPaymentWebView] = useState(false);
@@ -86,14 +89,14 @@ export default function CheckoutScreen() {
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<number | null>(null);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState("");
   const [paymentOutcome, setPaymentOutcome] = useState<{
-    kind: 'pending' | 'error';
+    kind: "pending" | "error";
     title: string;
     message: string;
   } | null>(null);
   const showPaymentStatus = (
-    kind: 'pending' | 'error',
+    kind: "pending" | "error",
     title: string,
     message: string,
   ) => setPaymentOutcome({ kind, title, message });
@@ -103,15 +106,24 @@ export default function CheckoutScreen() {
     [subtotal, deliveryFee, serviceFee, tax],
   );
 
-  const [offerCode, setOfferCode] = useState('');
-  const [appliedCode, setAppliedCode] = useState('');
-  const [coinInput, setCoinInput] = useState('0');
+  const [selectedCode, setSelectedCode] = useAtom(selectedOfferCodeAtom);
+  const [offerCode, setOfferCode] = useState(selectedCode);
+  const [appliedCode, setAppliedCodeState] = useState(selectedCode);
+  const setAppliedCode = (code: string) => {
+    setAppliedCodeState(code);
+    setSelectedCode(code);
+  };
+  useEffect(() => {
+    setOfferCode(selectedCode);
+    setAppliedCodeState(selectedCode);
+  }, [selectedCode]);
+  const [coinInput, setCoinInput] = useState("0");
   const [appliedCoins, setAppliedCoins] = useState(0);
   const requestKey = useRef(
     `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`,
   );
   const growthConfig = useQuery({
-    queryKey: ['growth-config'],
+    queryKey: ["growth-config"],
     queryFn: growthApi.config,
     enabled: isAuthenticated,
   });
@@ -126,7 +138,7 @@ export default function CheckoutScreen() {
     requestKey.current = `checkout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
   }, [cartSignature, appliedCode, appliedCoins]);
   const quoteQuery = useQuery({
-    queryKey: ['checkout-quote', cartSignature, appliedCode, appliedCoins],
+    queryKey: ["checkout-quote", cartSignature, appliedCode, appliedCoins],
     queryFn: () =>
       growthApi.quote({
         use_cart: true,
@@ -140,7 +152,7 @@ export default function CheckoutScreen() {
     refetchInterval: 60000,
   });
   const rewards = useQuery({
-    queryKey: ['rewards'],
+    queryKey: ["rewards"],
     queryFn: growthApi.rewards,
     enabled: Boolean(isAuthenticated && growthConfig.data?.coins_enabled),
   });
@@ -169,23 +181,6 @@ export default function CheckoutScreen() {
       !hasItemsRequiringChoice,
   );
 
-  const getVerificationStatus = (result: any) => {
-    const status = String(result?.status || '').toLowerCase();
-
-    if (result?.success === true || status === 'success') return 'success';
-    if (result?.failed === true || status === 'failed' || status === 'reversed')
-      return 'failed';
-    if (
-      result?.pending === true ||
-      ['pending', 'ongoing', 'processing', 'queued'].includes(status)
-    )
-      return 'pending';
-    if (status === 'abandoned' || result?.abandoned === true)
-      return 'abandoned';
-
-    return status || null;
-  };
-
   const handlePlaceOrder = async () => {
     if (
       isUpdating ||
@@ -194,36 +189,36 @@ export default function CheckoutScreen() {
       cart.some((item) => !!cartIssue(item))
     ) {
       toast.warning(
-        'Cart is not ready',
-        'Return to your cart and finish updating your items before checkout.',
+        "Cart is not ready",
+        "Return to your cart and finish updating your items before checkout.",
       );
       return;
     }
     if (hasDeliveryItems) {
       toast.warning(
-        'Pickup only',
-        'Remove delivery items from your cart and add them again for pickup.',
+        "Pickup only",
+        "Remove delivery items from your cart and add them again for pickup.",
       );
       return;
     }
 
     if (cart.length === 0) {
-      toast.warning('Empty Cart', 'Your cart is empty.');
+      toast.warning("Empty Cart", "Your cart is empty.");
       return;
     }
 
     if (hasItemsRequiringChoice) {
       toast.warning(
-        'Fulfillment Method Required',
-        'Please select pickup or delivery for all items in your cart.',
+        "Fulfillment Method Required",
+        "Please select pickup or delivery for all items in your cart.",
       );
       return;
     }
 
     if (quoteNotReady) {
       toast.warning(
-        'Refresh checkout',
-        'Wait for your final price before placing this order.',
+        "Refresh checkout",
+        "Wait for your final price before placing this order.",
       );
       return;
     }
@@ -237,7 +232,7 @@ export default function CheckoutScreen() {
 
         recipient_name: user?.full_name || user?.name || undefined,
         special_instructions: deliveryNotes || undefined,
-        payment_method: 'card' as const,
+        payment_method: "card" as const,
         ...(growthConfig.data?.enabled
           ? {
               campaign_code: appliedCode || undefined,
@@ -257,8 +252,9 @@ export default function CheckoutScreen() {
       // 3) single Order object with nested payment
       if (response?.paid === true) {
         clearCart.mutate();
+        setSelectedCode("");
         setSuccessMessage(
-          'Your order is confirmed. Your offer and SMM Coin covered the amount due.',
+          "Your order is confirmed. Your offer and SMM Coin covered the amount due.",
         );
         setSuccessDialogOpen(true);
         return;
@@ -295,8 +291,8 @@ export default function CheckoutScreen() {
           try {
             const parsed = new URL(authorizationUrl);
             return (
-              parsed.searchParams.get('reference') ||
-              parsed.searchParams.get('trxref')
+              parsed.searchParams.get("reference") ||
+              parsed.searchParams.get("trxref")
             );
           } catch {
             return null;
@@ -311,7 +307,7 @@ export default function CheckoutScreen() {
 
       let { authorizationUrl, resolvedReference } = getPaymentValues(response);
 
-      console.log('💳 [Checkout] Initial payment values:', {
+      console.log("💳 [Checkout] Initial payment values:", {
         hasAuthUrl: !!authorizationUrl,
         hasReference: !!resolvedReference,
         firstOrderId: firstOrder?.id,
@@ -323,7 +319,7 @@ export default function CheckoutScreen() {
         const customerEmail =
           user?.email ?? (firstOrder as any)?.Customer?.email;
 
-        console.log('💳 [Checkout] Initializing payment explicitly:', {
+        console.log("💳 [Checkout] Initializing payment explicitly:", {
           email: customerEmail,
           orderId: firstOrder?.id,
           orderGroupId: firstOrder?.order_group_id,
@@ -336,17 +332,17 @@ export default function CheckoutScreen() {
                 ? {
                     orderGroupId: firstOrder.order_group_id,
                     email: customerEmail,
-                    callbackUrl: 'savemymeal://payment/callback',
+                    callbackUrl: "savemymeal://payment/callback",
                   }
                 : {
                     orderId: firstOrder.id,
                     email: customerEmail,
-                    callbackUrl: 'savemymeal://payment/callback',
+                    callbackUrl: "savemymeal://payment/callback",
                   },
             );
 
             console.log(
-              '💳 [Checkout] Payment initialized:',
+              "💳 [Checkout] Payment initialized:",
               initializedPayment,
             );
 
@@ -354,13 +350,13 @@ export default function CheckoutScreen() {
             authorizationUrl = values.authorizationUrl;
             resolvedReference = values.resolvedReference;
 
-            console.log('💳 [Checkout] Payment values extracted:', {
+            console.log("💳 [Checkout] Payment values extracted:", {
               hasAuthUrl: !!authorizationUrl,
               hasReference: !!resolvedReference,
             });
           } catch (initError) {
             console.error(
-              '💳 [Checkout] Payment initialization failed:',
+              "💳 [Checkout] Payment initialization failed:",
               initError,
             );
           }
@@ -373,7 +369,7 @@ export default function CheckoutScreen() {
         const customerEmail =
           user?.email ?? (firstOrder as any)?.Customer?.email;
 
-        console.log('💳 [Checkout] Re-initializing to get reference:', {
+        console.log("💳 [Checkout] Re-initializing to get reference:", {
           email: customerEmail,
           hasAuthUrl: !!authorizationUrl,
         });
@@ -385,12 +381,12 @@ export default function CheckoutScreen() {
                 ? {
                     orderGroupId: firstOrder.order_group_id,
                     email: customerEmail,
-                    callbackUrl: 'savemymeal://payment/callback',
+                    callbackUrl: "savemymeal://payment/callback",
                   }
                 : {
                     orderId: firstOrder.id,
                     email: customerEmail,
-                    callbackUrl: 'savemymeal://payment/callback',
+                    callbackUrl: "savemymeal://payment/callback",
                   },
             );
 
@@ -398,13 +394,13 @@ export default function CheckoutScreen() {
             authorizationUrl = values.authorizationUrl;
             resolvedReference = values.resolvedReference;
 
-            console.log('💳 [Checkout] Reference recovered:', {
+            console.log("💳 [Checkout] Reference recovered:", {
               hasAuthUrl: !!authorizationUrl,
               hasReference: !!resolvedReference,
             });
           } catch (initError) {
             console.error(
-              '💳 [Checkout] Reference recovery failed:',
+              "💳 [Checkout] Reference recovery failed:",
               initError,
             );
           }
@@ -413,9 +409,9 @@ export default function CheckoutScreen() {
 
       // Open Paystack only when we have both authorization URL and reference.
       if (authorizationUrl && resolvedReference) {
-        console.log('💳 [Checkout] Opening Paystack with:', {
-          reference: resolvedReference?.substring(0, 20) + '...',
-          url: authorizationUrl?.substring(0, 50) + '...',
+        console.log("💳 [Checkout] Opening Paystack with:", {
+          reference: resolvedReference?.substring(0, 20) + "...",
+          url: authorizationUrl?.substring(0, 50) + "...",
         });
 
         setPaymentReference(resolvedReference);
@@ -430,27 +426,27 @@ export default function CheckoutScreen() {
         }
       } else {
         // Payment initialization failed but order was created
-        console.log('💳 [Checkout] Payment initialization failed:', {
+        console.log("💳 [Checkout] Payment initialization failed:", {
           hasAuthUrl: !!authorizationUrl,
           hasReference: !!resolvedReference,
           error: response?.error,
         });
         clearCart.mutate();
         toast.warning(
-          'Payment Initialization Failed',
+          "Payment Initialization Failed",
           response?.error ||
-            'Order created but payment could not be initialized. You can retry payment from your orders.',
+            "Order created but payment could not be initialized. You can retry payment from your orders.",
         );
         // Navigate to orders page
-        router.replace('/orders');
+        router.replace("/orders");
       }
     } catch (err: any) {
       const msg =
         err.response?.data?.error ??
         err.message ??
-        'Failed to place order. Please try again.';
-      toast.error('Order Failed', msg);
-      console.error('Order placement failed:', err);
+        "Failed to place order. Please try again.";
+      toast.error("Order Failed", msg);
+      console.error("Order placement failed:", err);
     } finally {
       setIsProcessing(false);
     }
@@ -463,26 +459,27 @@ export default function CheckoutScreen() {
     try {
       const verification = await verifyPayment.mutateAsync(reference);
 
-      if (getVerificationStatus(verification) !== 'success') {
-        throw new Error('Payment verification did not return success');
+      if (getVerificationStatus(verification) !== "success") {
+        throw new Error("Payment verification did not return success");
       }
 
       clearCart.mutate();
+      setSelectedCode("");
       setPaymentUrl(null);
       setPaymentReference(null);
       setSuccessMessage(
         verification.requires_review
           ? verification.message ||
-              'Your order is confirmed. An extra payment has been flagged for refund review.'
-          : 'Payment successful! Your order has been confirmed.',
+              "Your order is confirmed. An extra payment has been flagged for refund review."
+          : "Payment successful! Your order has been confirmed.",
       );
       setSuccessDialogOpen(true);
     } catch (err) {
-      console.error('Payment verification failed:', err);
+      console.error("Payment verification failed:", err);
       showPaymentStatus(
-        'pending',
-        'Payment status unavailable',
-        'We could not check your payment yet. View your order and check its payment status before trying another payment.',
+        "pending",
+        "Payment status unavailable",
+        "We could not check your payment yet. View your order and check its payment status before trying another payment.",
       );
     } finally {
       setIsProcessing(false);
@@ -500,55 +497,55 @@ export default function CheckoutScreen() {
         const verification = await api.payments.verifyPayment(paymentReference);
         const status = getVerificationStatus(verification);
 
-        if (status === 'success') {
+        if (status === "success") {
           clearCart.mutate();
           setPaymentUrl(null);
           setPaymentReference(null);
           setSuccessMessage(
             verification.requires_review
               ? verification.message ||
-                  'Your order is confirmed. An extra payment has been flagged for refund review.'
-              : 'Payment successful! Your order has been confirmed.',
+                  "Your order is confirmed. An extra payment has been flagged for refund review."
+              : "Payment successful! Your order has been confirmed.",
           );
           setSuccessDialogOpen(true);
           return;
         }
 
-        if (status === 'failed' || status === 'reversed') {
+        if (status === "failed" || status === "reversed") {
           setPaymentUrl(null);
           setPaymentReference(null);
           showPaymentStatus(
-            'error',
-            'Payment unsuccessful',
-            'Your payment was not completed. Open your order to review its status and retry payment.',
+            "error",
+            "Payment unsuccessful",
+            "Your payment was not completed. Open your order to review its status and retry payment.",
           );
           return;
         }
 
-        if (status === 'abandoned') {
+        if (status === "abandoned") {
           setPaymentUrl(null);
           setPaymentReference(null);
           showPaymentStatus(
-            'pending',
-            'Payment window closed',
-            'Your order is saved. Review its payment status before trying again.',
+            "pending",
+            "Payment window closed",
+            "Your order is saved. Review its payment status before trying again.",
           );
           return;
         }
 
-        if (status === 'pending') {
+        if (status === "pending") {
           showPaymentStatus(
-            'pending',
-            'Confirming your payment',
-            'Your payment is still being confirmed. Check your order status before paying again.',
+            "pending",
+            "Confirming your payment",
+            "Your payment is still being confirmed. Check your order status before paying again.",
           );
           return;
         }
       } catch {
         showPaymentStatus(
-          'pending',
-          'Payment status unavailable',
-          'We could not check whether payment completed. Check your order before making another payment.',
+          "pending",
+          "Payment status unavailable",
+          "We could not check whether payment completed. Check your order before making another payment.",
         );
         return;
       } finally {
@@ -559,9 +556,9 @@ export default function CheckoutScreen() {
     setPaymentUrl(null);
     setPaymentReference(null);
     showPaymentStatus(
-      'pending',
-      'Payment window closed',
-      'Your order is saved. Review its payment status before trying again.',
+      "pending",
+      "Payment window closed",
+      "Your order is saved. Review its payment status before trying again.",
     );
   };
 
@@ -593,7 +590,7 @@ export default function CheckoutScreen() {
         .then((verification) => {
           if (stopped) return;
 
-          if (getVerificationStatus(verification) === 'success') {
+          if (getVerificationStatus(verification) === "success") {
             stopped = true;
             clearInterval(interval);
             setShowPaymentWebView(false);
@@ -603,8 +600,8 @@ export default function CheckoutScreen() {
             setSuccessMessage(
               verification.requires_review
                 ? verification.message ||
-                    'Your order is confirmed. An extra payment has been flagged for refund review.'
-                : 'Payment successful! Your order has been confirmed.',
+                    "Your order is confirmed. An extra payment has been flagged for refund review."
+                : "Payment successful! Your order has been confirmed.",
             );
             setSuccessDialogOpen(true);
           }
@@ -632,7 +629,7 @@ export default function CheckoutScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Screen
         title="Checkout"
@@ -640,9 +637,9 @@ export default function CheckoutScreen() {
           <Action
             label={
               isProcessing
-                ? 'Processing…'
+                ? "Processing…"
                 : total === 0
-                  ? 'Confirm pickup order'
+                  ? "Confirm pickup order"
                   : `Pay ${formatCurrency(total)}`
             }
             onPress={handlePlaceOrder}
@@ -661,8 +658,8 @@ export default function CheckoutScreen() {
             </View>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/cart')}
-              style={{ minHeight: 44, justifyContent: 'center' }}
+              onPress={() => router.push("/cart")}
+              style={{ minHeight: 44, justifyContent: "center" }}
             >
               <Text style={ui.link}>Edit cart</Text>
             </Pressable>
@@ -673,7 +670,7 @@ export default function CheckoutScreen() {
               <Action
                 secondary
                 label="Explore meals"
-                onPress={() => router.push('/(tabs)/explore')}
+                onPress={() => router.push("/(tabs)/explore")}
               />
             </Card>
           )}
@@ -692,17 +689,17 @@ export default function CheckoutScreen() {
                 <View style={ui.row}>
                   <AppImage
                     source={getImageSource(vendor?.logo)}
-                    fallbackSource={require('@/assets/images/default-profile.jpg')}
+                    fallbackSource={require("@/assets/images/default-profile.jpg")}
                     style={{ width: 40, height: 40, borderRadius: 10 }}
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={ui.heading}>
-                      {vendor?.business_name || 'Pickup vendor'}
+                      {vendor?.business_name || "Pickup vendor"}
                     </Text>
                     <Text style={ui.muted}>
                       {[vendor?.address, vendor?.city]
                         .filter(Boolean)
-                        .join(', ') || 'View pickup details after confirmation'}
+                        .join(", ") || "View pickup details after confirmation"}
                     </Text>
                   </View>
                 </View>
@@ -732,7 +729,7 @@ export default function CheckoutScreen() {
                           {getEffectivePickupDay(
                             item.product.pickup_day,
                             item.product.pickup_end_time,
-                          )}{' '}
+                          )}{" "}
                           · {formatTime12Hour(item.product.pickup_start_time)}–
                           {formatTime12Hour(item.product.pickup_end_time)}
                         </Text>
@@ -753,8 +750,8 @@ export default function CheckoutScreen() {
                 <View style={{ flex: 1 }}>
                   <View
                     style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
+                      flexDirection: "row",
+                      alignItems: "center",
                       gap: 8,
                     }}
                   >
@@ -765,10 +762,10 @@ export default function CheckoutScreen() {
                     {serverQuote?.campaign?.name ||
                       (appliedCoins
                         ? `${appliedCoins} coins applied`
-                        : 'Have a code or coins to use?')}
+                        : "Have a code or coins to use?")}
                   </Text>
                 </View>
-                <Text style={ui.link}>{offersOpen ? 'Hide' : 'Add'}</Text>
+                <Text style={ui.link}>{offersOpen ? "Hide" : "Add"}</Text>
               </Pressable>
               {offersOpen && (
                 <>
@@ -785,13 +782,13 @@ export default function CheckoutScreen() {
                     <>
                       <Text style={ui.muted}>
                         {rewards.isLoading
-                          ? 'Loading coin balance…'
+                          ? "Loading coin balance…"
                           : rewards.isError
-                            ? 'Balance unavailable. View Rewards to retry.'
+                            ? "Balance unavailable. View Rewards to retry."
                             : `${rewards.data?.account.available || 0} coins available`}
                         {rewards.data && growthConfig.data.coin_value_kobo
                           ? ` · ${formatCurrency((rewards.data.account.available * growthConfig.data.coin_value_kobo) / 100)}`
-                          : ''}
+                          : ""}
                       </Text>
                       <Text style={ui.body}>Coins to use</Text>
                       <TextInput
@@ -803,8 +800,8 @@ export default function CheckoutScreen() {
                         maxLength={12}
                       />
                       <Pressable
-                        onPress={() => router.push('/rewards')}
-                        style={{ minHeight: 44, justifyContent: 'center' }}
+                        onPress={() => router.push("/rewards")}
+                        style={{ minHeight: 44, justifyContent: "center" }}
                       >
                         <Text style={ui.link}>
                           View rewards and redemption details
@@ -824,8 +821,8 @@ export default function CheckoutScreen() {
                         (rewards.data && coins > rewards.data.account.available)
                       ) {
                         toast.warning(
-                          'Invalid coins',
-                          'Enter whole coins within your available balance.',
+                          "Invalid coins",
+                          "Enter whole coins within your available balance.",
                         );
                         return;
                       }
@@ -843,9 +840,9 @@ export default function CheckoutScreen() {
                       secondary
                       label="Remove offer & coins"
                       onPress={() => {
-                        setOfferCode('');
-                        setCoinInput('0');
-                        setAppliedCode('');
+                        setOfferCode("");
+                        setCoinInput("0");
+                        setAppliedCode("");
                         setAppliedCoins(0);
                       }}
                     />
@@ -879,11 +876,11 @@ export default function CheckoutScreen() {
               <Text style={ui.heading}>
                 Order note <Text style={ui.muted}>(optional)</Text>
               </Text>
-              <Text style={ui.link}>{notesOpen ? 'Hide' : 'Add'}</Text>
+              <Text style={ui.link}>{notesOpen ? "Hide" : "Add"}</Text>
             </Pressable>
             {notesOpen && (
               <TextInput
-                style={[ui.input, { minHeight: 80, textAlignVertical: 'top' }]}
+                style={[ui.input, { minHeight: 80, textAlignVertical: "top" }]}
                 placeholder="Anything the vendor should know?"
                 placeholderTextColor={palette.muted}
                 value={deliveryNotes}
@@ -897,13 +894,13 @@ export default function CheckoutScreen() {
             <Text style={ui.heading}>Payment</Text>
             <Text style={ui.body}>
               {total === 0
-                ? 'Covered by your offer or SMM Coin'
-                : 'Secure payment with Paystack'}
+                ? "Covered by your offer or SMM Coin"
+                : "Secure payment with Paystack"}
             </Text>
             <Text style={ui.muted}>
               {total === 0
-                ? 'Confirm your order to reserve your pickup.'
-                : 'Choose from the payment options available in Paystack at the next step.'}
+                ? "Confirm your order to reserve your pickup."
+                : "Choose from the payment options available in Paystack at the next step."}
             </Text>
           </Card>
           <Card>
@@ -961,13 +958,13 @@ export default function CheckoutScreen() {
         <OutcomeDialog
           open={!!paymentOutcome}
           onClose={() => setPaymentOutcome(null)}
-          kind={paymentOutcome?.kind || 'pending'}
-          title={paymentOutcome?.title || ''}
-          message={paymentOutcome?.message || ''}
+          kind={paymentOutcome?.kind || "pending"}
+          title={paymentOutcome?.title || ""}
+          message={paymentOutcome?.message || ""}
           primaryLabel="View order status"
           onPrimary={() => {
             setPaymentOutcome(null);
-            router.replace('/orders');
+            router.replace("/orders");
           }}
           secondaryLabel="Close"
           onSecondary={() => setPaymentOutcome(null)}
@@ -981,13 +978,13 @@ export default function CheckoutScreen() {
           onPrimary={() => {
             setSuccessDialogOpen(false);
             router.replace(
-              successOrderId ? (`/order/${successOrderId}` as any) : '/orders',
+              successOrderId ? (`/order/${successOrderId}` as any) : "/orders",
             );
           }}
           secondaryLabel="Continue browsing"
           onSecondary={() => {
             setSuccessDialogOpen(false);
-            router.replace('/(tabs)');
+            router.replace("/(tabs)");
           }}
         />
 

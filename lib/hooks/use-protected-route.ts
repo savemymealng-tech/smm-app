@@ -1,7 +1,7 @@
-import { authAtom } from '@/lib/atoms';
-import { useRouter } from 'expo-router';
-import { useAtomValue } from 'jotai';
-import { useEffect } from 'react';
+import { authAtom } from "@/lib/atoms";
+import { usePathname, useLocalSearchParams, useRouter } from "expo-router";
+import { useAtomValue } from "jotai";
+import { useEffect } from "react";
 
 /**
  * Redirects unauthenticated users to the login screen.
@@ -15,12 +15,22 @@ import { useEffect } from 'react';
 export function useProtectedRoute() {
   const { isAuthenticated, isLoading } = useAtomValue(authAtom);
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useLocalSearchParams<{
+    reference?: string;
+    trxref?: string;
+  }>();
+  const reference = params.reference || params.trxref;
+  const returnTo =
+    pathname === "/payment/callback" && typeof reference === "string"
+      ? pathname + "?reference=" + encodeURIComponent(reference)
+      : pathname;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace('/login');
+      router.replace({ pathname: "/login", params: { returnTo } });
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, returnTo, router]);
 
   return { isAuthenticated, isLoading };
 }

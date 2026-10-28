@@ -1,12 +1,13 @@
-import { Button } from '@/components/ui/button';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Text } from '@/components/ui/text';
-import { api } from '@/lib/api';
-import { setAuthStateAtom, verificationContextAtom } from '@/lib/atoms/auth';
-import type { User } from '@/types';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useAtom } from 'jotai';
-import { useState } from 'react';
+import { resolveAppLink } from "@/lib/deep-links";
+import { Button } from "@/components/ui/button";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Text } from "@/components/ui/text";
+import { api } from "@/lib/api";
+import { setAuthStateAtom, verificationContextAtom } from "@/lib/atoms/auth";
+import type { User } from "@/types";
+import { router, useLocalSearchParams } from "expo-router";
+import { useAtom } from "jotai";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +18,8 @@ import {
   ScrollView,
   TextInput,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -26,25 +27,25 @@ export default function LoginScreen() {
   const [, setAuthState] = useAtom(setAuthStateAtom);
   const [, setVerificationContext] = useAtom(verificationContextAtom);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      setError('Please enter your email address');
+      setError("Please enter your email address");
       return;
     }
 
     if (!password.trim() || password.length < 6) {
-      setError('Please enter a valid password (minimum 6 characters)');
+      setError("Please enter a valid password (minimum 6 characters)");
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const result = await api.auth.login({
         email: email.trim(),
@@ -56,13 +57,13 @@ export default function LoginScreen() {
       try {
         user = await api.profile.getProfile();
       } catch (profileError) {
-        console.error('Error fetching profile:', profileError);
+        console.error("Error fetching profile:", profileError);
         // Create a basic user object from auth response
         user = {
-          id: result.user?.id?.toString() || '',
+          id: result.user?.id?.toString() || "",
           email: result.user?.email || email,
-          name: '',
-          phone: '',
+          name: "",
+          phone: "",
           addresses: [],
           paymentMethods: [],
           createdAt: new Date().toISOString(),
@@ -73,12 +74,16 @@ export default function LoginScreen() {
       await setAuthState({
         user,
         accessToken: result.token,
-        refreshToken: result.refreshToken || '',
+        refreshToken: result.refreshToken || "",
       });
 
-      router.replace(returnTo === '/cart' ? '/(tabs)/cart' : '/(tabs)');
+      router.replace(
+        (typeof returnTo === "string"
+          ? resolveAppLink(returnTo) || "/(tabs)"
+          : "/(tabs)") as any,
+      );
     } catch (err: any) {
-      console.log('Login error:', err); // Debug log
+      console.log("Login error:", err); // Debug log
 
       // Check if email not verified
       // The API returns error data wrapped in a 'data' object
@@ -86,23 +91,23 @@ export default function LoginScreen() {
         const responseData = err?.responseData?.data || err?.responseData;
         const details = responseData?.details;
 
-        console.log('403 error details:', details); // Debug log
+        console.log("403 error details:", details); // Debug log
 
         if (
-          details?.code === 'EMAIL_NOT_VERIFIED' ||
+          details?.code === "EMAIL_NOT_VERIFIED" ||
           details?.requires_verification
         ) {
           Alert.alert(
-            'Email Not Verified',
-            'Please verify your email address to continue.',
+            "Email Not Verified",
+            "Please verify your email address to continue.",
             [
               {
-                text: 'Verify Now',
+                text: "Verify Now",
                 onPress: () => {
                   setLoading(false);
                   const emailToVerify = details?.email || email.trim();
                   console.log(
-                    'Navigating to verify-otp with email:',
+                    "Navigating to verify-otp with email:",
                     emailToVerify,
                   );
                   // Set verification context
@@ -112,13 +117,13 @@ export default function LoginScreen() {
                   });
                   // Small delay to ensure state is set before navigation
                   setTimeout(() => {
-                    router.push('/verify-otp');
+                    router.push("/verify-otp");
                   }, 50);
                 },
               },
               {
-                text: 'Cancel',
-                style: 'cancel',
+                text: "Cancel",
+                style: "cancel",
               },
             ],
           );
@@ -128,17 +133,17 @@ export default function LoginScreen() {
       }
 
       // Also check in error message for "email not verified" text
-      const errorMsg = err?.error || err?.message || '';
+      const errorMsg = err?.error || err?.message || "";
       if (
-        errorMsg.toLowerCase().includes('email not verified') ||
-        errorMsg.toLowerCase().includes('verify your email')
+        errorMsg.toLowerCase().includes("email not verified") ||
+        errorMsg.toLowerCase().includes("verify your email")
       ) {
         Alert.alert(
-          'Email Not Verified',
-          'Please verify your email address to continue.',
+          "Email Not Verified",
+          "Please verify your email address to continue.",
           [
             {
-              text: 'Verify Now',
+              text: "Verify Now",
               onPress: () => {
                 setLoading(false);
                 const emailToVerify = email.trim();
@@ -149,13 +154,13 @@ export default function LoginScreen() {
                 });
                 // Small delay to ensure state is set before navigation
                 setTimeout(() => {
-                  router.push('/verify-otp');
+                  router.push("/verify-otp");
                 }, 50);
               },
             },
             {
-              text: 'Cancel',
-              style: 'cancel',
+              text: "Cancel",
+              style: "cancel",
             },
           ],
         );
@@ -164,7 +169,7 @@ export default function LoginScreen() {
       }
 
       // Extract the most user-friendly error message
-      let errorMessage = 'Invalid email or password';
+      let errorMessage = "Invalid email or password";
 
       if (err?.error) {
         errorMessage = err.error;
@@ -174,23 +179,23 @@ export default function LoginScreen() {
 
       // Handle specific error cases
       if (
-        errorMessage.toLowerCase().includes('not found') ||
-        errorMessage.toLowerCase().includes('does not exist')
+        errorMessage.toLowerCase().includes("not found") ||
+        errorMessage.toLowerCase().includes("does not exist")
       ) {
         errorMessage =
-          'No account found with this email. Please sign up first.';
+          "No account found with this email. Please sign up first.";
       } else if (
-        errorMessage.toLowerCase().includes('incorrect') ||
-        errorMessage.toLowerCase().includes('invalid password') ||
-        errorMessage.toLowerCase().includes('wrong password')
+        errorMessage.toLowerCase().includes("incorrect") ||
+        errorMessage.toLowerCase().includes("invalid password") ||
+        errorMessage.toLowerCase().includes("wrong password")
       ) {
-        errorMessage = 'Incorrect password. Please try again.';
+        errorMessage = "Incorrect password. Please try again.";
       } else if (
-        errorMessage.toLowerCase().includes('blocked') ||
-        errorMessage.toLowerCase().includes('suspended')
+        errorMessage.toLowerCase().includes("blocked") ||
+        errorMessage.toLowerCase().includes("suspended")
       ) {
         errorMessage =
-          'Your account has been suspended. Please contact support.';
+          "Your account has been suspended. Please contact support.";
       }
 
       setError(errorMessage);
@@ -200,14 +205,14 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    router.push('/forgot-password');
+    router.push("/forgot-password");
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       className="flex-1 bg-white"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <ScrollView
         className="flex-1"
@@ -215,19 +220,19 @@ export default function LoginScreen() {
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
           paddingHorizontal: 24,
-          minHeight: '100%',
+          minHeight: "100%",
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => router.replace('/(tabs)')} className="mb-8">
+        <Pressable onPress={() => router.replace("/(tabs)")} className="mb-8">
           <IconSymbol name="chevron.left" size={24} color="#111827" />
         </Pressable>
 
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-full bg-[#15785B] items-center justify-center mb-4 overflow-hidden">
             <Image
-              source={require('@/assets/adaptive-icon.png')}
+              source={require("@/assets/adaptive-icon.png")}
               style={{ width: 60, height: 60 }}
               resizeMode="contain"
             />
@@ -258,7 +263,7 @@ export default function LoginScreen() {
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
-                if (error) setError('');
+                if (error) setError("");
               }}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -269,11 +274,11 @@ export default function LoginScreen() {
                 height: 56,
                 paddingHorizontal: 16,
                 fontSize: 16,
-                color: '#111827',
-                backgroundColor: '#f9fafb',
+                color: "#111827",
+                backgroundColor: "#f9fafb",
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: '#e5e7eb',
+                borderColor: "#e5e7eb",
               }}
             />
           </View>
@@ -289,7 +294,7 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
-                  if (error) setError('');
+                  if (error) setError("");
                 }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
@@ -301,26 +306,26 @@ export default function LoginScreen() {
                   paddingHorizontal: 16,
                   paddingRight: 50,
                   fontSize: 16,
-                  color: '#111827',
-                  backgroundColor: '#f9fafb',
+                  color: "#111827",
+                  backgroundColor: "#f9fafb",
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#e5e7eb',
+                  borderColor: "#e5e7eb",
                 }}
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   right: 16,
                   top: 0,
                   bottom: 0,
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
                 <IconSymbol
-                  name={showPassword ? 'eye.slash' : 'eye'}
+                  name={showPassword ? "eye.slash" : "eye"}
                   size={20}
                   color="#6b7280"
                 />
@@ -352,9 +357,9 @@ export default function LoginScreen() {
         <View className="mt-auto pt-8">
           <View className="flex-row justify-center items-center">
             <Text className="text-center text-gray-400 text-sm">
-              Don't have an account?{' '}
+              Don't have an account?{" "}
             </Text>
-            <Pressable onPress={() => router.push('/signup')}>
+            <Pressable onPress={() => router.push("/signup")}>
               <Text className="text-blue-600 font-semibold">Sign up</Text>
             </Pressable>
           </View>

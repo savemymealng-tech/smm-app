@@ -63,7 +63,7 @@ export interface Vendor {
   city: string;
   phone: string;
   logo: string;
-  verification_status: 'pending' | 'approved' | 'rejected';
+  verification_status: "pending" | "approved" | "rejected";
   is_featured: boolean;
   latitude: string;
   longitude: string;
@@ -79,6 +79,11 @@ export interface Vendor {
 // ============================================
 
 export interface Meal {
+  pack_id?: number | null;
+  item_snapshot?: {
+    kind: string;
+    contents?: { product_id: number; name: string; quantity: number }[];
+  };
   id: number;
   vendor_id: number;
   name: string;
@@ -104,7 +109,7 @@ export interface Meal {
   available_for_delivery?: boolean;
   pickup_start_time?: string;
   pickup_end_time?: string;
-  pickup_day?: 'today' | 'tomorrow';
+  pickup_day?: "today" | "tomorrow";
   delivery_time_minutes?: number;
   average_rating?: string;
   total_reviews?: number;
@@ -131,13 +136,13 @@ export interface BrowseMealsParams {
   vendor_id?: number;
   vendor_rating_min?: number;
   sort_by?:
-    | 'price_asc'
-    | 'price_desc'
-    | 'rating'
-    | 'distance'
-    | 'expiry_date'
-    | 'created_at';
-  sort_order?: 'asc' | 'desc';
+    | "price_asc"
+    | "price_desc"
+    | "rating"
+    | "distance"
+    | "expiry_date"
+    | "created_at";
+  sort_order?: "asc" | "desc";
   page?: number;
   limit?: number;
   include_expired?: boolean;
@@ -187,7 +192,7 @@ export interface CartProduct {
   available_for_delivery?: boolean;
   pickup_start_time?: string;
   pickup_end_time?: string;
-  pickup_day?: 'today' | 'tomorrow';
+  pickup_day?: "today" | "tomorrow";
   delivery_time_minutes?: number;
 }
 
@@ -198,7 +203,7 @@ export interface CartItem {
   product_id: number;
   quantity: number;
   product: CartProduct;
-  fulfillment_method?: 'pickup' | 'delivery' | null;
+  fulfillment_method?: "pickup" | "delivery" | null;
   requires_fulfillment_choice?: boolean;
 }
 
@@ -214,13 +219,13 @@ export interface Cart {
 export interface AddToCartRequest {
   product_id: number;
   quantity: number;
-  fulfillment_method?: 'pickup' | 'delivery';
+  fulfillment_method?: "pickup" | "delivery";
 }
 
 export interface UpdateCartRequest {
   product_id: number;
   quantity: number;
-  fulfillment_method?: 'pickup' | 'delivery';
+  fulfillment_method?: "pickup" | "delivery";
 }
 
 export interface RemoveFromCartRequest {
@@ -251,8 +256,16 @@ export interface DeliveryAddress {
 }
 
 export interface OrderItem {
+  item_snapshot?: {
+    kind: string;
+    name: string;
+    photo_url?: string;
+    pickup_start_time?: string;
+    pickup_end_time?: string;
+    contents?: { product_id: number; name: string; quantity: number }[];
+  } | null;
   has_review?: boolean;
-  fulfillment_method?: 'pickup' | 'delivery' | null;
+  fulfillment_method?: "pickup" | "delivery" | null;
   id: number;
   order_id: number;
   product_id: number;
@@ -301,23 +314,23 @@ export interface Order {
   service_fee: string;
   delivery_address: DeliveryAddress | string;
   status:
-    | 'pending'
-    | 'accepted'
-    | 'preparing'
-    | 'ready'
-    | 'delivered'
-    | 'completed'
-    | 'cancelled'
-    | 'rejected';
+    | "pending"
+    | "accepted"
+    | "preparing"
+    | "ready"
+    | "delivered"
+    | "completed"
+    | "cancelled"
+    | "rejected";
   payment_method:
-    | 'card'
-    | 'cash_on_delivery'
-    | 'wallet'
-    | 'cash'
-    | 'transfer'
-    | 'smm_coin'
-    | 'promotion';
-  payment_status?: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+    | "card"
+    | "cash_on_delivery"
+    | "wallet"
+    | "cash"
+    | "transfer"
+    | "smm_coin"
+    | "promotion";
+  payment_status?: "pending" | "paid" | "failed" | "refunded" | "cancelled";
   payment?: {
     id: number;
     reference: string;
@@ -390,7 +403,7 @@ export interface PlaceOrderRequest {
   /** "Deliver to" name when using address_id */
   recipient_name?: string;
   special_instructions?: string;
-  payment_method?: 'card' | 'cash_on_delivery' | 'wallet';
+  payment_method?: "card" | "cash_on_delivery" | "wallet";
 }
 
 // ============================================
@@ -415,9 +428,9 @@ export interface PaymentVerification {
   message?: string;
   reference: string;
   amount: string;
-  status: 'success' | 'failed' | 'abandoned' | 'refunded';
+  status: "success" | "failed" | "abandoned" | "refunded";
   paid_at: string;
-  channel: 'card' | 'bank' | 'ussd' | 'qr' | 'mobile_money';
+  channel: "card" | "bank" | "ussd" | "qr" | "mobile_money";
   order: {
     id: number;
     payment_status: string;

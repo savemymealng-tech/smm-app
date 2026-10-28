@@ -1,18 +1,18 @@
-import { productDiscount } from '@/lib/product-display';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { Star } from 'lucide-react-native';
-import { AppImage } from '@/components/ui/app-image';
-import { palette } from '@/components/ui/screen-kit';
-import { formatMoney } from '@/lib/order-display';
+import { productDiscount } from "@/lib/product-display";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { Star } from "lucide-react-native";
+import { AppImage } from "@/components/ui/app-image";
+import { palette } from "@/components/ui/screen-kit";
+import { formatMoney } from "@/lib/order-display";
 import {
   calculateDistance,
   formatDistance,
   formatTime12Hour,
   getEffectivePickupDay,
   getImageSource,
-} from '@/lib/utils';
-import type { Meal } from '@/types/api';
+} from "@/lib/utils";
+import type { Meal } from "@/types/api";
 export function ProductCard({
   item,
   userLocation,
@@ -56,16 +56,16 @@ export function ProductCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.name}, ${formatMoney(price)}${unavailable ? ', currently unavailable' : ''}. View pickup details`}
+      accessibilityLabel={`${item.name}, ${formatMoney(price)}${unavailable ? ", currently unavailable" : ""}. View pickup details`}
       onPress={() => router.push(`/product/${item.id}` as any)}
       style={({ pressed }) => [styles.card, { opacity: pressed ? 0.88 : 1 }]}
     >
-      <View style={{ aspectRatio: 4 / 3, backgroundColor: '#edf1ee' }}>
+      <View style={{ aspectRatio: 4 / 3, backgroundColor: "#edf1ee" }}>
         <AppImage
           source={getImageSource(item.photo_url)}
           style={{
-            width: '100%',
-            height: '100%',
+            width: "100%",
+            height: "100%",
             opacity: unavailable ? 0.55 : 1,
           }}
           resizeMode="cover"
@@ -77,7 +77,7 @@ export function ProductCard({
               style={{
                 fontSize: 11,
                 lineHeight: 15,
-                fontWeight: '700',
+                fontWeight: "700",
                 color: palette.orangeInk,
               }}
             >
@@ -87,17 +87,24 @@ export function ProductCard({
         )}
       </View>
       <View style={styles.body}>
+        {!!item.pack_id && (
+          <Text
+            style={{ fontSize: 11, fontWeight: "700", color: palette.green }}
+          >
+            MEAL PACK
+          </Text>
+        )}
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
         <Text style={styles.vendor} numberOfLines={1}>
-          {item.vendor?.business_name || 'Pickup vendor'}
+          {item.vendor?.business_name || "Pickup vendor"}
         </Text>
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'baseline',
-            flexWrap: 'wrap',
+            flexDirection: "row",
+            alignItems: "baseline",
+            flexWrap: "wrap",
             gap: 5,
           }}
         >
@@ -110,10 +117,10 @@ export function ProductCard({
           <Text style={styles.pickup}>
             {window
               ? `Pickup ${getEffectivePickupDay(item.pickup_day, item.pickup_end_time).toLowerCase()}`
-              : 'Pickup'}
+              : "Pickup"}
           </Text>
           <Text style={styles.secondary} numberOfLines={1}>
-            {window || 'View collection details'}
+            {window || "View collection details"}
           </Text>
         </View>
         {!!distance && <Text style={styles.secondary}>{distance} away</Text>}
@@ -123,7 +130,7 @@ export function ProductCard({
               style={{
                 fontSize: 11,
                 lineHeight: 16,
-                fontWeight: '600',
+                fontWeight: "600",
                 color: palette.red,
               }}
             >
@@ -133,7 +140,7 @@ export function ProductCard({
             <>
               {hasRating && (
                 <View
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
                 >
                   <Star
                     size={11}
@@ -153,7 +160,7 @@ export function ProductCard({
                   style={{
                     fontSize: 11,
                     lineHeight: 16,
-                    fontWeight: '600',
+                    fontWeight: "600",
                     color: palette.orangeInk,
                   }}
                 >
@@ -170,13 +177,13 @@ export function ProductCard({
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    width: '100%',
-    overflow: 'hidden',
+    width: "100%",
+    overflow: "hidden",
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: palette.border,
-    shadowColor: '#193c28',
+    shadowColor: "#193c28",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.025,
     shadowRadius: 4,
@@ -187,46 +194,46 @@ const styles = StyleSheet.create({
     minHeight: 36,
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: palette.ink,
   },
   vendor: { fontSize: 12, lineHeight: 16, color: palette.muted },
   price: {
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: palette.ink,
   },
   original: {
     fontSize: 11,
     lineHeight: 16,
-    color: '#77837c',
-    textDecorationLine: 'line-through',
+    color: "#77837c",
+    textDecorationLine: "line-through",
   },
   pickup: {
     fontSize: 12,
     lineHeight: 16,
     color: palette.green,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   secondary: { fontSize: 11, lineHeight: 16, color: palette.muted },
   bottom: {
     minHeight: 16,
-    marginTop: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 5,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   offer: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 2,
     elevation: 2,
     minWidth: 56,
     minHeight: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     left: 8,
     bottom: 8,
     borderRadius: 6,

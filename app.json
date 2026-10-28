@@ -22,9 +22,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.savemymeal.app",
-      "associatedDomains": [
-        "applinks:savemymeal.com"
-      ]
+      "associatedDomains": ["applinks:savemymeal.com"]
     },
     "android": {
       "intentFilters": [
@@ -35,16 +33,60 @@
             {
               "scheme": "https",
               "host": "savemymeal.com",
-              "pathPrefix": "/app/redirect"
+              "pathPrefix": "/app/"
             },
             {
-              "scheme": "savemymeal"
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/ref/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/product/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/vendor/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/vendors/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/order/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/orders/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/pack/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/deal/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/campaign/"
+            },
+            {
+              "scheme": "https",
+              "host": "savemymeal.com",
+              "pathPrefix": "/payment/callback"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
       "adaptiveIcon": {

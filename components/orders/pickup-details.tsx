@@ -6,9 +6,9 @@ import {
   statusLabel,
   paymentLabel,
   receipt,
-} from '@/lib/order-display';
-import { Text, View, Linking } from 'react-native';
-import type { Order, OrderItem } from '@/types/api';
+} from "@/lib/order-display";
+import { Text, View, Linking } from "react-native";
+import type { Order, OrderItem } from "@/types/api";
 import {
   Card,
   Action,
@@ -16,10 +16,10 @@ import {
   AmountRow,
   ui,
   palette,
-} from '@/components/ui/screen-kit';
-import { AppImage } from '@/components/ui/app-image';
-import { formatTime12Hour, getImageSource } from '@/lib/utils';
-import { toast } from '@/components/ui/toast';
+} from "@/components/ui/screen-kit";
+import { AppImage } from "@/components/ui/app-image";
+import { formatTime12Hour, getImageSource } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
 export function PickupDetails({
   orders,
   onCancel,
@@ -46,7 +46,7 @@ export function PickupDetails({
     try {
       await Linking.openURL(url);
     } catch {
-      toast.error('Unable to open', 'Please try again or contact support.');
+      toast.error("Unable to open", "Please try again or contact support.");
     }
   }
   return (
@@ -73,49 +73,49 @@ export function PickupDetails({
           order.vendor?.state?.name,
         ]
           .filter(Boolean)
-          .join(', ');
+          .join(", ");
         const items = order.orderItems || order.items || [];
         const cancellable =
-          order.status === 'pending' &&
+          order.status === "pending" &&
           (!order.checkout_id || !isPaid(order)) &&
           (!order.checkout_id ||
-            orders.every((o) => o.status === 'pending' && !isPaid(o)));
+            orders.every((o) => o.status === "pending" && !isPaid(o)));
         return (
           <Card key={order.id}>
             <View style={ui.row}>
               <AppImage
                 source={getImageSource(order.vendor?.logo)}
-                fallbackSource={require('@/assets/images/default-profile.jpg')}
+                fallbackSource={require("@/assets/images/default-profile.jpg")}
                 style={{ width: 44, height: 44, borderRadius: 12 }}
               />
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={ui.heading}>
-                  {order.vendor?.business_name || 'Pickup vendor'}
+                  {order.vendor?.business_name || "Pickup vendor"}
                 </Text>
                 <Text style={ui.muted}>Order #{order.id}</Text>
               </View>
             </View>
-            <View style={[ui.row, { flexWrap: 'wrap' }]}>
+            <View style={[ui.row, { flexWrap: "wrap" }]}>
               <Badge label={statusLabel(order.status)} />
               <Badge neutral={!isPaid(order)} label={paymentLabel(order)} />
             </View>
-            {order.status === 'pending' && (
+            {order.status === "pending" && (
               <Text style={ui.muted}>
                 {isPaid(order)
-                  ? 'Waiting for the vendor to confirm your pickup.'
-                  : 'Complete payment to continue your pickup order.'}
+                  ? "Waiting for the vendor to confirm your pickup."
+                  : "Complete payment to continue your pickup order."}
               </Text>
             )}
-            {order.status === 'accepted' && (
+            {order.status === "accepted" && (
               <Text style={ui.muted}>
                 The vendor confirmed your order. Watch for a ready-for-pickup
                 update.
               </Text>
             )}
-            {order.status === 'preparing' && (
+            {order.status === "preparing" && (
               <Text style={ui.muted}>The vendor is preparing your meal.</Text>
             )}
-            {order.status === 'ready' && (
+            {order.status === "ready" && (
               <Text style={[ui.body, { color: palette.green }]}>
                 Your meal is ready. Show this order when you collect it.
               </Text>
@@ -126,7 +126,7 @@ export function PickupDetails({
             <View style={ui.line} />
             <Text style={ui.heading}>Pickup location</Text>
             <Text style={ui.muted}>
-              {address || 'Contact the vendor for collection details.'}
+              {address || "Contact the vendor for collection details."}
             </Text>
             <View style={ui.row}>
               {!!address && (
@@ -149,7 +149,7 @@ export function PickupDetails({
                     label="Call vendor"
                     onPress={() =>
                       void open(
-                        `tel:${order.vendor!.phone!.replace(/[^+0-9]/g, '')}`,
+                        `tel:${order.vendor!.phone!.replace(/[^+0-9]/g, "")}`,
                       )
                     }
                   />
@@ -161,11 +161,25 @@ export function PickupDetails({
               <View key={item.id} style={{ gap: 8 }}>
                 <View style={ui.row}>
                   <AppImage
-                    source={getImageSource(item.product?.photo_url)}
+                    source={getImageSource(
+                      item.item_snapshot?.photo_url || item.product?.photo_url,
+                    )}
                     style={{ width: 48, height: 48, borderRadius: 10 }}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={ui.body}>{item.product?.name || 'Meal'}</Text>
+                    <Text style={ui.body}>
+                      {item.item_snapshot?.name || item.product?.name || "Meal"}
+                    </Text>
+                    {!!item.item_snapshot?.contents?.length && (
+                      <Text style={ui.muted}>
+                        {item.item_snapshot.contents
+                          .map(
+                            (component) =>
+                              `${component.quantity} × ${component.name}`,
+                          )
+                          .join(" · ")}
+                      </Text>
+                    )}
                     <Text style={ui.muted}>
                       {item.quantity} × {formatCurrency(Number(item.price))}
                     </Text>
@@ -177,13 +191,13 @@ export function PickupDetails({
                 {item.product?.pickup_start_time &&
                   item.product?.pickup_end_time && (
                     <Text style={ui.muted}>
-                      Collection window ·{' '}
+                      Collection window ·{" "}
                       {formatTime12Hour(item.product.pickup_start_time)}–
                       {formatTime12Hour(item.product.pickup_end_time)}
                     </Text>
                   )}
                 {isPaid(order) &&
-                  ['completed', 'delivered'].includes(order.status) &&
+                  ["completed", "delivered"].includes(order.status) &&
                   (item.has_review ? (
                     <Text style={ui.muted}>Review submitted</Text>
                   ) : (
@@ -208,8 +222,8 @@ export function PickupDetails({
               <Action
                 label={
                   order.payment?.reference
-                    ? 'Check / complete payment'
-                    : 'Complete payment'
+                    ? "Check / complete payment"
+                    : "Complete payment"
                 }
                 busy={paying}
                 onPress={() => onPay(order)}
@@ -221,8 +235,8 @@ export function PickupDetails({
                 danger
                 label={
                   order.checkout_id && orders.length > 1
-                    ? 'Cancel unpaid checkout'
-                    : 'Cancel order'
+                    ? "Cancel unpaid checkout"
+                    : "Cancel order"
                 }
                 disabled={cancelling}
                 onPress={() => onCancel(order)}
@@ -266,7 +280,7 @@ export function PickupDetails({
           <Action
             label={
               orders[0].payment?.reference
-                ? 'Check / complete payment'
+                ? "Check / complete payment"
                 : `Pay ${formatCurrency(totals.total)}`
             }
             busy={paying}

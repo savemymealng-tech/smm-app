@@ -1,5 +1,8 @@
-import { VendorCard } from '@/components/vendor/VendorCard';
-import { useState } from 'react';
+import { resolveAppLink } from "@/lib/deep-links";
+import { OffersAndPacks } from "@/components/home/OffersAndPacks";
+import { useHomeDiscovery } from "@/lib/hooks/use-discovery";
+import { VendorCard } from "@/components/vendor/VendorCard";
+import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,10 +13,10 @@ import {
   Text,
   View,
   useWindowDimensions,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAtomValue } from 'jotai';
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAtomValue } from "jotai";
 import {
   Search,
   UtensilsCrossed,
@@ -21,11 +24,11 @@ import {
   Coffee,
   Apple,
   Grid2X2,
-} from 'lucide-react-native';
-import { BrowsingLocation } from '@/components/ui/browsing-location';
-import { AppImage } from '@/components/ui/app-image';
-import { Action, Message, palette, ui } from '@/components/ui/screen-kit';
-import { ProductCard } from '@/components/product/ProductCard';
+} from "lucide-react-native";
+import { BrowsingLocation } from "@/components/ui/browsing-location";
+import { AppImage } from "@/components/ui/app-image";
+import { Action, Message, palette, ui } from "@/components/ui/screen-kit";
+import { ProductCard } from "@/components/product/ProductCard";
 import {
   useBanners,
   useFeaturedCategories,
@@ -33,10 +36,10 @@ import {
   useFeaturedVendors,
   useNearbyMeals,
   useNearbyVendors,
-} from '@/lib/hooks';
-import { useLocation } from '@/lib/hooks/useLocation';
-import { locationRadiusAtom } from '@/lib/atoms/locationFilter';
-import { getImageSource } from '@/lib/utils';
+} from "@/lib/hooks";
+import { useLocation } from "@/lib/hooks/useLocation";
+import { locationRadiusAtom } from "@/lib/atoms/locationFilter";
+import { getImageSource } from "@/lib/utils";
 function Section({
   title,
   onAll,
@@ -55,7 +58,7 @@ function Section({
             accessibilityRole="button"
             accessibilityLabel={`See all ${title.toLowerCase()}`}
             onPress={onAll}
-            style={{ minHeight: 44, justifyContent: 'center' }}
+            style={{ minHeight: 44, justifyContent: "center" }}
           >
             <Text style={ui.link}>See all</Text>
           </Pressable>
@@ -101,19 +104,22 @@ export default function HomeScreen() {
   const vendors = useFeaturedVendors();
   const categories = useFeaturedCategories();
   const banners = useBanners();
+  const discovery = useHomeDiscovery();
   const hasArea = !!(location?.coords || location?.city);
   const areaTitle = location?.coords
-    ? 'Meals near your area'
-    : `Meals in ${location?.city || 'your area'}`;
+    ? "Meals near your area"
+    : `Meals in ${location?.city || "your area"}`;
+  const packIds = new Set((discovery.data?.packs || []).map((pack) => pack.id));
   const nearbyIds = new Set((nearby.data || []).map((p) => p.id));
   const featuredItems = (featured.data || []).filter(
-    (p) => !nearbyIds.has(p.id),
+    (p) => !nearbyIds.has(p.id) && !packIds.has(p.id),
   );
   async function refresh() {
     setRefreshing(true);
     try {
       await Promise.allSettled([
         banners.refetch(),
+        discovery.refetch(),
         categories.refetch(),
         featured.refetch(),
         vendors.refetch(),
@@ -131,7 +137,7 @@ export default function HomeScreen() {
       <View
         style={{
           paddingBottom: 12,
-          backgroundColor: '#fff',
+          backgroundColor: "#fff",
           borderBottomWidth: 1,
           borderBottomColor: palette.border,
         }}
@@ -140,16 +146,16 @@ export default function HomeScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Search products"
-          onPress={() => router.push('/explore')}
+          onPress={() => router.push("/explore")}
           style={{
             marginHorizontal: 16,
             minHeight: 44,
             paddingHorizontal: 14,
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: "row",
+            alignItems: "center",
             gap: 10,
             borderRadius: 12,
-            backgroundColor: '#f2f5f3',
+            backgroundColor: "#f2f5f3",
           }}
         >
           <Search size={18} color={palette.muted} />
@@ -180,7 +186,7 @@ export default function HomeScreen() {
               marginHorizontal: 16,
               height: 120,
               borderRadius: 16,
-              backgroundColor: '#e9eeeb',
+              backgroundColor: "#e9eeeb",
             }}
           />
         ) : (
@@ -203,18 +209,16 @@ export default function HomeScreen() {
                     accessibilityLabel="View promotion"
                     disabled={!item.link_url}
                     onPress={() => {
-                      if (item.link_url?.startsWith('savemymeal://'))
-                        router.push(
-                          item.link_url.replace('savemymeal:/', '') as any,
-                        );
-                      else if (/^https?:\/\//.test(item.link_url || ''))
+                      const destination = resolveAppLink(item.link_url || "");
+                      if (destination) router.push(destination as any);
+                      else if (/^https?:\/\//.test(item.link_url || ""))
                         void Linking.openURL(item.link_url!).catch(() => {});
                     }}
                     style={{ width, paddingHorizontal: 16 }}
                   >
                     <AppImage
                       source={getImageSource(item.image_url)}
-                      style={{ width: '100%', height: 120, borderRadius: 16 }}
+                      style={{ width: "100%", height: 120, borderRadius: 16 }}
                       resizeMode="cover"
                     />
                   </Pressable>
@@ -223,9 +227,9 @@ export default function HomeScreen() {
               {banners.data.length > 1 && (
                 <View
                   style={{
-                    flexDirection: 'row',
+                    flexDirection: "row",
                     gap: 5,
-                    justifyContent: 'center',
+                    justifyContent: "center",
                   }}
                 >
                   {banners.data.map((b, index) => (
@@ -236,7 +240,7 @@ export default function HomeScreen() {
                         height: 5,
                         borderRadius: 3,
                         backgroundColor:
-                          index === bannerIndex ? palette.green : '#cbd6ce',
+                          index === bannerIndex ? palette.green : "#cbd6ce",
                       }}
                     />
                   ))}
@@ -245,6 +249,7 @@ export default function HomeScreen() {
             </View>
           )
         )}
+        <OffersAndPacks query={discovery} />
         {(categories.isLoading || !!categories.data?.length) && (
           <Section title="Browse categories">
             <ScrollView
@@ -260,7 +265,7 @@ export default function HomeScreen() {
                         width: 74,
                         height: 82,
                         borderRadius: 12,
-                        backgroundColor: '#e9eeeb',
+                        backgroundColor: "#e9eeeb",
                       }}
                     />
                   ))
@@ -269,15 +274,15 @@ export default function HomeScreen() {
                       key={c.id}
                       accessibilityRole="button"
                       onPress={() => router.push(`/category/${c.id}` as any)}
-                      style={{ width: 74, gap: 7, alignItems: 'center' }}
+                      style={{ width: 74, gap: 7, alignItems: "center" }}
                     >
                       <View
                         style={{
                           width: 52,
                           height: 52,
                           borderRadius: 16,
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          alignItems: "center",
+                          justifyContent: "center",
                           backgroundColor: palette.greenSurface,
                         }}
                       >
@@ -286,7 +291,7 @@ export default function HomeScreen() {
                       <Text
                         style={[
                           ui.muted,
-                          { textAlign: 'center', fontSize: 12 },
+                          { textAlign: "center", fontSize: 12 },
                         ]}
                         numberOfLines={2}
                       >
@@ -341,7 +346,7 @@ export default function HomeScreen() {
                   borderWidth: 1,
                   borderColor: palette.border,
                   borderRadius: 16,
-                  backgroundColor: '#fff',
+                  backgroundColor: "#fff",
                 }}
               >
                 <Text style={ui.body}>
@@ -365,8 +370,8 @@ export default function HomeScreen() {
           featuredItems.length > 0 ||
           (!hasArea && featured.isError)) && (
           <Section
-            title={hasArea ? 'More meals to discover' : 'Featured meals'}
-            onAll={() => router.push('/explore')}
+            title={hasArea ? "More meals to discover" : "Featured meals"}
+            onAll={() => router.push("/explore")}
           >
             {featured.isLoading ? (
               <ActivityIndicator color={palette.green} />
@@ -412,10 +417,10 @@ export default function HomeScreen() {
           <Section
             title={
               location?.coords
-                ? 'Nearby vendors'
+                ? "Nearby vendors"
                 : `Vendors in ${location?.city}`
             }
-            onAll={() => router.push('/vendors?filter=nearby')}
+            onAll={() => router.push("/vendors?filter=nearby")}
           >
             <FlatList
               horizontal
@@ -437,7 +442,7 @@ export default function HomeScreen() {
         {!!vendors.data?.length && (
           <Section
             title="Featured vendors"
-            onAll={() => router.push('/vendors?filter=featured')}
+            onAll={() => router.push("/vendors?filter=featured")}
           >
             <FlatList
               horizontal

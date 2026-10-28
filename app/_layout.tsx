@@ -1,28 +1,27 @@
-import { useGuestCartSync } from '@/lib/hooks/use-guest-cart-sync';
-import { isRateLimited } from '@/lib/api/rate-limit';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import * as Linking from 'expo-linking';
-import { Stack, useRouter } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { Provider as JotaiProvider } from 'jotai';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import '../global.css';
+import { useGuestCartSync } from "@/lib/hooks/use-guest-cart-sync";
+import { isRateLimited } from "@/lib/api/rate-limit";
+import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { Provider as JotaiProvider } from "jotai";
+import { useEffect } from "react";
+import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import "../global.css";
 
-import { ToastProvider } from '@/components/ui/toast';
-import { initAuthAtom, initCartAtom } from '@/lib/atoms';
-import { useTokenRefresh } from '@/lib/hooks';
-import { PortalHost } from '@rn-primitives/portal';
-import { useSetAtom } from 'jotai';
+import { ToastProvider } from "@/components/ui/toast";
+import { initAuthAtom, initCartAtom } from "@/lib/atoms";
+import { useTokenRefresh } from "@/lib/hooks";
+import { PortalHost } from "@rn-primitives/portal";
+import { useSetAtom } from "jotai";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: "(tabs)",
 };
 
 const queryClient = new QueryClient({
@@ -52,6 +51,21 @@ function AppProviders() {
               <Stack.Screen name="vendors" options={{ headerShown: false }} />
               <Stack.Screen name="settings" options={{ headerShown: false }} />
               <Stack.Screen name="rewards" options={{ headerShown: false }} />
+              <Stack.Screen name="packs" options={{ headerShown: false }} />
+              <Stack.Screen name="pack/[id]" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="campaign/[id]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen name="deal/[id]" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="payment/callback"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="verify-email"
+                options={{ headerShown: false }}
+              />
               <Stack.Screen
                 name="vendor/[id]"
                 options={{ headerShown: false }}
@@ -93,7 +107,7 @@ function AppProviders() {
                 name="reset-password"
                 options={{ headerShown: false }}
               />
-              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
             </Stack>
             <StatusBar style="dark" backgroundColor="#ffffff" />
             <PortalHost />
@@ -107,49 +121,10 @@ function AppProviders() {
 function InitAtoms() {
   const initAuth = useSetAtom(initAuthAtom);
   const initCart = useSetAtom(initCartAtom);
-  const router = useRouter();
 
   // Initialize automatic token refresh
   useTokenRefresh();
   useGuestCartSync();
-
-  // Handle deep links from backend email URLs:
-  //   https://savemymeal.com/app/redirect?path=/verify-otp&params=code=123456
-  // Expo Router can't auto-route these because the /app prefix doesn't match
-  // the file-based route (/redirect). We parse and redirect manually.
-  useEffect(() => {
-    const handleUrl = (url: string) => {
-      console.log('Deep link received:', url);
-      const { path, queryParams } = Linking.parse(url);
-
-      // Only intercept our HTTPS redirect URLs.
-      // Custom-scheme URLs (savemymeal://...) are routed automatically.
-      if (path && path.includes('redirect')) {
-        const targetPath = queryParams?.path as string | undefined;
-        const targetParams = queryParams?.params as string | undefined;
-        if (targetPath) {
-          router.replace({
-            pathname: '/redirect',
-            params: {
-              path: targetPath,
-              ...(targetParams ? { params: targetParams } : {}),
-            },
-          });
-        }
-      }
-    };
-
-    // Cold start: app opened via deep link
-    Linking.getInitialURL().then((url) => {
-      if (url) handleUrl(url);
-    });
-
-    // Warm start: deep link while app is already running
-    const subscription = Linking.addEventListener('url', (event) =>
-      handleUrl(event.url),
-    );
-    return () => subscription.remove();
-  }, []);
 
   useEffect(() => {
     async function prepare() {
@@ -157,7 +132,7 @@ function InitAtoms() {
         await initAuth();
         await initCart();
       } catch (e) {
-        console.warn('Error initializing app:', e);
+        console.warn("Error initializing app:", e);
       } finally {
         // Hide the splash screen after initialization
         await SplashScreen.hideAsync();
