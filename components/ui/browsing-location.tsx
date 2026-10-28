@@ -1,18 +1,22 @@
-import { useState, useRef, useEffect } from "react";
-import { useSetAtom } from "jotai";
+import { useState, useRef, useEffect } from 'react';
+import { useSetAtom } from 'jotai';
+import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from 'use-debounce';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
+  StyleSheet,
   TextInput,
   View,
-} from "react-native";
-import { BottomSheet } from "./bottom-sheet";
-import { Text } from "./text";
-import { IconSymbol } from "./icon-symbol";
-import { useLocation } from "@/lib/hooks/useLocation";
-import { selectBrowsingLocationAtom } from "@/lib/atoms/location";
-import apiClient from "@/lib/api/client";
+} from 'react-native';
+import { BottomSheet } from './bottom-sheet';
+import { Text } from './text';
+import { IconSymbol } from './icon-symbol';
+import { useLocation } from '@/lib/hooks/useLocation';
+import { selectBrowsingLocationAtom } from '@/lib/atoms/location';
+import apiClient from '@/lib/api/client';
 
 type Area = {
   id: string;
@@ -24,56 +28,79 @@ type Area = {
 };
 export function BrowsingLocation() {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Area[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState('');
+  const [debouncedQuery] = useDebounce(query.trim(), 450);
+  const [resolving, setResolving] = useState(false);
+  const [notice, setNotice] = useState('');
   const request = useRef(0);
+  const resolution = useRef<AbortController | null>(null);
   const choosingGPS = useRef(false);
   const { location, requestLocation, isLoading, error } = useLocation(false);
   const select = useSetAtom(selectBrowsingLocationAtom);
+  const settled = debouncedQuery === query.trim();
+  const search = useQuery({
+    queryKey: ['browsing-area-search', debouncedQuery],
+    queryFn: async ({ signal }) => {
+      const response = await apiClient.get('/locations/browsing', {
+        params: { q: debouncedQuery },
+        signal,
+      });
+      return (response.data.data || []) as Area[];
+    },
+    enabled:
+      open && settled && debouncedQuery.length >= 2 && !resolving && !isLoading,
+    retry: false,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+  });
+  const searching =
+    open &&
+    !resolving &&
+    query.trim().length >= 2 &&
+    (!settled || search.isFetching);
+  const results =
+    settled && !searching && !search.isError ? search.data || [] : [];
+  function close() {
+    ++request.current;
+    resolution.current?.abort();
+    Keyboard.dismiss();
+    setOpen(false);
+    setResolving(false);
+    choosingGPS.current = false;
+  }
+  useEffect(
+    () => () => {
+      ++request.current;
+      resolution.current?.abort();
+    },
+    [],
+  );
   useEffect(() => {
     if (
       choosingGPS.current &&
       !isLoading &&
-      location?.source === "gps" &&
+      location?.source === 'gps' &&
       !error
     ) {
       choosingGPS.current = false;
+      Keyboard.dismiss();
       setOpen(false);
     }
   }, [isLoading, location, error]);
-  const search = async () => {
+  async function choose(area: Area) {
     const id = ++request.current;
-    setBusy(true);
-    setNotice("");
-    try {
-      const response = await apiClient.get("/locations/browsing", {
-        params: { q: query.trim() },
-      });
-      if (id !== request.current) return;
-      const data = response.data.data || [];
-      setResults(data);
-      if (!data.length)
-        setNotice(
-          "No areas found. Try a nearby city or a more specific place.",
-        );
-    } catch {
-      if (id === request.current)
-        setNotice("Area search is unavailable. Please try again.");
-    } finally {
-      if (id === request.current) setBusy(false);
-    }
-  };
-  const choose = async (area: Area) => {
-    const id = ++request.current;
-    setBusy(true);
-    setNotice("");
+    resolution.current?.abort();
+    const controller = new AbortController();
+    resolution.current = controller;
+    setResolving(true);
+    setNotice('');
+    Keyboard.dismiss();
     try {
       let resolved = area;
       if (area.place_id) {
-        const response = await apiClient.get("/locations/browsing/resolve", {
+        const response = await apiClient.get('/locations/browsing/resolve', {
           params: { place_id: area.place_id },
+          signal: controller.signal,
         });
         resolved = response.data.data;
       }
@@ -86,17 +113,17 @@ export function BrowsingLocation() {
             : undefined,
         city: resolved.city,
         address: resolved.name,
-        source: "manual",
+        source: 'manual',
         timestamp: Date.now(),
       });
       setOpen(false);
     } catch {
-      if (id === request.current)
-        setNotice("Could not select this area. Please try again.");
+      if (id === request.current && !controller.signal.aborted)
+        setNotice('Could not select this area. Please try again.');
     } finally {
-      if (id === request.current) setBusy(false);
+      if (id === request.current) setResolving(false);
     }
-  };
+  }
   return (
     <>
       <Pressable
@@ -104,6 +131,7 @@ export function BrowsingLocation() {
         accessibilityLabel="Change browsing location"
         onPress={() => {
           choosingGPS.current = false;
+          setNotice('');
           setOpen(true);
         }}
         className="flex-row items-center px-4 py-3"
@@ -114,82 +142,181 @@ export function BrowsingLocation() {
           <Text className="font-semibold text-gray-900" numberOfLines={1}>
             {location?.address ||
               location?.city ||
-              (location?.coords ? "Current location" : "Choose an area")}
+              (location?.coords ? 'Current location' : 'Choose an area')}
           </Text>
         </View>
         <IconSymbol name="chevron.down" size={16} color="#008236" />
       </Pressable>
       <BottomSheet
         visible={open}
-        onClose={() => {
-          ++request.current;
-          setOpen(false);
-          setBusy(false);
-        }}
+        onClose={close}
         title="Choose your area"
         description="Find products and pickup vendors in another location."
       >
-        <View style={{ flex: 1, paddingHorizontal: 20 }}>
+        <View style={styles.content}>
+          <View style={styles.inputRow}>
+            <IconSymbol name="magnifyingglass" size={18} color="#66736c" />
+            <TextInput
+              accessibilityLabel="Search city, area or place"
+              value={query}
+              onChangeText={(text) => {
+                setQuery(text);
+                setNotice('');
+              }}
+              editable={!resolving && !isLoading}
+              onSubmitEditing={() => Keyboard.dismiss()}
+              placeholder="Search city, area or place"
+              placeholderTextColor="#66736c"
+              returnKeyType="search"
+              autoCorrect={false}
+              maxLength={150}
+              style={styles.input}
+            />
+            {searching ? (
+              <ActivityIndicator color="#008236" size="small" />
+            ) : query.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear area search"
+                disabled={resolving}
+                onPress={() => {
+                  setQuery('');
+                  setNotice('');
+                }}
+                style={styles.clear}
+              >
+                <Text style={{ fontSize: 20, color: '#66736c' }}>×</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <Pressable
-            disabled={isLoading || busy}
+            disabled={isLoading || resolving}
+            accessibilityRole="button"
             onPress={async () => {
+              Keyboard.dismiss();
               choosingGPS.current = true;
               await requestLocation();
             }}
-            className="rounded-2xl bg-green-50 p-4 mb-4 flex-row items-center"
+            style={styles.gps}
           >
-            <IconSymbol name="location.fill" size={20} color="#008236" />
-            <Text className="ml-3 font-semibold text-[#008236]">
-              {isLoading ? "Finding your location…" : "Use my current location"}
+            <IconSymbol name="location.fill" size={18} color="#008236" />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#008236' }}>
+              {isLoading ? 'Finding your location…' : 'Use my current location'}
             </Text>
           </Pressable>
-          {error && <Text className="text-sm text-red-700 mb-3">{error}</Text>}
-          <View className="flex-row gap-2 mb-3">
-            <TextInput
-              value={query}
-              onChangeText={(text) => {
-                ++request.current;
-                setQuery(text);
-                setResults([]);
-                setBusy(false);
-              }}
-              onSubmitEditing={search}
-              placeholder="Search city, area or place"
-              returnKeyType="search"
-              className="flex-1 rounded-xl border border-gray-200 p-3 text-gray-900"
-            />
-            <Pressable
-              disabled={busy || query.trim().length < 2}
-              onPress={search}
-              className="rounded-xl bg-[#008236] p-3 justify-center"
-            >
-              <Text className="text-white font-semibold">Search</Text>
-            </Pressable>
-          </View>
-          {busy && <ActivityIndicator color="#008236" />}
+          {!!error && <Text style={styles.error}>{error}</Text>}
           {!!notice && (
-            <Text className="text-sm text-gray-600 py-3">{notice}</Text>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {notice}
+            </Text>
           )}
-          <ScrollView keyboardShouldPersistTaps="handled">
+          {resolving && <ActivityIndicator color="#008236" />}
+          {settled && query.trim().length >= 2 && search.isError && (
+            <View style={{ gap: 4 }}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                Area search is unavailable. Please try again.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void search.refetch()}
+                style={{ minHeight: 44, justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#008236', fontWeight: '600' }}>
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          )}
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ paddingBottom: 8 }}
+          >
+            {query.trim().length < 2 ? (
+              <Text style={styles.hint}>
+                {query.trim().length
+                  ? 'Enter at least 2 characters.'
+                  : 'Start typing a city, area or place.'}
+              </Text>
+            ) : searching ? (
+              <Text style={styles.hint}>Searching areas…</Text>
+            ) : !resolving && !search.isError && !results.length ? (
+              <Text style={styles.hint}>
+                No areas found. Try a nearby city or a more specific place.
+              </Text>
+            ) : null}
             {results.map((area) => (
               <Pressable
-                disabled={busy}
+                accessibilityRole="button"
+                disabled={resolving || isLoading}
                 key={area.id}
-                onPress={() => choose(area)}
-                className="py-4 border-b border-gray-100"
+                onPress={() => void choose(area)}
+                style={styles.result}
               >
-                <Text className="font-semibold text-gray-900">{area.name}</Text>
-                <Text className="text-xs text-gray-500 mt-1">
-                  Browse pickup in this area
+                <Text
+                  style={{ fontSize: 14, fontWeight: '600', color: '#17251d' }}
+                >
+                  {area.name}
                 </Text>
+                <Text style={styles.hint}>Browse pickup in this area</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Text className="text-xs text-gray-500 py-3">
-            Pickup only. Your order is collected at the vendor’s location.
+          <Text style={styles.footer}>
+            Pickup only. Collect your order at the vendor’s location.
           </Text>
         </View>
       </BottomSheet>
     </>
   );
 }
+const styles = StyleSheet.create({
+  content: { flex: 1, minHeight: 0, paddingHorizontal: 20, gap: 8 },
+  inputRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#dce4df',
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingRight: 4,
+    backgroundColor: '#fff',
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    height: 44,
+    paddingHorizontal: 8,
+    fontSize: 14,
+    color: '#17251d',
+  },
+  clear: {
+    width: 40,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gps: {
+    minHeight: 44,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  result: {
+    paddingVertical: 12,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#edf0ee',
+  },
+  hint: { fontSize: 12, lineHeight: 18, color: '#66736c' },
+  error: { fontSize: 13, lineHeight: 19, color: '#b42318' },
+  footer: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#66736c',
+    paddingVertical: 4,
+  },
+});

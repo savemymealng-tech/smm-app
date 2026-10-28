@@ -64,7 +64,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
               Pickup: {vendor.address}
             </Text>
           )}
-          {vendor.distance && (
+          {!!vendor.distance && (
             <View className="flex-row items-center mt-1">
               <IconSymbol name="location.fill" size={13} color="#666" />
               <Text className="text-xs text-gray-600 ml-1">

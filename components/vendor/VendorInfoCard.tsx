@@ -78,7 +78,7 @@ export function VendorInfoCard({ vendor }: VendorInfoCardProps) {
             )}
 
             {/* Vendor Stats */}
-            {vendor.distance && (
+            {!!vendor.distance && (
               <View className="flex-row items-center mb-3">
                 <IconSymbol name="location.fill" size={14} color="#666" />
                 <Text className="text-xs text-gray-600 ml-1.5">

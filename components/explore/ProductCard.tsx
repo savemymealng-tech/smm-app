@@ -73,7 +73,7 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
           style={{ width: '100%', height: 160 }}
           resizeMode="cover"
         />
-        {hasDiscount && (
+        {!!hasDiscount && (
           <View className="absolute top-2 left-2 bg-red-500 px-2 py-1 rounded-md">
             <Text className="text-white text-xs font-bold">
               {discountPercent}% OFF
@@ -104,7 +104,7 @@ export function ProductCard({ item, userLocation }: ProductCardProps) {
         )}
         <View className="flex-row items-center justify-between mb-2">
           <View className="flex-row items-center">
-            {item.average_rating && (
+            {!!item.average_rating && (
               <>
                 <IconSymbol
                   name="star.fill"

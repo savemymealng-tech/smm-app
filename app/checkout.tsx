@@ -886,13 +886,13 @@ export default function CheckoutScreen() {
             />
             {!serverQuote && tax > 0 && (
               <AmountRow label="Tax" value={formatCurrency(tax)} />
-            )}{' '}
+            )}
             {!!serverQuote?.discount_kobo && (
               <AmountRow
                 label="Offer savings"
                 value={`−${formatCurrency(serverQuote.discount_kobo / 100)}`}
               />
-            )}{' '}
+            )}
             {!!serverQuote?.coins_kobo && (
               <AmountRow
                 label="SMM Coin"

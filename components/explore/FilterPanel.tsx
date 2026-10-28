@@ -155,14 +155,15 @@ export function FilterPanel({
                       placeholderTextColor="#9ca3af"
                       maxLength={3}
                     />
-                    {customRadius &&
-                      !RADIUS_OPTIONS.includes(locationRadius) && (
-                        <View className="ml-2 bg-[#008236]/10 px-2 py-1 rounded">
-                          <Text className="text-xs font-medium text-[#008236]">
-                            {locationRadius} km
-                          </Text>
-                        </View>
-                      )}
+                    {!!(
+                      customRadius && !RADIUS_OPTIONS.includes(locationRadius)
+                    ) && (
+                      <View className="ml-2 bg-[#008236]/10 px-2 py-1 rounded">
+                        <Text className="text-xs font-medium text-[#008236]">
+                          {locationRadius} km
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
                 <Text className="text-[10px] text-gray-400 mt-1 ml-14">

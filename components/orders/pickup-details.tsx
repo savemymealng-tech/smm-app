@@ -214,7 +214,7 @@ export function PickupDetails({
                 busy={paying}
                 onPress={() => onPay(order)}
               />
-            )}{' '}
+            )}
             {cancellable && (
               <Action
                 secondary
@@ -243,13 +243,13 @@ export function PickupDetails({
             label="Delivery fee (original order)"
             value={formatCurrency(totals.delivery)}
           />
-        )}{' '}
+        )}
         {totals.discount > 0 && (
           <AmountRow
             label="Offer savings"
             value={`−${formatCurrency(totals.discount)}`}
           />
-        )}{' '}
+        )}
         {totals.coins > 0 && (
           <AmountRow
             label="SMM Coin"

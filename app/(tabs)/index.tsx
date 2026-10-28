@@ -142,7 +142,7 @@ const NearbyVendorCard = ({ item }: { item: Vendor }) => (
               {parseFloat(item.rating || '0').toFixed(1)}
             </Text>
           </View>
-          {item.distance && (
+          {!!item.distance && (
             <View className="absolute bottom-2.5 left-2.5 bg-[#1E8449] rounded-full px-2 py-0.5">
               <Text className="text-[10px] font-bold text-white">
                 {item.distance} km
@@ -396,14 +396,14 @@ const ProductCard = ({
             style={{ width: '100%', height: 140 }}
             resizeMode="cover"
           />
-          {hasDiscount && (
+          {!!hasDiscount && (
             <View className="absolute top-2.5 left-2.5 bg-red-500 rounded-full px-2 py-0.5">
               <Text className="text-[10px] font-bold text-white">
                 {discountPercent}% OFF
               </Text>
             </View>
           )}
-          {item.average_rating && parseFloat(item.average_rating) > 0 && (
+          {!!(item.average_rating && parseFloat(item.average_rating) > 0) && (
             <View className="absolute top-2.5 right-2.5 bg-white/95 dark:bg-gray-800/95 rounded-full px-2.5 py-1 flex-row items-center shadow-sm">
               <IconSymbol name="star.fill" size={11} color="#fbbf24" />
               <Text className="text-[11px] font-bold ml-1 text-gray-900 dark:text-white">
@@ -441,7 +441,7 @@ const ProductCard = ({
               <Text className="text-sm font-bold text-[#1E8449]">
                 {formatCurrency(price)}
               </Text>
-              {hasDiscount && (
+              {!!hasDiscount && (
                 <Text className="text-[11px] text-gray-400 line-through">
                   {formatCurrency(originalPrice!)}
                 </Text>

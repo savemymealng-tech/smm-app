@@ -1,31 +1,31 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RatingDisplay, ReviewList } from "@/components/reviews";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
+import { RatingDisplay, ReviewList } from '@/components/reviews';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Text } from '@/components/ui/text';
 import {
-    CategoryFilter,
-    VendorCoverHeader,
-    VendorEmptyState,
-    VendorInfoCard,
-    VendorLoadingState,
-    VendorProductsSection,
-} from "@/components/vendor";
-import { useProducts } from "@/lib/hooks/use-products";
-import { useVendorReviews } from "@/lib/hooks/use-reviews";
-import { useVendor } from "@/lib/hooks/use-vendors";
-import { useLocation } from "@/lib/hooks/useLocation";
+  CategoryFilter,
+  VendorCoverHeader,
+  VendorEmptyState,
+  VendorInfoCard,
+  VendorLoadingState,
+  VendorProductsSection,
+} from '@/components/vendor';
+import { useProducts } from '@/lib/hooks/use-products';
+import { useVendorReviews } from '@/lib/hooks/use-reviews';
+import { useVendor } from '@/lib/hooks/use-vendors';
+import { useLocation } from '@/lib/hooks/useLocation';
 
 export default function VendorDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: vendor, isLoading: isLoadingVendor } = useVendor(id || "");
+  const { data: vendor, isLoading: isLoadingVendor } = useVendor(id || '');
   const { data: products, isLoading: isLoadingProducts } = useProducts(
-    id || ""
+    id || '',
   );
   const { location } = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export default function VendorDetailScreen() {
     const grouped: Record<string, typeof products> = {};
     products.forEach((product) => {
       // Get category name from categories array (first category if multiple)
-      const categoryName = product.categories?.[0]?.name || "Other";
+      const categoryName = product.categories?.[0]?.name || 'Other';
       if (!grouped[categoryName]) {
         grouped[categoryName] = [];
       }
@@ -87,7 +87,7 @@ export default function VendorDetailScreen() {
   return (
     <View className="flex-1 bg-gray-50">
       <VendorCoverHeader coverImage={vendor.logo} />
-      
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -99,7 +99,7 @@ export default function VendorDetailScreen() {
         <View className="px-4 mb-6">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-xl font-bold">Customer Reviews</Text>
-            {vendor.rating && totalReviews > 0 && (
+            {!!(vendor.rating && totalReviews > 0) && (
               <RatingDisplay
                 rating={vendor.rating}
                 reviewCount={totalReviews}
@@ -151,7 +151,10 @@ export default function VendorDetailScreen() {
                           />
                         </View>
                         {review.comment && (
-                          <Text className="text-gray-700 text-sm" numberOfLines={3}>
+                          <Text
+                            className="text-gray-700 text-sm"
+                            numberOfLines={3}
+                          >
                             {review.comment}
                           </Text>
                         )}

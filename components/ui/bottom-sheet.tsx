@@ -1,9 +1,9 @@
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useRef } from "react";
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
+  useWindowDimensions,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -12,12 +12,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
-} from "react-native";
+} from 'react-native';
 
-import { Text } from "./text";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
+import { Text } from './text';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   visible: boolean;
@@ -31,10 +29,21 @@ export function BottomSheet({
   visible,
   onClose,
   children,
-  title = "Categories",
+  title = 'Categories',
   description,
 }: Props) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const { height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const screenHeightRef = useRef(screenHeight);
+  screenHeightRef.current = screenHeight;
+  const [availableHeight, setAvailableHeight] = useState<number | null>(null);
+  const sheetHeight = Math.min(
+    screenHeight * 0.85,
+    Math.max(0, (availableHeight ?? screenHeight) - insets.top),
+  );
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const translateY = useRef(new Animated.Value(screenHeight)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
   const panResponder = useRef(
@@ -50,7 +59,7 @@ export function BottomSheet({
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 100) {
-          onClose();
+          closeRef.current();
         } else {
           Animated.spring(translateY, {
             toValue: 0,
@@ -77,7 +86,7 @@ export function BottomSheet({
     } else {
       Animated.parallel([
         Animated.spring(translateY, {
-          toValue: SCREEN_HEIGHT,
+          toValue: screenHeightRef.current,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
@@ -103,10 +112,15 @@ export function BottomSheet({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <View style={styles.container}>
+        <View
+          style={styles.container}
+          onLayout={(event) =>
+            setAvailableHeight(event.nativeEvent.layout.height)
+          }
+        >
           <TouchableOpacity
             style={styles.backdrop}
             activeOpacity={1}
@@ -119,13 +133,14 @@ export function BottomSheet({
             style={[
               styles.bottomSheet,
               {
+                height: sheetHeight,
                 transform: [{ translateY }],
                 opacity,
               },
             ]}
           >
             <LinearGradient
-              colors={["#ffffff", "#f8fafc"]}
+              colors={['#ffffff', '#f8fafc']}
               style={styles.gradient}
             >
               {/* Handle - pan responder only here so content (e.g. ScrollView) can scroll */}
@@ -162,7 +177,14 @@ export function BottomSheet({
               </View>
 
               {/* Content */}
-              <View style={styles.content}>{children}</View>
+              <View
+                style={[
+                  styles.content,
+                  { paddingBottom: Math.max(insets.bottom, 12) },
+                ]}
+              >
+                {children}
+              </View>
             </LinearGradient>
           </Animated.View>
         </View>
@@ -174,14 +196,14 @@ export function BottomSheet({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   bottomSheet: {
-    height: BOTTOM_SHEET_MAX_HEIGHT,
-    backgroundColor: "white",
+    maxHeight: '100%',
+    backgroundColor: 'white',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     elevation: 16,
@@ -195,28 +217,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     marginBottom: 8,
-    alignSelf: "stretch",
-    alignItems: "center",
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: "#d1d5db",
+    backgroundColor: '#d1d5db',
     borderRadius: 2,
   },
   header: {
     paddingHorizontal: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: '#f1f5f9',
   },
   headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   content: {
     flex: 1,
+    minHeight: 0,
     paddingTop: 16,
   },
 });

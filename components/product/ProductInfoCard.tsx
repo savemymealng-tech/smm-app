@@ -1,11 +1,11 @@
-import { ratingLabel } from "@/lib/product-display";
-import { View } from "react-native";
+import { ratingLabel } from '@/lib/product-display';
+import { View } from 'react-native';
 
-import { Badge } from "@/components/ui/badge";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Text } from "@/components/ui/text";
-import { formatCurrency } from "@/lib/utils";
-import type { Meal } from "@/types/api";
+import { Badge } from '@/components/ui/badge';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Text } from '@/components/ui/text';
+import { formatCurrency } from '@/lib/utils';
+import type { Meal } from '@/types/api';
 
 interface ProductInfoCardProps {
   product: Meal;
@@ -26,9 +26,9 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
           <Text className="text-2xl font-bold text-gray-900 mb-2">
             {product.name}
           </Text>
-          {(product.average_rating || orderCount !== undefined) && (
+          {!!(product.average_rating || orderCount !== undefined) && (
             <View className="flex-row items-center">
-              {product.average_rating && (
+              {!!product.average_rating && (
                 <>
                   <IconSymbol name="star.fill" size={16} color="#fbbf24" />
                   <Text className="ml-1.5 font-semibold text-gray-900">
@@ -50,7 +50,7 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
         <Text className="text-3xl font-bold text-[#008236]">
           {formatCurrency(price)}
         </Text>
-        {hasDiscount && (
+        {!!hasDiscount && (
           <>
             <Text className="text-gray-500 line-through text-lg ml-2">
               {formatCurrency(originalPrice!)}
