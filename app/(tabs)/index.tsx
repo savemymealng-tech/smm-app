@@ -1,5 +1,5 @@
 import { resolveAppLink } from "@/lib/deep-links";
-import { OffersAndPacks } from "@/components/home/OffersAndPacks";
+import { MealPacks, OffersAndPacks } from "@/components/home/OffersAndPacks";
 import { useHomeDiscovery } from "@/lib/hooks/use-discovery";
 import { VendorCard } from "@/components/vendor/VendorCard";
 import { useState } from "react";
@@ -366,6 +366,7 @@ export default function HomeScreen() {
             )}
           </Section>
         )}
+        <MealPacks query={discovery} />
         {(featured.isLoading ||
           featuredItems.length > 0 ||
           (!hasArea && featured.isError)) && (
