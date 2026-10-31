@@ -249,7 +249,6 @@ export default function HomeScreen() {
             </View>
           )
         )}
-        <OffersAndPacks query={discovery} />
         {(categories.isLoading || !!categories.data?.length) && (
           <Section title="Browse categories">
             <ScrollView
@@ -302,6 +301,7 @@ export default function HomeScreen() {
             </ScrollView>
           </Section>
         )}
+        <OffersAndPacks query={discovery} />
         {hasArea && (
           <Section
             title={areaTitle}

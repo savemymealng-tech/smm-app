@@ -36,6 +36,28 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   const select = useSetAtom(selectBrowsingLocationAtom);
   const store = useStore();
   useEffect(() => {
+    const expiry =
+      location?.provider === "google"
+        ? (location.providerResolvedAt || 0) + 29 * 86400000
+        : null;
+    if (expiry === null) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = () => {
+      clearTimeout(timer);
+      const remaining = expiry - Date.now();
+      if (!Number.isFinite(remaining) || remaining <= 0) select(null);
+      else timer = setTimeout(check, Math.min(remaining, 2147483647));
+    };
+    check();
+    const listener = AppState.addEventListener("change", (state) => {
+      if (state === "active") check();
+    });
+    return () => {
+      clearTimeout(timer);
+      listener.remove();
+    };
+  }, [location?.provider, location?.providerResolvedAt, select]);
+  useEffect(() => {
     void initialize();
   }, [initialize]);
   const [isLoading, setIsLoading] = useState(false);

@@ -103,7 +103,7 @@ test('markdown labels agree for numeric/string API prices and reject missing or 
     assert.equal(d.hasDiscount, true);
     assert.equal(d.label, '29% off');
   }
-  for (const original of [null, undefined, '', 0, 'invalid', 2000, 2500])
+  for (const original of [null, undefined, '', 0, 'invalid', 2000, 2500, '2500.00'])
     assert.equal(productDiscount(2500, original).hasDiscount, false);
   assert.equal(productDiscount(99.9, 100).label, '<1% off');
 });

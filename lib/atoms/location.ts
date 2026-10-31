@@ -7,6 +7,9 @@ export type UserLocation = {
   address?: string;
   source?: "gps" | "manual";
   timestamp: number;
+  searchText?: string;
+  provider?: "google";
+  providerResolvedAt?: number;
 } | null;
 export const locationAtom = atom<UserLocation>(null);
 export const addressAtom = atom<string | null>(null);
@@ -23,6 +26,16 @@ export const initializeLocationAtom = atom(null, async (get, set) => {
       !get(locationReadyAtom)
     ) {
       const saved = JSON.parse(value);
+      if (
+        saved.provider === "google" &&
+        (!Number.isFinite(saved.providerResolvedAt) ||
+          Date.now() - saved.providerResolvedAt >= 29 * 86400000 ||
+          saved.providerResolvedAt > Date.now())
+      ) {
+        await AsyncStorage.removeItem(key);
+        set(locationReadyAtom, true);
+        return;
+      }
       const coords = saved.coords;
       const validCoords =
         coords &&
@@ -56,7 +69,18 @@ export const selectBrowsingLocationAtom = atom(
       .catch(() => {})
       .then(() =>
         value?.source === "manual"
-          ? AsyncStorage.setItem(key, JSON.stringify(value))
+          ? AsyncStorage.setItem(
+              key,
+              JSON.stringify(
+                value.provider === "google"
+                  ? {
+                      ...value,
+                      address: value.searchText || "Selected area",
+                      city: undefined,
+                    }
+                  : value,
+              ),
+            )
           : AsyncStorage.removeItem(key),
       );
     void storageWrite.catch(() => {});

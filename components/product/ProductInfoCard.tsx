@@ -1,4 +1,4 @@
-import { ratingLabel } from '@/lib/product-display';
+import { productDiscount, ratingLabel } from '@/lib/product-display';
 import { View } from 'react-native';
 
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
   const originalPrice = product.original_price
     ? parseFloat(product.original_price)
     : null;
-  const hasDiscount = originalPrice && originalPrice > price;
+  const discount = productDiscount(product.price, product.original_price);
   const orderCount = product.order_count;
 
   return (
@@ -50,15 +50,14 @@ export function ProductInfoCard({ product }: ProductInfoCardProps) {
         <Text className="text-3xl font-bold text-[#008236]">
           {formatCurrency(price)}
         </Text>
-        {!!hasDiscount && (
+        {discount.hasDiscount && (
           <>
             <Text className="text-gray-500 line-through text-lg ml-2">
               {formatCurrency(originalPrice!)}
             </Text>
             <Badge variant="destructive" className="ml-3 bg-red-100 border-0">
               <Text className="text-red-700 text-xs font-bold">
-                {Math.round(((originalPrice! - price) / originalPrice!) * 100)}%
-                OFF
+                {discount.label}
               </Text>
             </Badge>
           </>
