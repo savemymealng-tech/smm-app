@@ -190,7 +190,7 @@ export function useProductReviews(productId: number) {
    * Refresh reviews
    */
   const refresh = useCallback(() => {
-    fetchReviews(1, true);
+    return fetchReviews(1, true);
   }, [fetchReviews]);
 
   // Fetch on mount if not already loaded
@@ -276,7 +276,7 @@ export function useVendorReviews(vendorId: number) {
    * Refresh reviews
    */
   const refresh = useCallback(() => {
-    fetchReviews(1, true);
+    return fetchReviews(1, true);
   }, [fetchReviews]);
 
   // Fetch on mount if not already loaded

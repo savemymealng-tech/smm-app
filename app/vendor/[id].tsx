@@ -1,6 +1,8 @@
+import { DetailRefreshButton } from "@/components/ui/detail-refresh-button";
+import { useDetailRefresh } from "@/lib/hooks/use-detail-refresh";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RatingDisplay, ReviewList } from "@/components/reviews";
@@ -24,7 +26,12 @@ export default function VendorDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: vendor, isLoading: isLoadingVendor } = useVendor(id || "");
+  const {
+    data: vendor,
+    isLoading: isLoadingVendor,
+    error: vendorError,
+    refetch: refetchVendor,
+  } = useVendor(id || "");
   const {
     data: products,
     isLoading: isLoadingProducts,
@@ -47,6 +54,20 @@ export default function VendorDetailScreen() {
     refresh,
   } = useVendorReviews(id ? parseInt(id) : 0);
 
+  const {
+    refreshing: screenRefreshing,
+    refreshError,
+    refresh: refreshScreen,
+  } = useDetailRefresh([
+    () => refetchVendor({ throwOnError: true }),
+    () => refetchProducts({ throwOnError: true }),
+    refresh,
+  ]);
+  const vendorUnavailable = [403, 404].includes(
+    (vendorError as { response?: { status?: number } } | null)?.response
+      ?.status || 0,
+  );
+
   const menu = useMemo(() => buildVendorMenu(products), [products]);
   const activeCategory = menu.categories.find(
     (category) => category.key === selectedCategory,
@@ -63,13 +84,27 @@ export default function VendorDetailScreen() {
     return <VendorLoadingState />;
   }
 
-  if (!vendor) {
+  if (!vendor || vendorUnavailable) {
     return (
       <View
         className="flex-1 items-center justify-center"
         style={{ paddingTop: insets.top }}
       >
-        <Text className="text-lg text-gray-600">Vendor not found</Text>
+        <Text className="text-lg text-gray-600">
+          {vendorError && !vendorUnavailable
+            ? "Unable to load this vendor"
+            : "Vendor is currently unavailable"}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={screenRefreshing}
+          onPress={() => void refreshScreen()}
+          className="mt-4 py-3"
+        >
+          <Text className="text-primary font-semibold">
+            {screenRefreshing ? "Refreshing…" : "Try again"}
+          </Text>
+        </Pressable>
         <Pressable
           onPress={() => router.back()}
           className="mt-4 bg-primary px-6 py-3 rounded-full"
@@ -87,11 +122,29 @@ export default function VendorDetailScreen() {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        refreshControl={
+          <RefreshControl
+            refreshing={screenRefreshing}
+            onRefresh={() => void refreshScreen()}
+            tintColor="#008236"
+            colors={["#008236"]}
+            progressViewOffset={insets.top + 64}
+          />
+        }
         contentContainerStyle={{
           paddingTop: 224,
           paddingBottom: Math.max(insets.bottom, 16) + 20,
         }}
       >
+        {!!refreshError && (
+          <Text
+            accessibilityRole="alert"
+            className="mx-4 mb-3 text-sm text-red-700"
+          >
+            {refreshError}
+          </Text>
+        )}
         <VendorInfoCard vendor={vendor} />
 
         {/* Products Section */}
@@ -154,8 +207,8 @@ export default function VendorDetailScreen() {
                 totalReviews={totalReviews}
                 averageRating={averageRating}
                 loading={reviewsLoading}
-                refreshing={refreshing}
-                onRefresh={refresh}
+                refreshing={refreshing || screenRefreshing}
+                onRefresh={refreshScreen}
                 onLoadMore={loadMore}
                 hasMore={hasMore}
                 showProduct={true}
@@ -234,6 +287,11 @@ export default function VendorDetailScreen() {
           )}
         </View>
       </ScrollView>
+      <DetailRefreshButton
+        label="Refresh vendor details and menu"
+        refreshing={screenRefreshing}
+        onRefresh={() => void refreshScreen()}
+      />
     </View>
   );
 }

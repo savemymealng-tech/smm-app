@@ -1,9 +1,11 @@
+import { DetailRefreshButton } from "@/components/ui/detail-refresh-button";
+import { useDetailRefresh } from "@/lib/hooks/use-detail-refresh";
 import { ProductBackButton } from "@/components/product/ProductBackButton";
 import { toast } from "@/components/ui/toast";
 import { remainingStock } from "@/lib/product-display";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -25,7 +27,12 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: product, isLoading } = useMeal(id || "");
+  const {
+    data: product,
+    isLoading,
+    error: productError,
+    refetch: refetchProduct,
+  } = useMeal(id || "");
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -56,6 +63,16 @@ export default function ProductDetailScreen() {
     refresh,
   } = useProductReviews(id ? parseInt(id) : 0);
 
+  const {
+    refreshing: screenRefreshing,
+    refreshError,
+    refresh: refreshScreen,
+  } = useDetailRefresh([() => refetchProduct({ throwOnError: true }), refresh]);
+  const productUnavailable = [403, 404].includes(
+    (productError as { response?: { status?: number } } | null)?.response
+      ?.status || 0,
+  );
+
   if (isLoading) {
     return (
       <View className="flex-1" style={{ paddingTop: insets.top }}>
@@ -65,11 +82,24 @@ export default function ProductDetailScreen() {
     );
   }
 
-  if (!product) {
+  if (!product || productUnavailable) {
     return (
       <View className="flex-1 items-center justify-center">
         <ProductBackButton />
-        <Text>Product not found</Text>
+        <Text>
+          {productError && !productUnavailable
+            ? "Unable to load this product"
+            : "Product is currently unavailable"}
+        </Text>
+        <Button
+          disabled={screenRefreshing}
+          onPress={() => void refreshScreen()}
+          className="mt-4"
+        >
+          <Text className="text-white">
+            {screenRefreshing ? "Refreshing…" : "Try again"}
+          </Text>
+        </Button>
         <Button onPress={() => router.back()} className="mt-4">
           <Text className="text-white">Go Back</Text>
         </Button>
@@ -108,8 +138,26 @@ export default function ProductDetailScreen() {
         className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
+        alwaysBounceVertical
+        refreshControl={
+          <RefreshControl
+            refreshing={screenRefreshing}
+            onRefresh={() => void refreshScreen()}
+            tintColor="#008236"
+            colors={["#008236"]}
+            progressViewOffset={insets.top + 64}
+          />
+        }
       >
         <ProductImageHeader images={[product.photo_url]} />
+        {!!refreshError && (
+          <Text
+            accessibilityRole="alert"
+            className="mx-4 mt-3 text-sm text-red-700"
+          >
+            {refreshError}
+          </Text>
+        )}
         <ProductInfoCard product={product} />
         {product.vendor && <VendorInfoCard vendor={product.vendor} />}
 
@@ -222,8 +270,8 @@ export default function ProductDetailScreen() {
                   totalReviews={totalReviews}
                   averageRating={averageRating}
                   loading={reviewsLoading}
-                  refreshing={refreshing}
-                  onRefresh={refresh}
+                  refreshing={refreshing || screenRefreshing}
+                  onRefresh={refreshScreen}
                   onLoadMore={loadMore}
                   hasMore={hasMore}
                   emptyMessage="No reviews yet for this product"
@@ -246,6 +294,11 @@ export default function ProductDetailScreen() {
       )}
 
       <ProductBackButton />
+      <DetailRefreshButton
+        label="Refresh product details"
+        refreshing={screenRefreshing}
+        onRefresh={() => void refreshScreen()}
+      />
       <AddToCartButton
         product={product}
         quantity={quantity}
