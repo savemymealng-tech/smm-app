@@ -135,7 +135,18 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Savemymeal to use your location for nearby vendors and delivery."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# Optional Stripe Issuing provisioning SDK is compileOnly and unused by SMM.\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivity$g\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Args\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Error\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider"
+          }
+        }
+      ],
+      "./plugins/with-android-release-optimization"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -31,6 +31,18 @@
       },
       "android": {
         "buildType": "app-bundle"
+      },
+      "buildArtifactPaths": [
+        "android/app/build/outputs/mapping/release/**"
+      ]
+    },
+    "release-validation": {
+      "extends": "production",
+      "distribution": "internal",
+      "environment": "production",
+      "autoIncrement": false,
+      "android": {
+        "buildType": "apk"
       }
     }
   },
