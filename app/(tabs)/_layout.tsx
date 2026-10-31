@@ -3,12 +3,42 @@ import { Tabs, router } from 'expo-router';
 import { useAtomValue } from 'jotai';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import {
+  House,
+  Search,
+  ShoppingBag,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
-import { Colors } from '@/constants/theme';
+import { Brand, Colors } from '@/constants/theme';
 import { authAtom } from '@/lib/atoms/auth';
 import { useHybridCart } from '@/lib/hooks/use-hybrid-cart';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+
+function TabIcon({
+  icon: Icon,
+  color,
+  focused,
+}: {
+  icon: LucideIcon;
+  color: string;
+  focused: boolean;
+}) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.icon, focused && styles.activeIcon]}
+    >
+      <Icon
+        accessible={false}
+        size={23}
+        strokeWidth={focused ? 2.3 : 1.8}
+        color={color}
+      />
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const authState = useAtomValue(authAtom);
@@ -31,7 +61,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.light.tint,
-        tabBarInactiveTintColor: '#5f6368',
+        tabBarInactiveTintColor: '#68756d',
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
@@ -46,9 +76,19 @@ export default function TabLayout() {
           paddingBottom: insets.bottom,
           backgroundColor: '#ffffff',
         },
+        tabBarIconStyle: { width: 48, height: 30 },
+        tabBarBadgeStyle: {
+          backgroundColor: Brand.orange,
+          color: '#352000',
+          fontSize: 10,
+          fontWeight: '700',
+          minWidth: 18,
+          height: 18,
+          lineHeight: 18,
+        },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
+          fontWeight: '600',
           marginBottom: 0,
         },
       }}
@@ -57,8 +97,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={House} color={color} focused={focused} />
           ),
         }}
       />
@@ -66,8 +106,8 @@ export default function TabLayout() {
         name="explore"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="magnifyingglass" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={Search} color={color} focused={focused} />
           ),
         }}
       />
@@ -75,8 +115,8 @@ export default function TabLayout() {
         name="cart"
         options={{
           title: 'Cart',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="cart.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={ShoppingBag} color={color} focused={focused} />
           ),
           tabBarBadge: cartItemCount > 0 ? cartItemCount : undefined,
         }}
@@ -85,8 +125,8 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="person.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={UserRound} color={color} focused={focused} />
           ),
         }}
         listeners={{
@@ -102,3 +142,16 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  icon: {
+    width: 48,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIcon: {
+    backgroundColor: Brand.greenSurface,
+  },
+});
