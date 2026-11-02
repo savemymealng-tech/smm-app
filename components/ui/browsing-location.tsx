@@ -25,6 +25,8 @@ import {
   filterRecent,
   loadRecentAreas,
   saveRecentAreas,
+  rememberRecentArea,
+  resolvedSearchArea,
   locationDeviceId,
   newSearchSession,
 } from '@/lib/location-search';
@@ -49,7 +51,8 @@ export function BrowsingLocation({
   const request = useRef(0);
   const resolution = useRef<AbortController | null>(null);
   const choosingGPS = useRef(false);
-  const { location, requestLocation, isLoading, error } = useLocation(false);
+  const { location, requestLocation, openSettings, isLoading, error } =
+    useLocation(false);
   const select = useSetAtom(selectBrowsingLocationAtom);
   const settled = debouncedQuery === query.trim();
   const localSearch = useQuery({
@@ -196,7 +199,7 @@ export function BrowsingLocation({
           headers: { 'X-SMM-Device-ID': await locationDeviceId() },
           signal: controller.signal,
         });
-        resolved = { ...response.data.data, name: area.name };
+        resolved = resolvedSearchArea(area, response.data.data || {});
         setSession(newSearchSession());
       }
       if (id !== request.current) return;
@@ -228,14 +231,15 @@ export function BrowsingLocation({
         searchText,
         usedAt: Date.now(),
       };
-      const values = cleanRecent([
-        historyItem,
-        ...recent.filter((item) => item.id !== area.id),
-      ]);
-      setRecent(values);
-      void saveRecentAreas(values, historyScope);
+      const history = await rememberRecentArea(historyItem, historyScope);
+      if (id !== request.current) return;
+      setRecent(history.values);
       onSelected?.();
-      close();
+      if (history.saved) close();
+      else
+        setNotice(
+          'Location selected, but recent searches could not be saved on this device.',
+        );
     } catch (err: any) {
       if (id === request.current && !controller.signal.aborted) {
         const message =
@@ -344,7 +348,22 @@ export function BrowsingLocation({
               {isLoading ? 'Finding your location…' : 'Use my current location'}
             </Text>
           </Pressable>
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && (
+            <View style={{ gap: 4 }}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                {error}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void openSettings()}
+                style={{ minHeight: 44, justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#008236', fontWeight: '600' }}>
+                  Open location settings
+                </Text>
+              </Pressable>
+            </View>
+          )}
           {!!notice && (
             <Text accessibilityRole="alert" style={styles.error}>
               {notice}

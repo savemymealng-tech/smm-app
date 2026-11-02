@@ -8,43 +8,105 @@ const ts = require('typescript');
 function load(file, mocks) {
   const exports = {};
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
   }).outputText;
-  vm.runInNewContext(source, { exports, require: (name) => {
-    assert.ok(name in mocks, `Unexpected dependency: ${name}`);
-    return mocks[name];
-  }, console: { log() {}, error() {} } }, { filename: file });
+  vm.runInNewContext(
+    source,
+    {
+      exports,
+      require: (name) => {
+        assert.ok(name in mocks, `Unexpected dependency: ${name}`);
+        return mocks[name];
+      },
+      setTimeout,
+      clearTimeout,
+      Promise,
+      Date,
+      console: { log() {}, error() {} },
+    },
+    { filename: file },
+  );
   return exports;
 }
 
 function fixture(status = 'granted', services = true) {
-  const state = { status, services, prompts: 0, positions: 0, settings: 0, location: null, effects: [] };
+  const state = {
+    status,
+    services,
+    prompts: 0,
+    positions: 0,
+    settings: 0,
+    location: null,
+    effects: [],
+  };
   const native = {
-    getForegroundPermissionsAsync: async () => ({ status: state.status, canAskAgain: state.canAskAgain ?? true }),
+    getForegroundPermissionsAsync: async () => ({
+      status: state.status,
+      canAskAgain: state.canAskAgain ?? true,
+    }),
     hasServicesEnabledAsync: async () => state.services,
+    enableNetworkProviderAsync: async () => {
+      state.providerPrompts = (state.providerPrompts || 0) + 1;
+      if (state.enableServices) state.services = true;
+      else throw Error('Declined');
+    },
+    getLastKnownPositionAsync: async () => state.lastKnown || null,
     requestForegroundPermissionsAsync: async () => {
       state.prompts++;
       state.status = state.answer ?? 'denied';
+      state.canAskAgain = false;
       return { status: state.status, canAskAgain: false };
     },
     Accuracy: { Balanced: 3 },
     getCurrentPositionAsync: async () => {
       state.positions++;
       if (state.failGPS) throw new Error('GPS unavailable');
+      if (state.hangGPS) return new Promise(() => {});
       return { coords: { latitude: 6.5, longitude: 3.4 }, timestamp: 123 };
     },
     reverseGeocodeAsync: async () => [{ city: 'Lagos' }],
   };
-  const access = load('lib/locationAccess.ts', { 'expo-location': native });
+  const platform = {
+    get OS() {
+      return state.platform || 'ios';
+    },
+  };
+  const access = load('lib/locationAccess.ts', {
+    'expo-location': native,
+    'react-native': { Platform: platform },
+  });
   const hook = load('lib/hooks/useLocation.ts', {
     'expo-location': native,
     '../locationAccess': access,
-    '../atoms/location': { locationAtom: 'location', locationReadyAtom: 'ready', locationRevisionAtom: 'revision', initializeLocationAtom: 'init', selectBrowsingLocationAtom: 'select' },
+    '../atoms/location': {
+      locationAtom: 'location',
+      locationReadyAtom: 'ready',
+      locationRevisionAtom: 'revision',
+      initializeLocationAtom: 'init',
+      selectBrowsingLocationAtom: 'select',
+    },
     jotai: {
-      useAtom: () => [state.location, (value) => { state.location = value; }],
+      useAtom: () => [
+        state.location,
+        (value) => {
+          state.location = value;
+        },
+      ],
       useAtomValue: () => true,
-      useSetAtom: (key) => key === 'select' ? value => { state.location = value; state.revision = (state.revision || 0) + 1; } : () => {},
-      useStore: () => ({ get: key => key === 'location' ? state.location : state.revision || 0 }),
+      useSetAtom: (key) =>
+        key === 'select'
+          ? (value) => {
+              state.location = value;
+              state.revision = (state.revision || 0) + 1;
+            }
+          : () => {},
+      useStore: () => ({
+        get: (key) =>
+          key === 'location' ? state.location : state.revision || 0,
+      }),
     },
     react: {
       useCallback: (fn) => fn,
@@ -53,8 +115,18 @@ function fixture(status = 'granted', services = true) {
       useEffect: (fn) => state.effects.push(fn),
     },
     'react-native': {
-      AppState: { addEventListener: (_, fn) => { state.resume = fn; return { remove() {} }; } },
-      Linking: { openSettings: async () => { state.settings++; } },
+      Platform: platform,
+      AppState: {
+        addEventListener: (_, fn) => {
+          state.resume = fn;
+          return { remove() {} };
+        },
+      },
+      Linking: {
+        openSettings: async () => {
+          state.settings++;
+        },
+      },
     },
   }).useLocation();
   return { state, access, hook };
@@ -76,6 +148,7 @@ for (const status of ['denied', 'restricted', 'undetermined']) {
 for (const status of ['denied', 'restricted']) {
   test(`${status}: repeated explicit attempts do not request again`, async () => {
     const { state, hook } = fixture(status);
+    state.canAskAgain = false;
     await hook.requestLocation();
     await hook.requestLocation();
     assert.equal(state.prompts, 0);
@@ -153,13 +226,21 @@ test('GPS failure remains non-blocking and clears stale coordinates', async () =
 });
 test('concurrent permission actions share one native request', async () => {
   const { state, access } = fixture('undetermined');
-  await Promise.all([access.getLocationAccess(true), access.getLocationAccess(true)]);
+  await Promise.all([
+    access.getLocationAccess(true),
+    access.getLocationAccess(true),
+  ]);
   assert.equal(state.prompts, 1);
 });
 
 test('manual city survives automatic refresh and denied permission', async () => {
   const { state, hook } = fixture('denied');
-  state.location = { city: 'Ibadan', address: 'Ibadan', source: 'manual', timestamp: 1 };
+  state.location = {
+    city: 'Ibadan',
+    address: 'Ibadan',
+    source: 'manual',
+    timestamp: 1,
+  };
   await hook.refreshLocation();
   assert.equal(state.location.city, 'Ibadan');
   assert.equal(state.positions, 0);
@@ -171,4 +252,63 @@ test('choosing another area while GPS is pending discards stale GPS result', asy
   state.revision = 1;
   await pending;
   assert.equal(state.location.city, 'Abuja');
+});
+
+test('explicit retry can request an Android permission that is denied but still requestable', async () => {
+  const { state, hook } = fixture('denied');
+  state.platform = 'android';
+  state.canAskAgain = true;
+  state.answer = 'granted';
+  await hook.requestLocation();
+  assert.equal(state.prompts, 1);
+  assert.equal(state.location.coords.latitude, 6.5);
+});
+test('explicit Android action can enable location services through the native provider dialog', async () => {
+  const { state, hook } = fixture('granted', false);
+  state.platform = 'android';
+  state.enableServices = true;
+  await hook.requestLocation();
+  assert.equal(state.providerPrompts, 1);
+  assert.equal(state.location.coords.longitude, 3.4);
+});
+test('failed fresh GPS can use a recent accurate native fix; old fixes are rejected', async () => {
+  const { state, hook } = fixture();
+  state.failGPS = true;
+  state.lastKnown = {
+    coords: { latitude: 6.6, longitude: 3.5, accuracy: 100 },
+    timestamp: Date.now() - 1000,
+  };
+  await hook.requestLocation();
+  assert.equal(state.location.coords.latitude, 6.6);
+  state.lastKnown.timestamp = Date.now() - 180000;
+  state.location = null;
+  await hook.requestLocation();
+  assert.equal(state.location, null);
+});
+test('GPS failure does not erase a manually chosen browsing area', async () => {
+  const { state, hook } = fixture();
+  state.location = { city: 'Ibadan', source: 'manual', timestamp: 1 };
+  state.failGPS = true;
+  await hook.requestLocation();
+  assert.equal(state.location.city, 'Ibadan');
+});
+
+test('a stalled native GPS request times out and uses a recent accurate fix', async () => {
+  const { state, access } = fixture();
+  state.hangGPS = true;
+  state.lastKnown = {
+    coords: { latitude: 6.6, longitude: 3.5, accuracy: 50 },
+    timestamp: Date.now() - 1000,
+  };
+  const result = await access.getPositionForBrowsing(true, 5);
+  assert.equal(result.coords.latitude, 6.6);
+});
+test('imprecise cached coordinates are not used as a fallback', async () => {
+  const { state, access } = fixture();
+  state.failGPS = true;
+  state.lastKnown = {
+    coords: { latitude: 6.6, longitude: 3.5, accuracy: 2000 },
+    timestamp: Date.now() - 1000,
+  };
+  await assert.rejects(access.getPositionForBrowsing(true), /GPS unavailable/);
 });

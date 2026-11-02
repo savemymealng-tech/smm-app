@@ -2,7 +2,7 @@
 import * as Location from "expo-location";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Linking } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import {
   locationAtom,
   locationReadyAtom,
@@ -13,6 +13,8 @@ import {
 } from "../atoms/location";
 import {
   getLocationAccess,
+  getPositionForBrowsing,
+  withLocationTimeout,
   type LocationPermissionStatus,
 } from "../locationAccess";
 
@@ -69,12 +71,10 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   /**
    * Get current position
    */
-  const getCurrentPosition =
-    useCallback(async (): Promise<UserLocation | null> => {
+  const getCurrentPosition = useCallback(
+    async (allowPrompt: boolean): Promise<UserLocation | null> => {
       try {
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        const position = await getPositionForBrowsing(allowPrompt);
 
         const userLocation: UserLocation = {
           coords: {
@@ -87,10 +87,13 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
 
         // Try to get address (reverse geocoding)
         try {
-          const [address] = await Location.reverseGeocodeAsync({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
+          const [address] = await withLocationTimeout(
+            Location.reverseGeocodeAsync({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            }),
+            3000,
+          );
 
           if (address) {
             const addressParts = [
@@ -111,7 +114,9 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
         console.error("Error getting current position:", err);
         throw new Error(err.message || "Failed to get current location");
       }
-    }, []);
+    },
+    [],
+  );
 
   const updateLocation = useCallback(
     async (allowPrompt: boolean) => {
@@ -138,11 +143,12 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
           if (allowPrompt) setError(access.message);
           return;
         }
-        const nextLocation = await getCurrentPosition();
+        const nextLocation = await getCurrentPosition(allowPrompt);
         // Permission/services may have changed while GPS or geocoding was pending.
         const latest = await getLocationAccess(false);
         setPermissionStatus(latest.status);
         commit(latest.available ? nextLocation : null);
+        if (!latest.available && allowPrompt) setError(latest.message);
       } catch (err: any) {
         commit(null);
         if (allowPrompt)
@@ -168,7 +174,12 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   );
   const openSettings = useCallback(async () => {
     try {
-      await Linking.openSettings();
+      if (
+        Platform.OS === "android" &&
+        !(await Location.hasServicesEnabledAsync())
+      ) {
+        await Linking.sendIntent("android.settings.LOCATION_SOURCE_SETTINGS");
+      } else await Linking.openSettings();
     } catch {
       setError("Unable to open Settings. You can continue without location.");
     }

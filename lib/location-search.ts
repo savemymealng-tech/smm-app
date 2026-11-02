@@ -68,26 +68,94 @@ export function cleanRecent(value: unknown, now = Date.now()): RecentArea[] {
       };
     });
 }
-export async function loadRecentAreas(scope = 'guest'): Promise<RecentArea[]> {
-  try {
-    const values = cleanRecent(
-      JSON.parse((await AsyncStorage.getItem(historyKey(scope))) || '[]'),
+// Serialize reads that prune expired data with writes, including rapid reopen/clear.
+let historyWork: Promise<unknown> = Promise.resolve();
+function historyTask<T>(work: () => Promise<T>): Promise<T> {
+  const next = historyWork.catch(() => {}).then(work);
+  historyWork = next;
+  return next;
+}
+export function resolvedSearchArea(
+  area: Area,
+  payload: Partial<Area>,
+  now = Date.now(),
+): Area {
+  const numeric = (value: unknown) =>
+    typeof value === 'number' || (typeof value === 'string' && value.trim())
+      ? Number(value)
+      : NaN;
+  const latitude = numeric(payload.latitude);
+  const longitude = numeric(payload.longitude);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    throw new Error(
+      'This place did not return valid coordinates. Please select another result.',
     );
-    await AsyncStorage.setItem(historyKey(scope), JSON.stringify(values));
-    return values;
+  }
+  return {
+    ...area,
+    ...payload,
+    id: area.id,
+    place_id: area.place_id,
+    name: area.name,
+    source: area.place_id ? 'google' : area.source,
+    latitude,
+    longitude,
+    // Receipt time avoids server/device clock skew. Only call this for a fresh lookup.
+    resolved_at: now,
+  };
+}
+async function readHistory(scope: string) {
+  const raw = await AsyncStorage.getItem(historyKey(scope));
+  try {
+    return cleanRecent(JSON.parse(raw || '[]'));
   } catch {
     return [];
-  }
+  } // A corrupt old entry must not permanently prevent saving.
+}
+
+export async function loadRecentAreas(scope = 'guest'): Promise<RecentArea[]> {
+  return historyTask(async () => {
+    try {
+      const values = await readHistory(scope);
+      await AsyncStorage.setItem(historyKey(scope), JSON.stringify(values));
+      return values;
+    } catch {
+      return [];
+    }
+  });
 }
 export async function saveRecentAreas(values: RecentArea[], scope = 'guest') {
-  try {
-    await AsyncStorage.setItem(
-      historyKey(scope),
-      JSON.stringify(cleanRecent(values)),
-    );
-  } catch {
-    /* Optional history. */
-  }
+  return historyTask(async () => {
+    try {
+      await AsyncStorage.setItem(
+        historyKey(scope),
+        JSON.stringify(cleanRecent(values)),
+      );
+    } catch {
+      /* History is optional for browsing. */
+    }
+  });
+}
+export async function rememberRecentArea(item: RecentArea, scope = 'guest') {
+  return historyTask(async () => {
+    let values = cleanRecent([item]);
+    try {
+      const previous = await readHistory(scope);
+      values = cleanRecent([
+        item,
+        ...previous.filter((area) => area.id !== item.id),
+      ]);
+      await AsyncStorage.setItem(historyKey(scope), JSON.stringify(values));
+      return { values, saved: true };
+    } catch {
+      return { values, saved: false };
+    }
+  });
 }
 export function filterRecent(values: RecentArea[], q: string) {
   const text = q.trim().toLowerCase();
