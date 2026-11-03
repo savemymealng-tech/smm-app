@@ -60,7 +60,34 @@ function fixture(status = 'granted', services = true) {
       state.canAskAgain = false;
       return { status: state.status, canAskAgain: false };
     },
-    Accuracy: { Balanced: 3 },
+    Accuracy: { Balanced: 3, High: 4 },
+    watchPositionAsync: async (options, onPosition, onError) => {
+      state.positions++;
+      state.watches = (state.watches || 0) + 1;
+      state.watchOptions = options;
+      if (!options.mayShowUserSettingsDialog)
+        state.backgroundPosition = onPosition;
+      const subscription = {
+        remove() {
+          state.removes = (state.removes || 0) + 1;
+        },
+      };
+      if (state.failGPS) throw new Error('GPS unavailable');
+      if (state.lateRegistration)
+        return new Promise((resolve) => {
+          state.finishRegistration = () => resolve(subscription);
+        });
+      if (!state.hangGPS)
+        queueMicrotask(() => {
+          if (state.transientWatchError)
+            onError('Location temporarily unavailable');
+          onPosition({
+            coords: { latitude: 6.5, longitude: 3.4, accuracy: 30 },
+            timestamp: Date.now(),
+          });
+        });
+      return subscription;
+    },
     getCurrentPositionAsync: async () => {
       state.positions++;
       if (state.failGPS) throw new Error('GPS unavailable');
@@ -76,11 +103,13 @@ function fixture(status = 'granted', services = true) {
   };
   const access = load('lib/locationAccess.ts', {
     'expo-location': native,
+    './location-diagnostic-trace': { traceLocation() {}, safeLocationError: error => ({ message: String(error) }), locationShape: () => ({}) },
     'react-native': { Platform: platform },
   });
   const hook = load('lib/hooks/useLocation.ts', {
     'expo-location': native,
     '../locationAccess': access,
+    '../location-diagnostic-trace': { beginLocationTrace() {}, traceLocation() {}, safeLocationError: error => ({ message: String(error) }) },
     '../atoms/location': {
       locationAtom: 'location',
       locationReadyAtom: 'ready',
@@ -311,4 +340,67 @@ test('imprecise cached coordinates are not used as a fallback', async () => {
     timestamp: Date.now() - 1000,
   };
   await assert.rejects(access.getPositionForBrowsing(true), /GPS unavailable/);
+});
+
+test('Android gets an active fix despite transient provider unavailability and stops watching', async () => {
+  const { state, hook } = fixture();
+  state.platform = 'android';
+  state.transientWatchError = true;
+  await hook.requestLocation();
+  assert.equal(state.location.coords.latitude, 6.5);
+  assert.equal(state.watches, 1);
+  assert.equal(state.removes, 1);
+  assert.equal(state.watchOptions.accuracy, 4);
+});
+test('simultaneous Android consumers share one subscription', async () => {
+  const { state, access } = fixture();
+  state.platform = 'android';
+  await Promise.all([
+    access.getPositionForBrowsing(true),
+    access.getPositionForBrowsing(true),
+  ]);
+  assert.equal(state.watches, 1);
+  assert.equal(state.removes, 1);
+});
+test('timed-out Android subscription is removed even when registration completes late', async () => {
+  const { state, access } = fixture();
+  state.platform = 'android';
+  state.lateRegistration = true;
+  await assert.rejects(access.getPositionForBrowsing(true, 5), /timed out/);
+  state.finishRegistration();
+  await flush();
+  assert.equal(state.removes, 1);
+});
+test('recent Android approximate fixes remain usable for browsing', async () => {
+  const { state, access } = fixture();
+  state.platform = 'android';
+  state.failGPS = true;
+  state.lastKnown = {
+    coords: { latitude: 6.4, longitude: 3.5, accuracy: 2500 },
+    timestamp: Date.now() - 1000,
+  };
+  assert.equal(
+    (await access.getPositionForBrowsing(true)).coords.latitude,
+    6.4,
+  );
+});
+test('explicit Android action is not swallowed by a background location request', async () => {
+  const { state, hook } = fixture();
+  state.platform = 'android';
+  state.lateRegistration = true;
+  const background = hook.refreshLocation();
+  while (!state.finishRegistration) await Promise.resolve();
+  const finishBackground = state.finishRegistration;
+  state.lateRegistration = false;
+  await hook.requestLocation();
+  assert.equal(state.location.source, 'gps');
+  assert.equal(state.watches, 2);
+  // Complete the old provider operation without letting it replace the chosen fix.
+  finishBackground();
+  state.backgroundPosition({
+    coords: { latitude: 1, longitude: 2, accuracy: 10 },
+    timestamp: Date.now(),
+  });
+  await background;
+  assert.equal(state.location.coords.latitude, 6.5);
 });

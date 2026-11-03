@@ -1,3 +1,8 @@
+import {
+  traceLocation,
+  safeLocationError,
+  locationShape,
+} from './location-diagnostic-trace';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
@@ -69,38 +74,141 @@ export function withLocationTimeout<T>(
     );
   });
 }
-export async function getPositionForBrowsing(
-  allowPrompt = false,
-  timeoutMs = 15000,
-) {
-  try {
-    return await withLocationTimeout(
-      Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+function validPosition(position: Location.LocationObject | null) {
+  return (
+    !!position &&
+    Number.isFinite(position.coords?.latitude) &&
+    Number.isFinite(position.coords?.longitude) &&
+    Math.abs(position.coords.latitude) <= 90 &&
+    Math.abs(position.coords.longitude) <= 180
+  );
+}
+function watchAndroidPosition(
+  allowPrompt: boolean,
+  timeoutMs: number,
+): Promise<Location.LocationObject> {
+  return new Promise((resolve, reject) => {
+    let subscription: Location.LocationSubscription | undefined;
+    let settled = false;
+    const finish = (position?: Location.LocationObject, error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription?.remove();
+      if (allowPrompt)
+        traceLocation(
+          position
+            ? 'watch_finished_with_position'
+            : 'watch_finished_with_error',
+          position
+            ? locationShape(position)
+            : safeLocationError(
+                error || new Error('Location request timed out'),
+              ),
+        );
+      if (position) resolve(position);
+      else reject(error || new Error('Location request timed out'));
+    };
+    const timer = setTimeout(() => finish(), timeoutMs);
+    if (allowPrompt) traceLocation('watch_start');
+    Location.watchPositionAsync(
+      {
+        accuracy: allowPrompt
+          ? Location.Accuracy.High
+          : Location.Accuracy.Balanced,
         mayShowUserSettingsDialog: allowPrompt,
-      }),
-      timeoutMs,
+        timeInterval: 1000,
+        distanceInterval: 0,
+      },
+      (position) => {
+        if (allowPrompt)
+          traceLocation('watch_callback', locationShape(position));
+        if (validPosition(position)) finish(position);
+      },
+      (error) => {
+        if (allowPrompt)
+          traceLocation('watch_provider_error', safeLocationError(error));
+        // Android can report temporary unavailability before its first fix.
+        // Keep the subscription alive until a fix or the deadline, then remove it.
+      },
+    ).then(
+      (value) => {
+        if (allowPrompt) traceLocation('watch_registered');
+        subscription = value;
+        if (settled) value.remove(); // Also clean up a late registration after timeout.
+      },
+      (error) => finish(undefined, error),
     );
-  } catch (error) {
+  });
+}
+const positionRequests: Partial<
+  Record<'interactive' | 'quiet', Promise<Location.LocationObject>>
+> = {};
+export function getPositionForBrowsing(
+  allowPrompt = false,
+  timeoutMs = 20000,
+): Promise<Location.LocationObject> {
+  const mode = allowPrompt ? 'interactive' : 'quiet';
+  const existing = positionRequests[mode];
+  if (existing) return existing;
+  const work = (async () => {
     try {
-      const last = await withLocationTimeout(
-        Location.getLastKnownPositionAsync({
-          maxAge: 120000,
-          requiredAccuracy: 500,
-        }),
-        2000,
-      );
-      if (
-        last &&
-        Date.now() - last.timestamp <= 120000 &&
-        last.timestamp <= Date.now() &&
-        last.coords.accuracy != null &&
-        last.coords.accuracy <= 500
-      )
-        return last;
-    } catch {
-      /* No usable recent position. */
+      const position =
+        Platform.OS === 'android'
+          ? await watchAndroidPosition(allowPrompt, timeoutMs)
+          : await withLocationTimeout(
+              Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              }),
+              timeoutMs,
+            );
+      if (!validPosition(position))
+        throw new Error('Location provider returned invalid coordinates');
+      return position;
+    } catch (error) {
+      try {
+        // Android approximate permission often provides a fix less precise than 500m.
+        const accuracy = Platform.OS === 'android' ? 5000 : 500;
+        if (allowPrompt) traceLocation('cached_fix_start');
+        const last = await withLocationTimeout(
+          Location.getLastKnownPositionAsync({
+            maxAge: 120000,
+            requiredAccuracy: accuracy,
+          }),
+          2000,
+        );
+        if (allowPrompt)
+          traceLocation('cached_fix_result', locationShape(last));
+        if (
+          validPosition(last) &&
+          last &&
+          Date.now() - last.timestamp <= 120000 &&
+          last.timestamp <= Date.now() &&
+          last.coords.accuracy != null &&
+          last.coords.accuracy <= accuracy
+        )
+          return last;
+      } catch (fallbackError) {
+        if (allowPrompt)
+          traceLocation('cached_fix_error', safeLocationError(fallbackError));
+        /* No usable recent position. */
+      }
+      throw error;
     }
-    throw error;
-  }
+  })();
+  const pending = work.finally(() => {
+    if (positionRequests[mode] === pending) delete positionRequests[mode];
+  });
+  positionRequests[mode] = pending;
+  return pending;
+}
+export function locationFailureMessage(error: unknown) {
+  const issue = error as { code?: string; message?: string };
+  if (
+    /unauthor|permission/i.test(`${issue?.code || ''} ${issue?.message || ''}`)
+  )
+    return 'Location permission is unavailable. Allow location access in app Settings, then try again.';
+  if (Platform.OS === 'android')
+    return 'Your phone could not get a location fix. In Location settings, turn on Google Location Accuracy (if available), then try again. You can also choose a browsing area.';
+  return 'Your phone could not get a location fix. Check Location Services in Settings and try again, or choose a browsing area.';
 }

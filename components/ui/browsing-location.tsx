@@ -1,3 +1,5 @@
+import * as Clipboard from 'expo-clipboard';
+import { collectLocationDiagnostics } from '@/lib/location-diagnostics';
 import { useState, useRef, useEffect } from 'react';
 import { useSetAtom, useAtomValue } from 'jotai';
 import { useQuery } from '@tanstack/react-query';
@@ -48,6 +50,8 @@ export function BrowsingLocation({
   const [detailBlocked, setDetailBlocked] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [copyingReport, setCopyingReport] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
   const request = useRef(0);
   const resolution = useRef<AbortController | null>(null);
   const choosingGPS = useRef(false);
@@ -339,6 +343,7 @@ export function BrowsingLocation({
             onPress={async () => {
               Keyboard.dismiss();
               choosingGPS.current = true;
+              setReportCopied(false);
               await requestLocation();
             }}
             style={styles.gps}
@@ -360,6 +365,35 @@ export function BrowsingLocation({
               >
                 <Text style={{ color: '#008236', fontWeight: '600' }}>
                   Open location settings
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={copyingReport}
+                onPress={async () => {
+                  setCopyingReport(true);
+                  try {
+                    const report = await collectLocationDiagnostics();
+                    await Clipboard.setStringAsync(
+                      JSON.stringify(report, null, 2),
+                    );
+                    setReportCopied(true);
+                  } catch {
+                    setNotice(
+                      'Could not copy the location report. Please try again.',
+                    );
+                  } finally {
+                    setCopyingReport(false);
+                  }
+                }}
+                style={{ minHeight: 44, justifyContent: 'center' }}
+              >
+                <Text style={{ color: '#008236', fontWeight: '600' }}>
+                  {copyingReport
+                    ? 'Preparing report…'
+                    : reportCopied
+                      ? 'Location report copied'
+                      : 'Copy location report'}
                 </Text>
               </Pressable>
             </View>

@@ -1,3 +1,8 @@
+import {
+  beginLocationTrace,
+  traceLocation,
+  safeLocationError,
+} from "../location-diagnostic-trace";
 /** Location enhances browsing; it never gates navigation. */
 import * as Location from "expo-location";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
@@ -15,6 +20,7 @@ import {
   getLocationAccess,
   getPositionForBrowsing,
   withLocationTimeout,
+  locationFailureMessage,
   type LocationPermissionStatus,
 } from "../locationAccess";
 
@@ -66,7 +72,7 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] =
     useState<LocationPermissionStatus>("undetermined");
-  const inFlight = useRef(false);
+  const inFlight = useRef<{ interactive: boolean } | null>(null);
 
   /**
    * Get current position
@@ -112,7 +118,7 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
         return userLocation;
       } catch (err: any) {
         console.error("Error getting current position:", err);
-        throw new Error(err.message || "Failed to get current location");
+        throw err;
       }
     },
     [],
@@ -121,53 +127,78 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
   const updateLocation = useCallback(
     async (allowPrompt: boolean) => {
       if (
-        inFlight.current ||
+        (inFlight.current && (!allowPrompt || inFlight.current.interactive)) ||
         (!allowPrompt && store.get(locationAtom)?.source === "manual")
       )
         return;
+      const operation = { interactive: allowPrompt };
       const revision = store.get(locationRevisionAtom);
       const commit = (value: UserLocation) => {
-        if (store.get(locationRevisionAtom) !== revision) return;
+        if (
+          inFlight.current !== operation ||
+          store.get(locationRevisionAtom) !== revision
+        )
+          return;
         if (allowPrompt && value) select(value);
         else if (store.get(locationAtom)?.source !== "manual")
           setLocation(value);
       };
-      inFlight.current = true;
+      inFlight.current = operation;
       setIsLoading(true);
       setError(null);
       try {
         const access = await getLocationAccess(allowPrompt);
+        if (inFlight.current !== operation) return;
+        if (allowPrompt)
+          traceLocation("access_checked", {
+            status: access.status,
+            available: access.available,
+          });
         setPermissionStatus(access.status);
         if (!access.available) {
           commit(null);
           if (allowPrompt) setError(access.message);
           return;
         }
+        const current = store.get(locationAtom);
+        if (
+          !allowPrompt &&
+          current?.source === "gps" &&
+          Date.now() - current.timestamp < 60000
+        )
+          return;
         const nextLocation = await getCurrentPosition(allowPrompt);
         // Permission/services may have changed while GPS or geocoding was pending.
         const latest = await getLocationAccess(false);
+        if (inFlight.current !== operation) return;
         setPermissionStatus(latest.status);
+        if (allowPrompt)
+          traceLocation("final_access_check", {
+            status: latest.status,
+            available: latest.available,
+          });
         commit(latest.available ? nextLocation : null);
         if (!latest.available && allowPrompt) setError(latest.message);
       } catch (err: any) {
+        if (allowPrompt) traceLocation("request_error", safeLocationError(err));
         commit(null);
-        if (allowPrompt)
-          setError(
-            "Current location is unavailable. You can continue browsing or choose another browsing area.",
-          );
+        if (allowPrompt && inFlight.current === operation)
+          setError(locationFailureMessage(err));
         console.error("Location error:", err);
       } finally {
-        inFlight.current = false;
-        setIsLoading(false);
+        if (inFlight.current === operation) {
+          inFlight.current = null;
+          setIsLoading(false);
+        }
       }
     },
     [getCurrentPosition, setLocation, select, store],
   );
 
-  const requestLocation = useCallback(
-    () => updateLocation(true),
-    [updateLocation],
-  );
+  const requestLocation = useCallback(() => {
+    beginLocationTrace();
+    return updateLocation(true);
+  }, [updateLocation]);
   const refreshLocation = useCallback(
     () => updateLocation(false),
     [updateLocation],
@@ -176,7 +207,9 @@ export function useLocation(autoRequest: boolean = true): UseLocationReturn {
     try {
       if (
         Platform.OS === "android" &&
-        !(await Location.hasServicesEnabledAsync())
+        ((await Location.getForegroundPermissionsAsync()).status ===
+          "granted" ||
+          !(await Location.hasServicesEnabledAsync()))
       ) {
         await Linking.sendIntent("android.settings.LOCATION_SOURCE_SETTINGS");
       } else await Linking.openSettings();

@@ -44,6 +44,12 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "location-diagnostics": {
+      "extends": "release-validation",
+      "android": {
+        "gradleCommand": ":app:assembleRelease -Pandroid.enableMinifyInReleaseBuilds=false -Pandroid.enableShrinkResourcesInReleaseBuilds=false"
+      }
     }
   },
   "submit": {
