@@ -88,3 +88,35 @@ test('on-device report includes permissions and provider state but excludes hist
   assert.equal(report.permission.secret, undefined);
   assert.ok(!JSON.stringify(report).includes('6.1234'));
 });
+
+test('synchronous native inspection failures still produce a readable support report', async () => {
+  const api = load('lib/location-diagnostics.ts', {
+    'expo-location': {
+      getForegroundPermissionsAsync() {
+        throw Object.assign(Error('Permission bridge failed'), {
+          code: 'ERR_BRIDGE',
+        });
+      },
+      getProviderStatusAsync() {
+        throw Error('Provider bridge failed');
+      },
+    },
+    'expo-application': {
+      nativeApplicationVersion: '1.0.1',
+      nativeBuildVersion: '17',
+      applicationId: 'com.savemymeal.app',
+    },
+    'expo-constants': { default: { executionEnvironment: 'standalone' } },
+    'react-native': {
+      AppState: { currentState: 'active' },
+      Platform: { OS: 'android', Version: 36 },
+    },
+    './location-diagnostic-trace': trace,
+    './locationAccess': { withLocationTimeout: (promise) => promise },
+  });
+  const report = await api.collectLocationDiagnostics();
+  assert.equal(report.permission.code, 'ERR_BRIDGE');
+  assert.equal(report.providers.message, 'Provider bridge failed');
+  assert.ok(report.trace);
+  assert.equal(report.buildNumber, '17');
+});

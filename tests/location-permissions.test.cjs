@@ -72,7 +72,7 @@ function fixture(status = 'granted', services = true) {
           state.removes = (state.removes || 0) + 1;
         },
       };
-      if (state.failGPS) throw new Error('GPS unavailable');
+      if (state.failGPS || state.failWatch) throw new Error('GPS unavailable');
       if (state.lateRegistration)
         return new Promise((resolve) => {
           state.finishRegistration = () => resolve(subscription);
@@ -90,7 +90,7 @@ function fixture(status = 'granted', services = true) {
     },
     getCurrentPositionAsync: async () => {
       state.positions++;
-      if (state.failGPS) throw new Error('GPS unavailable');
+      if (state.failGPS || state.failSingle) throw new Error('GPS unavailable');
       if (state.hangGPS) return new Promise(() => {});
       return { coords: { latitude: 6.5, longitude: 3.4 }, timestamp: 123 };
     },
@@ -103,13 +103,21 @@ function fixture(status = 'granted', services = true) {
   };
   const access = load('lib/locationAccess.ts', {
     'expo-location': native,
-    './location-diagnostic-trace': { traceLocation() {}, safeLocationError: error => ({ message: String(error) }), locationShape: () => ({}) },
+    './location-diagnostic-trace': {
+      traceLocation() {},
+      safeLocationError: (error) => ({ message: String(error) }),
+      locationShape: () => ({}),
+    },
     'react-native': { Platform: platform },
   });
   const hook = load('lib/hooks/useLocation.ts', {
     'expo-location': native,
     '../locationAccess': access,
-    '../location-diagnostic-trace': { beginLocationTrace() {}, traceLocation() {}, safeLocationError: error => ({ message: String(error) }) },
+    '../location-diagnostic-trace': {
+      beginLocationTrace() {},
+      traceLocation() {},
+      safeLocationError: (error) => ({ message: String(error) }),
+    },
     '../atoms/location': {
       locationAtom: 'location',
       locationReadyAtom: 'ready',
@@ -350,7 +358,7 @@ test('Android gets an active fix despite transient provider unavailability and s
   assert.equal(state.location.coords.latitude, 6.5);
   assert.equal(state.watches, 1);
   assert.equal(state.removes, 1);
-  assert.equal(state.watchOptions.accuracy, 4);
+  assert.equal(state.watchOptions.accuracy, 3);
 });
 test('simultaneous Android consumers share one subscription', async () => {
   const { state, access } = fixture();
@@ -366,6 +374,7 @@ test('timed-out Android subscription is removed even when registration completes
   const { state, access } = fixture();
   state.platform = 'android';
   state.lateRegistration = true;
+  state.failSingle = true;
   await assert.rejects(access.getPositionForBrowsing(true, 5), /timed out/);
   state.finishRegistration();
   await flush();
@@ -403,4 +412,13 @@ test('explicit Android action is not swallowed by a background location request'
   });
   await background;
   assert.equal(state.location.coords.latitude, 6.5);
+});
+
+test('Android can recover with a one-shot position when subscription registration fails', async () => {
+  const { state, access } = fixture();
+  state.platform = 'android';
+  state.failWatch = true;
+  const position = await access.getPositionForBrowsing(true);
+  assert.equal(position.coords.latitude, 6.5);
+  assert.equal(state.watches, 1);
 });

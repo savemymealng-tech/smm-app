@@ -113,9 +113,8 @@ function watchAndroidPosition(
     if (allowPrompt) traceLocation('watch_start');
     Location.watchPositionAsync(
       {
-        accuracy: allowPrompt
-          ? Location.Accuracy.High
-          : Location.Accuracy.Balanced,
+        // Browsing supports approximate permission and does not need a navigation-grade fix.
+        accuracy: Location.Accuracy.Balanced,
         mayShowUserSettingsDialog: allowPrompt,
         timeInterval: 1000,
         distanceInterval: 0,
@@ -166,6 +165,23 @@ export function getPositionForBrowsing(
         throw new Error('Location provider returned invalid coordinates');
       return position;
     } catch (error) {
+      if (Platform.OS === 'android' && allowPrompt) {
+        // Some providers fail to deliver subscription events but still support a one-shot fix.
+        try {
+          traceLocation('single_fix_start');
+          const position = await withLocationTimeout(
+            Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              mayShowUserSettingsDialog: false,
+            }),
+            Math.min(timeoutMs, 6000),
+          );
+          traceLocation('single_fix_result', locationShape(position));
+          if (validPosition(position)) return position;
+        } catch (singleError) {
+          traceLocation('single_fix_error', safeLocationError(singleError));
+        }
+      }
       try {
         // Android approximate permission often provides a fix less precise than 500m.
         const accuracy = Platform.OS === 'android' ? 5000 : 500;

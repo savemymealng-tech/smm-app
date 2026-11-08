@@ -11,8 +11,14 @@ import { withLocationTimeout } from './locationAccess';
 /** On-device support report: no coordinates, addresses, tokens, or search history. */
 export async function collectLocationDiagnostics() {
   const [permission, providers] = await Promise.allSettled([
-    withLocationTimeout(Location.getForegroundPermissionsAsync(), 3000),
-    withLocationTimeout(Location.getProviderStatusAsync(), 3000),
+    withLocationTimeout(
+      Promise.resolve().then(() => Location.getForegroundPermissionsAsync()),
+      3000,
+    ),
+    withLocationTimeout(
+      Promise.resolve().then(() => Location.getProviderStatusAsync()),
+      3000,
+    ),
   ]);
   return {
     report: 'smm-location-v1',

@@ -103,7 +103,86 @@ test('markdown labels agree for numeric/string API prices and reject missing or 
     assert.equal(d.hasDiscount, true);
     assert.equal(d.label, '29% off');
   }
-  for (const original of [null, undefined, '', 0, 'invalid', 2000, 2500, '2500.00'])
+  for (const original of [
+    null,
+    undefined,
+    '',
+    0,
+    'invalid',
+    2000,
+    2500,
+    '2500.00',
+  ])
     assert.equal(productDiscount(2500, original).hasDiscount, false);
   assert.equal(productDiscount(99.9, 100).label, '<1% off');
+});
+
+test('pickup availability supports pickup-only and both methods, but blocks delivery-only', () => {
+  const { pickupUnavailableReason } = load('lib/product-display.ts');
+  const base = {
+    is_available: true,
+    quantity_available: 5,
+    expiry_date: null,
+    pickup_start_time: '09:00',
+    pickup_end_time: '18:00',
+  };
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: true,
+      available_for_delivery: true,
+    }),
+    null,
+  );
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: true,
+      available_for_delivery: false,
+    }),
+    null,
+  );
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: false,
+      available_for_delivery: true,
+    }),
+    'Not available for pickup',
+  );
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: false,
+      available_for_delivery: false,
+    }),
+    'Currently unavailable',
+  );
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: true,
+      quantity_available: 0,
+    }),
+    'Out of stock',
+  );
+  assert.equal(
+    pickupUnavailableReason({
+      ...base,
+      available_for_pickup: true,
+      is_available: false,
+    }),
+    'Currently unavailable',
+  );
+  assert.equal(
+    pickupUnavailableReason(
+      {
+        ...base,
+        available_for_pickup: true,
+        expiry_date: '2026-01-01T00:00:00Z',
+      },
+      Date.parse('2026-01-02T00:00:00Z'),
+    ),
+    'This product has expired',
+  );
 });

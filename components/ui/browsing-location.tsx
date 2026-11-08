@@ -1,4 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
+import { withLocationTimeout } from '@/lib/locationAccess';
+import {
+  getLocationTrace,
+  safeLocationError,
+} from '@/lib/location-diagnostic-trace';
 import { collectLocationDiagnostics } from '@/lib/location-diagnostics';
 import { useState, useRef, useEffect } from 'react';
 import { useSetAtom, useAtomValue } from 'jotai';
@@ -9,6 +14,7 @@ import {
   Keyboard,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   View,
@@ -52,6 +58,7 @@ export function BrowsingLocation({
   const [notice, setNotice] = useState('');
   const [copyingReport, setCopyingReport] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
+  const [reportText, setReportText] = useState('');
   const request = useRef(0);
   const resolution = useRef<AbortController | null>(null);
   const choosingGPS = useRef(false);
@@ -297,257 +304,370 @@ export function BrowsingLocation({
       <BottomSheet
         visible={open}
         onClose={close}
-        title="Choose your area"
-        description="Find products and pickup vendors in another location."
+        title={reportText ? 'Location report' : 'Choose your area'}
+        description={
+          reportText
+            ? 'Share this report to help investigate the location issue.'
+            : 'Find products and pickup vendors in another location.'
+        }
       >
         <View style={styles.content}>
-          <View style={styles.inputRow}>
-            <IconSymbol name="magnifyingglass" size={18} color="#66736c" />
-            <TextInput
-              accessibilityLabel="Search city, area or place"
-              value={query}
-              onChangeText={(text) => {
-                setQuery(text);
-                setExpandSearch(false);
-                setNotice('');
-              }}
-              editable={!resolving && !isLoading}
-              onSubmitEditing={() => Keyboard.dismiss()}
-              placeholder="Search city, area or place"
-              placeholderTextColor="#66736c"
-              returnKeyType="search"
-              autoCorrect={false}
-              maxLength={150}
-              style={styles.input}
-            />
-            {searching ? (
-              <ActivityIndicator color="#008236" size="small" />
-            ) : query.length > 0 ? (
+          {reportText ? (
+            <View style={{ flex: 1, minHeight: 0, gap: 8 }}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Clear area search"
-                disabled={resolving}
                 onPress={() => {
-                  setQuery('');
+                  setReportText('');
                   setNotice('');
                 }}
-                style={styles.clear}
-              >
-                <Text style={{ fontSize: 20, color: '#66736c' }}>×</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <Pressable
-            disabled={isLoading || resolving}
-            accessibilityRole="button"
-            onPress={async () => {
-              Keyboard.dismiss();
-              choosingGPS.current = true;
-              setReportCopied(false);
-              await requestLocation();
-            }}
-            style={styles.gps}
-          >
-            <IconSymbol name="location.fill" size={18} color="#008236" />
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#008236' }}>
-              {isLoading ? 'Finding your location…' : 'Use my current location'}
-            </Text>
-          </Pressable>
-          {!!error && (
-            <View style={{ gap: 4 }}>
-              <Text accessibilityRole="alert" style={styles.error}>
-                {error}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void openSettings()}
                 style={{ minHeight: 44, justifyContent: 'center' }}
               >
                 <Text style={{ color: '#008236', fontWeight: '600' }}>
-                  Open location settings
+                  Back to location search
                 </Text>
               </Pressable>
+              <Text style={styles.hint}>
+                This report contains app and location-provider diagnostics,
+                without your coordinates or search history. Press and hold the
+                text to copy.
+              </Text>
+              <Text accessibilityLiveRegion="polite" style={styles.hint}>
+                {copyingReport
+                  ? 'Copying report…'
+                  : reportCopied
+                    ? 'Location report copied'
+                    : 'You can share the report below.'}
+              </Text>
+              {!!notice && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {notice}
+                </Text>
+              )}
               <Pressable
                 accessibilityRole="button"
-                disabled={copyingReport}
                 onPress={async () => {
-                  setCopyingReport(true);
                   try {
-                    const report = await collectLocationDiagnostics();
-                    await Clipboard.setStringAsync(
-                      JSON.stringify(report, null, 2),
-                    );
-                    setReportCopied(true);
+                    await Share.share({
+                      message: reportText,
+                      title: 'SMM location report',
+                    });
                   } catch {
                     setNotice(
-                      'Could not copy the location report. Please try again.',
+                      'Sharing failed. Press and hold the report text to copy it.',
                     );
-                  } finally {
-                    setCopyingReport(false);
                   }
                 }}
                 style={{ minHeight: 44, justifyContent: 'center' }}
               >
                 <Text style={{ color: '#008236', fontWeight: '600' }}>
-                  {copyingReport
-                    ? 'Preparing report…'
-                    : reportCopied
-                      ? 'Location report copied'
-                      : 'Copy location report'}
+                  Share location report
                 </Text>
               </Pressable>
+              <ScrollView
+                style={{ flex: 1, backgroundColor: '#f3f5f4', borderRadius: 8 }}
+              >
+                <Text
+                  selectable
+                  style={{ fontSize: 11, color: '#17251d', padding: 10 }}
+                >
+                  {reportText}
+                </Text>
+              </ScrollView>
             </View>
-          )}
-          {!!notice && (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {notice}
-            </Text>
-          )}
-          {resolving && <ActivityIndicator color="#008236" />}
-          {(Date.now() < fallbackUntil || search.isError) && (
-            <Text style={styles.hint}>
-              Showing recent searches and SMM locations. Map search is
-              temporarily unavailable.
-            </Text>
-          )}
-          {localSearch.isError && (
-            <Text style={styles.hint}>
-              SMM locations could not load. Recent locations and current
-              location are still available.
-            </Text>
-          )}
-          <ScrollView
-            style={{ flex: 1, minHeight: 0 }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={{ paddingBottom: 8 }}
-          >
-            {query.trim().length > 0 && query.trim().length < 3 && (
-              <Text style={styles.hint}>
-                Type 3 characters to search more places.
-              </Text>
-            )}
-            {recentResults.length > 0 && (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={styles.hint}>Recent searches</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear recent location searches"
-                  onPress={() => {
-                    setRecent([]);
-                    void saveRecentAreas([], historyScope);
+          ) : (
+            <>
+              <View style={styles.inputRow}>
+                <IconSymbol name="magnifyingglass" size={18} color="#66736c" />
+                <TextInput
+                  accessibilityLabel="Search city, area or place"
+                  value={query}
+                  onChangeText={(text) => {
+                    setQuery(text);
+                    setExpandSearch(false);
+                    setNotice('');
                   }}
-                  style={{ minHeight: 44, justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#008236', fontSize: 12 }}>
-                    Clear history
-                  </Text>
-                </Pressable>
+                  editable={!resolving && !isLoading}
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  placeholder="Search city, area or place"
+                  placeholderTextColor="#66736c"
+                  returnKeyType="search"
+                  autoCorrect={false}
+                  maxLength={150}
+                  style={styles.input}
+                />
+                {searching ? (
+                  <ActivityIndicator color="#008236" size="small" />
+                ) : query.length > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear area search"
+                    disabled={resolving}
+                    onPress={() => {
+                      setQuery('');
+                      setNotice('');
+                    }}
+                    style={styles.clear}
+                  >
+                    <Text style={{ fontSize: 20, color: '#66736c' }}>×</Text>
+                  </Pressable>
+                ) : null}
               </View>
-            )}
-            {recentResults.map((area) => (
               <Pressable
-                key={`recent:${area.id}`}
+                disabled={isLoading || resolving}
                 accessibilityRole="button"
-                disabled={
-                  resolving ||
-                  isLoading ||
-                  (detailBlocked &&
-                    !!area.place_id &&
-                    !Number.isFinite(area.latitude))
-                }
-                onPress={() => void choose(area)}
-                style={styles.result}
+                onPress={async () => {
+                  Keyboard.dismiss();
+                  choosingGPS.current = true;
+                  setReportCopied(false);
+                  setReportText('');
+                  await requestLocation();
+                }}
+                style={styles.gps}
               >
+                <IconSymbol name="location.fill" size={18} color="#008236" />
                 <Text
-                  style={{ fontSize: 14, fontWeight: '600', color: '#17251d' }}
+                  style={{ fontSize: 14, fontWeight: '600', color: '#008236' }}
                 >
-                  {area.searchText}
-                </Text>
-                <Text style={styles.hint}>
-                  Recent search
-                  {area.source === 'google' ? ' · Google Maps' : ''}
-                  {area.place_id && !Number.isFinite(area.latitude)
-                    ? ' · Refresh required'
-                    : ''}
+                  {isLoading
+                    ? 'Finding your location…'
+                    : 'Use my current location'}
                 </Text>
               </Pressable>
-            ))}
-            {!!results.length && <Text style={styles.hint}>SMM locations</Text>}
-            {results.map((area) => (
-              <Pressable
-                accessibilityRole="button"
-                disabled={resolving || isLoading}
-                key={area.id}
-                onPress={() => void choose(area)}
-                style={styles.result}
-              >
-                <Text
-                  style={{ fontSize: 14, fontWeight: '600', color: '#17251d' }}
-                >
-                  {area.name}
-                </Text>
-                <Text style={styles.hint}>
-                  {area.address || 'Browse pickup in this city'}
-                </Text>
-              </Pressable>
-            ))}
-            {!!googleResults.length && (
-              <Text style={styles.hint}>Google Maps</Text>
-            )}
-            {googleResults.map((area) => (
-              <Pressable
-                accessibilityRole="button"
-                disabled={resolving || isLoading || detailBlocked}
-                key={`google:${area.id}`}
-                onPress={() => void choose(area)}
-                style={styles.result}
-              >
-                <Text
-                  style={{ fontSize: 14, fontWeight: '600', color: '#17251d' }}
-                >
-                  {area.name}
-                </Text>
-                <Text style={styles.hint}>Browse pickup near this place</Text>
-              </Pressable>
-            ))}
-            {!needsGoogle &&
-              query.trim().length >= 3 &&
-              Date.now() >= fallbackUntil && (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setExpandSearch(true)}
-                  style={{ minHeight: 44, justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#008236', fontSize: 13 }}>
-                    Search more places on Google Maps
+              {!!error && (
+                <View style={{ gap: 4 }}>
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    {error}
                   </Text>
-                </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void openSettings()}
+                    style={{ minHeight: 44, justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: '#008236', fontWeight: '600' }}>
+                      Open location settings
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={copyingReport}
+                    onPress={async () => {
+                      setCopyingReport(true);
+                      let text: string;
+                      try {
+                        text = JSON.stringify(
+                          await collectLocationDiagnostics(),
+                          null,
+                          2,
+                        );
+                      } catch (reportError) {
+                        // Even a failed native permission/provider bridge must leave a readable trace.
+                        text = JSON.stringify(
+                          {
+                            report: 'smm-location-v1',
+                            collectionError: safeLocationError(reportError),
+                            trace: getLocationTrace(),
+                          },
+                          null,
+                          2,
+                        );
+                      }
+                      setReportText(text);
+                      try {
+                        const copied = await withLocationTimeout(
+                          Clipboard.setStringAsync(text),
+                          3000,
+                        );
+                        if (!copied)
+                          throw new Error('Clipboard rejected the report');
+                        setReportCopied(true);
+                      } catch {
+                        setNotice(
+                          'Automatic copy failed. Share the report below, or press and hold its text to copy.',
+                        );
+                      } finally {
+                        setCopyingReport(false);
+                      }
+                    }}
+                    style={{ minHeight: 44, justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: '#008236', fontWeight: '600' }}>
+                      {copyingReport
+                        ? 'Preparing report…'
+                        : reportCopied
+                          ? 'Location report copied'
+                          : 'View / copy location report'}
+                    </Text>
+                  </Pressable>
+                </View>
               )}
-            {searching && (
-              <Text style={styles.hint}>Searching more places…</Text>
-            )}
-            {!!query.trim() &&
-              !searching &&
-              !resolving &&
-              !localSearch.isFetching &&
-              !results.length &&
-              !googleResults.length &&
-              !recentResults.length && (
-                <Text style={styles.hint}>
-                  No matching locations. Try a nearby city or another place.
+              {!!notice && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {notice}
                 </Text>
               )}
-          </ScrollView>
-          <Text style={styles.footer}>
-            Pickup only. Collect your order at the vendor’s location.
-          </Text>
+              {resolving && <ActivityIndicator color="#008236" />}
+              {(Date.now() < fallbackUntil || search.isError) && (
+                <Text style={styles.hint}>
+                  Showing recent searches and SMM locations. Map search is
+                  temporarily unavailable.
+                </Text>
+              )}
+              {localSearch.isError && (
+                <Text style={styles.hint}>
+                  SMM locations could not load. Recent locations and current
+                  location are still available.
+                </Text>
+              )}
+              <ScrollView
+                style={{ flex: 1, minHeight: 0 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                contentContainerStyle={{ paddingBottom: 8 }}
+              >
+                {query.trim().length > 0 && query.trim().length < 3 && (
+                  <Text style={styles.hint}>
+                    Type 3 characters to search more places.
+                  </Text>
+                )}
+                {recentResults.length > 0 && (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={styles.hint}>Recent searches</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear recent location searches"
+                      onPress={() => {
+                        setRecent([]);
+                        void saveRecentAreas([], historyScope);
+                      }}
+                      style={{ minHeight: 44, justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: '#008236', fontSize: 12 }}>
+                        Clear history
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+                {recentResults.map((area) => (
+                  <Pressable
+                    key={`recent:${area.id}`}
+                    accessibilityRole="button"
+                    disabled={
+                      resolving ||
+                      isLoading ||
+                      (detailBlocked &&
+                        !!area.place_id &&
+                        !Number.isFinite(area.latitude))
+                    }
+                    onPress={() => void choose(area)}
+                    style={styles.result}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: '#17251d',
+                      }}
+                    >
+                      {area.searchText}
+                    </Text>
+                    <Text style={styles.hint}>
+                      Recent search
+                      {area.source === 'google' ? ' · Google Maps' : ''}
+                      {area.place_id && !Number.isFinite(area.latitude)
+                        ? ' · Refresh required'
+                        : ''}
+                    </Text>
+                  </Pressable>
+                ))}
+                {!!results.length && (
+                  <Text style={styles.hint}>SMM locations</Text>
+                )}
+                {results.map((area) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={resolving || isLoading}
+                    key={area.id}
+                    onPress={() => void choose(area)}
+                    style={styles.result}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: '#17251d',
+                      }}
+                    >
+                      {area.name}
+                    </Text>
+                    <Text style={styles.hint}>
+                      {area.address || 'Browse pickup in this city'}
+                    </Text>
+                  </Pressable>
+                ))}
+                {!!googleResults.length && (
+                  <Text style={styles.hint}>Google Maps</Text>
+                )}
+                {googleResults.map((area) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={resolving || isLoading || detailBlocked}
+                    key={`google:${area.id}`}
+                    onPress={() => void choose(area)}
+                    style={styles.result}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: '#17251d',
+                      }}
+                    >
+                      {area.name}
+                    </Text>
+                    <Text style={styles.hint}>
+                      Browse pickup near this place
+                    </Text>
+                  </Pressable>
+                ))}
+                {!needsGoogle &&
+                  query.trim().length >= 3 &&
+                  Date.now() >= fallbackUntil && (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setExpandSearch(true)}
+                      style={{ minHeight: 44, justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: '#008236', fontSize: 13 }}>
+                        Search more places on Google Maps
+                      </Text>
+                    </Pressable>
+                  )}
+                {searching && (
+                  <Text style={styles.hint}>Searching more places…</Text>
+                )}
+                {!!query.trim() &&
+                  !searching &&
+                  !resolving &&
+                  !localSearch.isFetching &&
+                  !results.length &&
+                  !googleResults.length &&
+                  !recentResults.length && (
+                    <Text style={styles.hint}>
+                      No matching locations. Try a nearby city or another place.
+                    </Text>
+                  )}
+              </ScrollView>
+              <Text style={styles.footer}>
+                Pickup only. Collect your order at the vendor’s location.
+              </Text>
+            </>
+          )}
         </View>
       </BottomSheet>
     </>

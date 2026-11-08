@@ -40,3 +40,28 @@ export function productDiscount(price: unknown, originalPrice: unknown) {
     label: percent < 1 ? '<1% off' : `${percent}% off`,
   };
 }
+
+/** Pickup-only storefront: delivery support never disables an available pickup option. */
+export function pickupUnavailableReason(
+  product: {
+    is_available?: boolean;
+    available_for_pickup?: boolean;
+    available_for_delivery?: boolean;
+    quantity_available: number;
+    expiry_date?: string | null;
+  },
+  now = Date.now(),
+): string | null {
+  if (product.is_available === false) return 'Currently unavailable';
+  if (!(Number(product.quantity_available) > 0)) return 'Out of stock';
+  const expiry = product.expiry_date
+    ? new Date(product.expiry_date).getTime()
+    : NaN;
+  if (Number.isFinite(expiry) && expiry <= now)
+    return 'This product has expired';
+  if (product.available_for_pickup === false)
+    return product.available_for_delivery
+      ? 'Not available for pickup'
+      : 'Currently unavailable';
+  return null;
+}

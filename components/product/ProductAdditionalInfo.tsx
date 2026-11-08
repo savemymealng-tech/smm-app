@@ -10,11 +10,8 @@ interface ProductAdditionalInfoProps {
 }
 
 export function ProductAdditionalInfo({ product }: ProductAdditionalInfoProps) {
-  // Meal type has expiry_date, quantity_available, weight, delivery_fee, available_for_pickup, available_for_delivery, pickup_start_time, pickup_end_time, pickup_day, delivery_time_minutes
   const hasAdditionalInfo =
-    product.quantity_available > 0 ||
-    product.available_for_delivery ||
-    product.available_for_pickup;
+    product.quantity_available > 0 || product.available_for_pickup;
 
   if (!hasAdditionalInfo) {
     return null;
@@ -25,30 +22,6 @@ export function ProductAdditionalInfo({ product }: ProductAdditionalInfoProps) {
       <Text className="text-lg font-bold text-gray-900 mb-4">
         Additional Information
       </Text>
-
-      {/* Delivery/Pickup Information */}
-      {/* {product.available_for_delivery && (
-        <View className="mb-4 pb-4 border-b border-gray-100">
-          <View className="flex-row items-center mb-2">
-            <IconSymbol name="shippingbox.fill" size={16} color="#008236" />
-            <Text className="font-semibold text-gray-900 ml-2">
-              Available for Delivery
-            </Text>
-          </View>
-          <View className="ml-6">
-            {product.delivery_fee && (
-              <Text className="text-gray-700 mb-1">
-                Delivery Fee: ₦{parseFloat(product.delivery_fee).toFixed(0)}
-              </Text>
-            )}
-            {product.delivery_time_minutes && (
-              <Text className="text-gray-700">
-                Estimated Delivery: {product.delivery_time_minutes} minutes
-              </Text>
-            )}
-          </View>
-        </View>
-      )} */}
 
       {product.available_for_pickup && (
         <View className="mb-4 pb-4 border-b border-gray-100">

@@ -1,4 +1,7 @@
-import { productDiscount } from "@/lib/product-display";
+import {
+  productDiscount,
+  pickupUnavailableReason,
+} from "@/lib/product-display";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useAtomValue } from "jotai";
@@ -25,12 +28,7 @@ export function ProductCard({
   const price = Number(item.price),
     original = Number(item.original_price);
   const discount = productDiscount(item.price, item.original_price);
-  const expiry = item.expiry_date ? new Date(item.expiry_date).getTime() : NaN;
-  const unavailable =
-    item.is_available === false ||
-    item.quantity_available <= 0 ||
-    (Number.isFinite(expiry) && expiry < Date.now()) ||
-    item.available_for_pickup === false;
+  const unavailable = !!pickupUnavailableReason(item);
   const rating = Number(item.vendor?.rating);
   const hasRating = Number.isFinite(rating) && rating > 0 && rating <= 5;
   const lowStock = item.quantity_available > 0 && item.quantity_available <= 5;

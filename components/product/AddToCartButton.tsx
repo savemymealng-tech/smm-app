@@ -6,6 +6,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { pickupUnavailableReason } from '@/lib/product-display';
 import { formatCurrency } from '@/lib/utils';
 import type { Meal } from '@/types/api';
 interface Props {
@@ -25,8 +26,9 @@ export function AddToCartButton({
   isLoading,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const unavailableReason = pickupUnavailableReason(product);
   const available =
-    product.is_available &&
+    !unavailableReason &&
     maxQuantity > 0 &&
     Number.isFinite(Number(product.price));
   return (
@@ -35,7 +37,7 @@ export function AddToCartButton({
         <Text style={styles.unavailable}>
           {maxQuantity <= 0 && product.quantity_available > 0
             ? 'All available units are already in your cart'
-            : 'Currently unavailable'}
+            : unavailableReason || 'Currently unavailable'}
         </Text>
       ) : (
         <View style={styles.row}>
