@@ -2,7 +2,7 @@
   "expo": {
     "name": "Savemymeal",
     "slug": "savemymeal",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "savemymeal",
@@ -142,7 +142,7 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "# Optional Stripe Issuing provisioning SDK is compileOnly and unused by SMM.\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivity$g\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Args\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Error\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider"
+            "extraProguardRules": "# Optional Stripe Issuing provisioning SDK is compileOnly and unused by SMM.\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivity$g\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Args\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Error\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter\n-dontwarn com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider\n\n# Expo SDK 54 converts native options using Kotlin reflection (RecordTypeConverter).\n# R8 full mode must retain Kotlin metadata and property annotations, not only record fields.\n-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod\n-keep class kotlin.Metadata { *; }\n-keep class expo.modules.kotlin.records.** { *; }\n# Keep reflectively constructed records, including options used by location and clipboard.\n-keep class * implements expo.modules.kotlin.records.Record { *; }"
           }
         }
       ],

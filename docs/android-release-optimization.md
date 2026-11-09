@@ -54,3 +54,13 @@ The retained diagnostics contain `configuration.txt`, `mapping.txt`, `resources.
 The release APK package is `com.savemymeal.app`, min SDK 24, target/compile SDK 36. Plugin regression tests, generated-native configuration checks, ESLint and whitespace checks passed. Automated end-to-end native device QA was not available in the build environment. After receiving the artifacts, the user confirmed they tested on Android and authorised committing the changes. Specific test cases and device details were not reported.
 
 Neither artifact was submitted to Play as part of this work. The user approved committing the source changes after their Android testing.
+
+## Native option decoding failure — 9 November 2026
+
+The Android device report (`smm-location-v1`, app 1.0.1/build 17, Android 35) confirms fine permission and enabled GPS/network providers. `watchPositionImplAsync`, `getCurrentPositionAsync`, and `getLastKnownPositionAsync` each reject their options with `ERR_UNEXPECTED`, a cast failure to `LocationOptions`/`LocationLastKnownOptions`, and a nested `NullPointerException`. This happens before a provider fix is requested; further permission changes or longer GPS timeouts cannot repair that conversion.
+
+The installed SDK 54 `RecordTypeConverter` reads `memberProperties`, runtime `@Field` property annotations, and `property.javaField` through Kotlin reflection. Existing Expo consumer rules keep record classes/members, but the app rules did not explicitly retain `kotlin.Metadata`. R8 full-mode metadata handling is therefore the leading release-only cause. The app now preserves Kotlin metadata, reflection attributes, and Expo's record conversion package while retaining minification, shrinking and optimisation for the rest of the application. This also protects native option records used by clipboard operations. No SDK upgrade or additional location permission is involved.
+
+Reference: https://developer.android.com/topic/performance/app-optimization/full-mode#kotlin-specific-metadata
+
+Validate using a new `release-validation` APK with R8 enabled. Confirm current location works after cold start, permission grant and app resume; try approximate permission too. If it fails, use View / copy location report and Share location report. Inspect the new mapping/configuration artifacts to confirm the keep rules are present. Native changes require a rebuilt binary; an OTA JavaScript update cannot install ProGuard rules. Automated configuration checks do not establish successful GPS operation on a physical device.
